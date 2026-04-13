@@ -1,0 +1,22 @@
+# Python 编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 密钥文件（不能传到 GitHub）
+*.pem
+*.key
+*.pub
+
+# 测试生成的二进制大文件
+*.bin
+*.enc
+*.dec
+
+# 虚拟环境
+venv/
+.venv/
+
+# 系统文件
+.DS_Store
+Thumbs.db
