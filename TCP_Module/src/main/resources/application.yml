@@ -1,0 +1,5 @@
+
+
+AuthenticationResult:
+ Succeed: "Authentication Passed"
+ Failed: "Authentication Failed"
