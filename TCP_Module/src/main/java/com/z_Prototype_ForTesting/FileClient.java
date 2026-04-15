@@ -108,7 +108,7 @@ public class FileClient {
         // [1字节类型][4字节文件名长度][N字节文件名][8字节文件大小]
         //
         // 这里分配的缓冲区容量 = 1 + 4 + 文件名字节数 + 8
-        ByteBuf startFrame = Unpooled.buffer(1 + 4 + fileNameBytes.length + 8);
+        ByteBuf startFrame = Unpooled.buffer(1 + 4 + fileNameBytes.length + 8);//startFrame才是最终要发送出去的字节流载体
         startFrame.writeByte(TYPE_START);
         startFrame.writeInt(fileNameBytes.length);
         startFrame.writeBytes(fileNameBytes);

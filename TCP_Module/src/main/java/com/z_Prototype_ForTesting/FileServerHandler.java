@@ -50,16 +50,18 @@ public class FileServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
     // 用于在结束时做一个最基础的完整性校验。
     private long receivedFileSize;
 
+    //接收并分发服务端收到的每一条完整协议
+    //相当于协议入口
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) throws Exception {
         // 每一帧消息的第 1 个字节固定表示“消息类型”。
-        byte type = msg.readByte();
+        byte type = msg.readByte();//这里就是读取控制信息（自定义数据包）
 
         // 根据类型分发到不同处理方法。
         switch (type) {
-            case TYPE_START -> handleStart(msg);
-            case TYPE_CHUNK -> handleChunk(msg);
-            case TYPE_END -> handleEnd(ctx);
+            case TYPE_START -> handleStart(msg);//表示开始传输文件
+            case TYPE_CHUNK -> handleChunk(msg);//表示这个是文件的内容块
+            case TYPE_END -> handleEnd(ctx);//表示文件上传完毕
             default -> throw new IllegalStateException("未知消息类型: " + type);
         }
     }
@@ -92,6 +94,7 @@ public class FileServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
         // 最终保存位置：uploads/文件名
         Path targetFile = uploadDir.resolve(fileName);
 
+        //创建一个文件，然后将接收到的数据块填入到这个文件里面
         // 以“创建/覆盖写入”的方式打开输出流：
         // CREATE：文件不存在则创建
         // TRUNCATE_EXISTING：文件已存在则先清空
@@ -155,6 +158,7 @@ public class FileServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
         ctx.writeAndFlush("SUCCESS\n").addListener(f -> ctx.close());
     }
 
+    //把客户端传过来的文件名“净化”成一个安全的纯文件名，避免它夹带目录路径。
     private String sanitizeFileName(String input) {
         // 只保留路径最后一级文件名，去掉目录部分。
         // 例如：
@@ -183,6 +187,7 @@ public class FileServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
         ctx.close();
     }
 
+    //安全的关闭文件输出流，并且在失败时不再往外抛异常
     private void closeStreamQuietly() {
         // 安静关闭：即使关闭过程本身抛异常，也不继续向外抛。
         // 这种写法常用于清理阶段，避免清理逻辑覆盖真正的业务异常。
