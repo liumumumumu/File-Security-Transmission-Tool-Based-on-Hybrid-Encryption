@@ -5,7 +5,7 @@ import com.protocol.Packet;
 
 public class ChallengePacket extends Packet
 {
-    private String challengeId;//服务器，可能同时处理多个challenge,并需要管理它们的状态
+    private String challengeId;//服务器可能同时处理多个challenge,并需要管理它们的状态，所以需要challengeId
     private String challenge;
 
     public ChallengePacket(String challenge, String challengeId) {

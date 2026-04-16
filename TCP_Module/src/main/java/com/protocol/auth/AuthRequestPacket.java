@@ -5,7 +5,7 @@ import com.protocol.Packet;
 
 public class AuthRequestPacket extends Packet
 {
-    private String publicKey;
+    private String publicKey;//请求登陆者的publickey，publickey可以由privatekey推导得出
     private String deviceId;//使用UUID标识用户的设备，逻辑设备ID，而不是硬件ID
 
     public AuthRequestPacket(String deviceId, String publicKey) {
