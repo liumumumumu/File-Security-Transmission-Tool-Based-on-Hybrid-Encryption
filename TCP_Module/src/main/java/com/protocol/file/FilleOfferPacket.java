@@ -8,7 +8,7 @@ public class FilleOfferPacket extends Packet
     private String transferId;//每次传输对应一个transferId。使用uuid生成
     private String senderPublicKey;
     private String receiverPublicKey;
-    private String encryptedSessionKey;
+    private String encryptedSessionKey;//发送方会先生成一个AES会话密钥，发送方用接收方的公钥对这个会话密钥进行加密，得到的就是 encryptedSessionKey。
     private String fileName;
     private long fileSize;
     private int totalBlocks;
