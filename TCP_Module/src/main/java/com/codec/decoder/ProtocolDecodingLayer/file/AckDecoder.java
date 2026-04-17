@@ -27,7 +27,7 @@ public class AckDecoder extends Decoder
         if (blockedIdLength != 4)
         {
             throw new IllegalStateException(
-                    "success field length must be 1, but got " + blockedIdLength
+                    "success field length must be 4, but got " + blockedIdLength
             );
         }
         int blockedId=in.readInt();

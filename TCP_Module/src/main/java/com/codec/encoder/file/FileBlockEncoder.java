@@ -24,7 +24,7 @@ public class FileBlockEncoder extends Encoder
 
         startFrame.writeByte(FBPacket.getMessageType());
 
-        byte[] transferIdBytes=FBPacket.getTransferId().getBytes(StandardCharsets.US_ASCII);
+        byte[] transferIdBytes=FBPacket.getTransferId().getBytes(StandardCharsets.UTF_8);
         startFrame.writeInt(transferIdBytes.length);
         startFrame.writeBytes(transferIdBytes);
 

@@ -8,7 +8,7 @@ import java.util.Arrays;
 public class FileBlockPacket extends Packet
 {
     private String transferId;
-    private int blockId;//数据块的缩影
+    private int blockId;//数据块的索引
     private byte[] nonce;//AES-GCM加密模式的核心，每次加密用的随机数（不能重复）；nonce 不是“秘密”，它是“必须公开的参数”，接收方需要用它来解密 (会话密钥)
     //用 sessionKey（原始字节） + nonce 加密原始块，得到cipherText, tag
     private byte[] ciphertext;//密文

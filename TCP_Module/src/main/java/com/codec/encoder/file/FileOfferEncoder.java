@@ -2,7 +2,7 @@ package com.codec.encoder.file;
 
 import com.codec.encoder.Encoder;
 import com.protocol.Packet;
-import com.protocol.file.FilleOfferPacket;
+import com.protocol.file.FileOfferPacket;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 
@@ -13,12 +13,12 @@ public class FileOfferEncoder extends Encoder
     @Override
     public ByteBuf encode(Packet packet)
     {
-        if(!(packet instanceof FilleOfferPacket))
+        if(!(packet instanceof FileOfferPacket))
         {
-            throw new IllegalArgumentException("Packet type mismatch; packet must be of type FilleOfferPacket");
+            throw new IllegalArgumentException("Packet type mismatch; packet must be of type FileOfferPacket");
         }
 
-        FilleOfferPacket FOPacket = (FilleOfferPacket)packet;
+        FileOfferPacket FOPacket = (FileOfferPacket)packet;
 
         ByteBuf startFrame= Unpooled.buffer();
         startFrame.writeByte(FOPacket.getMessageType());

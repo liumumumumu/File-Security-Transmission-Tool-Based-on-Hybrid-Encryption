@@ -3,7 +3,7 @@ package com.protocol.file;
 import com.protocol.MessageType;
 import com.protocol.Packet;
 
-public class FilleOfferPacket extends Packet
+public class FileOfferPacket extends Packet
 {
     private String transferId;//每次传输对应一个transferId。使用uuid生成
     private String senderPublicKey;
@@ -13,7 +13,7 @@ public class FilleOfferPacket extends Packet
     private long fileSize;
     private int totalBlocks;
 
-    public FilleOfferPacket(String encryptedSessionKey, String fileName, long fileSize, String receiverPublicKey, String senderPublicKey, int totalBlocks, String transferId) {
+    public FileOfferPacket(String encryptedSessionKey, String fileName, long fileSize, String receiverPublicKey, String senderPublicKey, int totalBlocks, String transferId) {
         this.encryptedSessionKey = encryptedSessionKey;
         this.fileName = fileName;
         this.fileSize = fileSize;
@@ -31,7 +31,7 @@ public class FilleOfferPacket extends Packet
 
     @Override
     public String toString() {
-        return "FilleOfferPacket{" +
+        return "FileOfferPacket{" +
                 "encryptedSessionKey='" + encryptedSessionKey + '\'' +
                 ", transferId='" + transferId + '\'' +
                 ", senderPublicKey='" + senderPublicKey + '\'' +
