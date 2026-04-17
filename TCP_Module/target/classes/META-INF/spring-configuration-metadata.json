@@ -1,0 +1,67 @@
+{
+  "groups": [
+    {
+      "name": "authentication-result",
+      "type": "com.common.config.AuthenticationResultProperties",
+      "sourceType": "com.common.config.AuthenticationResultProperties"
+    },
+    {
+      "name": "client",
+      "type": "com.common.config.ClientProperties",
+      "sourceType": "com.common.config.ClientProperties"
+    },
+    {
+      "name": "crypto-service",
+      "type": "com.common.config.CryptoServiceProperties",
+      "sourceType": "com.common.config.CryptoServiceProperties"
+    },
+    {
+      "name": "server.tcp",
+      "type": "com.common.config.ServerProperties",
+      "sourceType": "com.common.config.ServerProperties"
+    }
+  ],
+  "properties": [
+    {
+      "name": "authentication-result.failed",
+      "type": "java.lang.String",
+      "sourceType": "com.common.config.AuthenticationResultProperties"
+    },
+    {
+      "name": "authentication-result.succeed",
+      "type": "java.lang.String",
+      "sourceType": "com.common.config.AuthenticationResultProperties"
+    },
+    {
+      "name": "client.server-host",
+      "type": "java.lang.String",
+      "sourceType": "com.common.config.ClientProperties"
+    },
+    {
+      "name": "client.server-port",
+      "type": "java.lang.Integer",
+      "sourceType": "com.common.config.ClientProperties"
+    },
+    {
+      "name": "crypto-service.address",
+      "type": "java.lang.String",
+      "sourceType": "com.common.config.CryptoServiceProperties"
+    },
+    {
+      "name": "crypto-service.port",
+      "type": "java.lang.Integer",
+      "sourceType": "com.common.config.CryptoServiceProperties"
+    },
+    {
+      "name": "server.tcp.bind-host",
+      "type": "java.lang.String",
+      "sourceType": "com.common.config.ServerProperties"
+    },
+    {
+      "name": "server.tcp.bind-port",
+      "type": "java.lang.Integer",
+      "sourceType": "com.common.config.ServerProperties"
+    }
+  ],
+  "hints": []
+}
