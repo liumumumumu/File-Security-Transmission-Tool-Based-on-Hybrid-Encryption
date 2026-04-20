@@ -4,6 +4,7 @@ package com.z_Prototype_ForTesting;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -28,6 +29,7 @@ import java.nio.file.StandardOpenOption;
  * 这里是“一个连接上传一个文件”的最小模型。
  * 如果后续要支持一个连接上传多个文件，需要把状态管理再往前推进一层。
  */
+@Slf4j
 public class FileServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
 
     // 协议中的消息类型常量。
@@ -106,7 +108,7 @@ public class FileServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
                 StandardOpenOption.WRITE
         );
 
-        System.out.println("开始接收文件: " + fileName + ", 大小: " + expectedFileSize + " bytes");
+        log.info("开始接收文件: " + fileName + ", 大小: " + expectedFileSize + " bytes");
     }
 
     private void handleChunk(ByteBuf msg) throws IOException {
@@ -150,7 +152,7 @@ public class FileServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
             );
         }
 
-        System.out.println("文件接收完成: " + fileName);
+        log.info("文件接收完成: " + fileName);
 
         // 服务端返回一个简单文本响应给客户端。
         // 这里追加 \n，是因为客户端用了 LineBasedFrameDecoder，

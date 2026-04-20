@@ -13,6 +13,7 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldPrepender;
 import io.netty.handler.codec.LineBasedFrameDecoder;
 import io.netty.handler.codec.string.StringDecoder;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -32,6 +33,7 @@ import java.nio.file.Path;
  * 2. CHUNK 帧：循环发送文件内容块
  * 3. END 帧：告诉服务端文件已全部发送完毕
  */
+@Slf4j
 public class FileClient {
 
     // 协议消息类型，必须和服务端常量一致。
@@ -145,6 +147,6 @@ public class FileClient {
         endFrame.writeByte(TYPE_END);
         channel.writeAndFlush(endFrame).sync();
 
-        System.out.println("文件发送完成: " + filePath);
+        log.info("文件发送完成: " + filePath);
     }
 }
