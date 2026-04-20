@@ -30,7 +30,7 @@ public class ServerChannelInitializer extends ChannelInitializer<SocketChannel>
     @Override
     protected void initChannel(SocketChannel socketChannel)
     {
-        socketChannel.pipeline().addLast(new LengthFieldBasedFrameDecoder(32 * 1024 * 1024, 0, 4, 0, 4))
+        socketChannel.pipeline().addLast(new LengthFieldBasedFrameDecoder(32 * 1024 * 1024, 0, 4, 0, 4));
         socketChannel.pipeline().addLast(new LengthFieldPrepender(4));
         socketChannel.pipeline().addLast(new PacketByteBufDecoder());
         socketChannel.pipeline().addLast(new PacketByteBufEncoder());

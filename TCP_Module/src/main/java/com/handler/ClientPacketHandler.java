@@ -2,6 +2,7 @@ package com.handler;
 
 import com.client.ClientConnectionManager;
 import com.common.protocol.Packet;
+import com.common.protocol.auth.ChallengePacket;
 import com.service.ClientTransferService;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -28,4 +29,15 @@ public class ClientPacketHandler extends SimpleChannelInboundHandler<Packet>
 
     }
 
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx)throws Exception
+    {
+
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)throws Exception
+    {
+
+    }
 }

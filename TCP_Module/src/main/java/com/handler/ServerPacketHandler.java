@@ -26,5 +26,16 @@ public class ServerPacketHandler extends SimpleChannelInboundHandler<Packet>
 
     }
 
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception
+    {
+
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception
+    {
+
+    }
 
 }
