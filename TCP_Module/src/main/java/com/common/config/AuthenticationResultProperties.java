@@ -5,8 +5,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "authentication-result")
 public class AuthenticationResultProperties
 {
-    private String succeed = "Authentication Passed";
-    private String failed = "Authentication Failed";
+    private String succeed;
+    private String failed;
 
     public String getSucceed()
     {
@@ -26,5 +26,13 @@ public class AuthenticationResultProperties
     public void setFailed(String failed)
     {
         this.failed = failed;
+    }
+
+    @Override
+    public String toString() {
+        return "AuthenticationResultProperties{" +
+                "failed='" + failed + '\'' +
+                ", succeed='" + succeed + '\'' +
+                '}';
     }
 }

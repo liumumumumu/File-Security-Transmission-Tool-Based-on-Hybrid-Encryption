@@ -5,8 +5,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "crypto-service")
 public class CryptoServiceProperties
 {
-    private String address = "127.0.0.1";
-    private int port = 9080;
+    private String address;
+    private int port;
 
     public String getAddress()
     {
@@ -26,5 +26,13 @@ public class CryptoServiceProperties
     public void setPort(int port)
     {
         this.port = port;
+    }
+
+    @Override
+    public String toString() {
+        return "CryptoServiceProperties{" +
+                "address='" + address + '\'' +
+                ", port=" + port +
+                '}';
     }
 }

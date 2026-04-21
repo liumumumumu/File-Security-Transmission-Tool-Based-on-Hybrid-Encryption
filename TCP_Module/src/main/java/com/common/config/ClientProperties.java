@@ -5,26 +5,60 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "client")
 public class ClientProperties
 {
-    private String serverHost = "127.0.0.1";
-    private int serverPort = 9000;
+    private String serverHost;
+    private int serverPort;
+    private int connectionTimeout;
+    private int authTimeoutSeconds;
+    private int ackTimeoutSeconds;
 
-    public String getServerHost()
-    {
+    public int getAckTimeoutSeconds() {
+        return ackTimeoutSeconds;
+    }
+
+    public void setAckTimeoutSeconds(int ackTimeoutSeconds) {
+        this.ackTimeoutSeconds = ackTimeoutSeconds;
+    }
+
+    public int getAuthTimeoutSeconds() {
+        return authTimeoutSeconds;
+    }
+
+    public void setAuthTimeoutSeconds(int authTimeoutSeconds) {
+        this.authTimeoutSeconds = authTimeoutSeconds;
+    }
+
+    public int getConnectionTimeout() {
+        return connectionTimeout;
+    }
+
+    public void setConnectionTimeout(int connectionTimeout) {
+        this.connectionTimeout = connectionTimeout;
+    }
+
+    public String getServerHost() {
         return serverHost;
     }
 
-    public void setServerHost(String serverHost)
-    {
+    public void setServerHost(String serverHost) {
         this.serverHost = serverHost;
     }
 
-    public int getServerPort()
-    {
+    public int getServerPort() {
         return serverPort;
     }
 
-    public void setServerPort(int serverPort)
-    {
+    public void setServerPort(int serverPort) {
         this.serverPort = serverPort;
+    }
+
+    @Override
+    public String toString() {
+        return "ClientProperties{" +
+                "ackTimeoutSeconds=" + ackTimeoutSeconds +
+                ", serverHost='" + serverHost + '\'' +
+                ", serverPort=" + serverPort +
+                ", connectionTimeout=" + connectionTimeout +
+                ", authTimeoutSeconds=" + authTimeoutSeconds +
+                '}';
     }
 }
