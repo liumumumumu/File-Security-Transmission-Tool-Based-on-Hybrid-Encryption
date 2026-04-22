@@ -62,7 +62,7 @@ public class ClientConnectionManager
     //确保多个线程之间对这个变量的最新值可见
     public synchronized CompletableFuture<Void> connectAndAuthenticate(String host, int port)
     {
-
+        return null;
     }
 
     public synchronized void send(Packet packet)
@@ -87,29 +87,40 @@ public class ClientConnectionManager
 
     public void handleChannelInactive()
     {
-
+        status=ClientConnectionStatus.DISCONNECTED;
+        if(authFuture!=null && !authFuture.isDone())
+        {
+            authFuture.completeExceptionally(new IllegalStateException("Connection closed"));
+        }
+//        pushNotificationService.publish();
     }
 
     public boolean isAuthenticated()
     {
-
+        return status == ClientConnectionStatus.AUTHENTICATED && channel!=null && channel.isActive();
     }
 
     public Map<String, Object> currentStatus()
     {
-
+        return Map.of(
+                "deviceId", nodeProperties.getDeviceId(),
+                "status", status.name(),
+                "connectedHost", connectedHost==null?"":connectedHost,
+                "connectedPort", connectedPort
+        );
     }
 
     public String getLocalPublickey()
     {
-
+        return null;
     }
 
     //在对象被销毁之前，先自动调用这个方法
     @PreDestroy
     public void shutdown()
     {
-
+        disconnect();
+        workerGroup.shutdownGracefully();
     }
 
 
