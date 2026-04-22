@@ -11,6 +11,7 @@ AckPacket决定这一块收到与否
 
 public class AckPacket extends Packet
 {
+    //文件块确认数据包
     private String transferId;
     private int blockedId;
     private boolean success;

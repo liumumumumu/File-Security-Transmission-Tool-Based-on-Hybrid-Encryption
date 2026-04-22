@@ -11,6 +11,7 @@ AckPacket决定这一块收到与否
 
 public class FileAcceptPacket extends Packet
 {
+    //文件接收数据包
     private String transferId;
     private boolean accept;
     private String message;

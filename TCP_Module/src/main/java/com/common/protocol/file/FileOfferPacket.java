@@ -5,6 +5,7 @@ import com.common.protocol.Packet;
 
 public class FileOfferPacket extends Packet
 {
+    //文件信息数据包
     private String transferId;//每次传输对应一个transferId。使用uuid生成
     private String senderPublicKey;
     private String receiverPublicKey;

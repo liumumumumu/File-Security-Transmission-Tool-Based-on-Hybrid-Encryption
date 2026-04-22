@@ -9,6 +9,7 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.LengthFieldPrepender;
+import org.springframework.stereotype.Component;
 
 /**
  * Author: LQH
@@ -22,6 +23,7 @@ import io.netty.handler.codec.LengthFieldPrepender;
  *
  **/
 
+@Component
 public class ClientChannelInitializer extends ChannelInitializer<SocketChannel>//Netty 在新连接创建完成后，会自动调用它的initChannel
 {
     private final ClientPacketHandler clientPacketHandler;//客户端自定义的业务处理器

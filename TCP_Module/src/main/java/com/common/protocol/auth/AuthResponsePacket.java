@@ -5,6 +5,7 @@ import com.common.protocol.Packet;
 
 public class AuthResponsePacket extends Packet
 {
+    //登陆验证回复
     private String publicKey;
     private String challengeId;
     private String signature;

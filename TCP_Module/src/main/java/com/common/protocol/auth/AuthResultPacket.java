@@ -5,6 +5,7 @@ import com.common.protocol.Packet;
 
 public class AuthResultPacket extends Packet
 {
+    //登陆验证结果
     private boolean success;
     private String message;
 

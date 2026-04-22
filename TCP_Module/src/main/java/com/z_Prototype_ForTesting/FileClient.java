@@ -15,10 +15,15 @@ import io.netty.handler.codec.LineBasedFrameDecoder;
 import io.netty.handler.codec.string.StringDecoder;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.swing.JFileChooser;
+import javax.swing.UIManager;
+import java.awt.GraphicsEnvironment;
 import java.io.InputStream;
+import java.nio.file.InvalidPathException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Scanner;
 
 /**
  * 最小化的 Netty 文件发送客户端。
@@ -48,9 +53,17 @@ public class FileClient {
         // 服务端端口。
         int port = 9000;
 
-        // 准备发送的文件路径。
-        // 当前是相对路径，默认相对于项目运行目录。
-        Path filePath = Path.of("test.txt");
+        // 让客户端在启动时自行选择文件。
+        Path filePath = resolveFilePath(args);
+        if (filePath == null) {
+            log.warn("未选择任何文件，客户端退出");
+            return;
+        }
+
+        if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
+            log.error("文件不存在或不是普通文件: {}", filePath.toAbsolutePath());
+            return;
+        }
 
         // 客户端只需要一个 worker 线程组处理连接和 IO。
         EventLoopGroup group = new NioEventLoopGroup();
@@ -148,5 +161,52 @@ public class FileClient {
         channel.writeAndFlush(endFrame).sync();
 
         log.info("文件发送完成: " + filePath);
+    }
+
+    private static Path resolveFilePath(String[] args) {
+        if (args != null && args.length > 0 && !args[0].isBlank()) {
+            return Path.of(args[0].trim());
+        }
+
+        if (!GraphicsEnvironment.isHeadless()) {
+            return chooseFileWithDialog();
+        }
+
+        return chooseFileFromConsole();
+    }
+
+    private static Path chooseFileWithDialog() {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception ignored) {
+            // 外观设置失败不影响文件选择功能。
+        }
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("选择要发送的文件");
+        fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+
+        int result = fileChooser.showOpenDialog(null);
+        if (result != JFileChooser.APPROVE_OPTION || fileChooser.getSelectedFile() == null) {
+            return null;
+        }
+
+        return fileChooser.getSelectedFile().toPath();
+    }
+
+    private static Path chooseFileFromConsole() {
+        System.out.print("请输入要发送的文件路径: ");
+        Scanner scanner = new Scanner(System.in, StandardCharsets.UTF_8);
+        String input = scanner.nextLine();
+        if (input == null || input.isBlank()) {
+            return null;
+        }
+
+        try {
+            return Path.of(input.trim());
+        } catch (InvalidPathException e) {
+            log.error("输入的文件路径不合法: {}", input, e);
+            return null;
+        }
     }
 }

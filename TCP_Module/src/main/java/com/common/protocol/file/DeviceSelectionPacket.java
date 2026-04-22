@@ -5,6 +5,7 @@ import com.common.protocol.Packet;
 
 public class DeviceSelectionPacket extends Packet
 {
+    //设备选择结果数据包
     private String transferId;
     private String selectedDeviceId;//使用UUID标识用户的设备，逻辑设备ID，而不是硬件ID
     private boolean confirmed;
