@@ -20,6 +20,18 @@ public class Server
         //1.启动器；负责组装Netty组建，启动服务器
         new ServerBootstrap()
                 //2. NioEventLoopGroup就是指 BossEventLoop, WorkerEventLoop(selector, thread);
+                /*
+                    客户端只需要主动连接一个服务端，并处理这一条连接上的读写事件所以通常使用一个EventLoopGroup就够了
+
+                    服务端要监听端口，接受新的客户端连接
+                    处理每个客户端连接上的读写事件
+                    bossGroup
+                        负责监听端口，accept 新连接
+
+                    workerGroup
+                        负责已经建立的客户端连接的读写 IO
+
+                 */
                 .group(new NioEventLoopGroup())
                 //3.选择 服务器的ServerSocket的实现
                 .channel(NioServerSocketChannel.class)

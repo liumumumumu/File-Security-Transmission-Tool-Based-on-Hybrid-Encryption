@@ -7,7 +7,7 @@ public class ClientProperties
 {
     private String serverHost;
     private int serverPort;
-    private int connectionTimeout;
+    private int connectionTimeout;//ms
     private int authTimeoutSeconds;
     private int ackTimeoutSeconds;
 
