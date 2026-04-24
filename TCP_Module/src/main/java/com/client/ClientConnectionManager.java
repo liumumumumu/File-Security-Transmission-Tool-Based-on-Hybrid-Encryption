@@ -118,7 +118,7 @@ public class ClientConnectionManager
             connectedPort = port;
             channel = ((io.netty.channel.ChannelFuture) connectFuture).channel();//从Netty的连接结果取出真正的Channel,通信通道
             status=ClientConnectionStatus.AUTHENTICATING;
-            channel.writeAndFlush(new AuthRequestPacket(nodeProperties.getDeviceId(), cryptoSupport.getEncodedPublickey()));//拿到通信通道之后，后续就可以通过它发送数据了
+            channel.writeAndFlush(new AuthRequestPacket(nodeProperties.getDeviceId(), cryptoSupport.getEncodedPublicKey()));//拿到通信通道之后，后续就可以通过它发送数据了
         });
         return future.orTimeout(clientProperties.getAuthTimeoutSeconds(), TimeUnit.SECONDS);
     }
@@ -149,7 +149,7 @@ public class ClientConnectionManager
         send(
                 new AuthResponsePacket(
                         packet.getChallengeId(),
-                        cryptoSupport.getEncodedPublickey,
+                        cryptoSupport.getEncodedPublicKey(),
                         cryptoSupport.signToBase64(packet.getChallenge())
                 )
         );
@@ -214,7 +214,7 @@ public class ClientConnectionManager
     //获取本地的公钥
     public String getLocalPublickey()
     {
-        return cryptoSupport.getEncodedPublickey();
+        return cryptoSupport.getEncodedPublicKey();
     }
 
     //在对象被销毁之前，先自动调用这个方法
