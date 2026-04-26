@@ -5,17 +5,28 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
-import java.security.GeneralSecurityException;
-import java.security.KeyPair;
-import java.security.SecureRandom;
+import java.security.*;
+
+/**
+ * Author: LQH
+ * Date: 2026-04-26
+ * Purpose: 用来提供一组混合加密相关的组件
+ *
+ * */
 
 @Component
 public class CryptoSupport  //负责加密，解密，签名，验证签名，密钥处理；但是真正的实现是由Python cryptography库实现，并部署在本地，因此这个类负责调用相关的服务
 {
+    //AES-GCM的认证标签长度128bit
     private static final int GCM_TAG_BITS = 128;
+
+    //GCM随机nonce长度12字节
     private static final int GCM_NONCE_BITS = 12;
 
+    //用于生产随机数，如nonce
     private final SecureRandom secureRandom = new SecureRandom();//随机数生成器（待定）
+
+    //保存RSA公钥和私钥
     private KeyPair keyPair; //非对称密钥对（待定）
 
 
@@ -27,11 +38,13 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
 
     }
 
+    //返回公钥的Base64字符串
     public String getEncodedPublicKey()
     {
         return null;
     }
 
+    //返回私钥的Base64字符串
     public String getEncodedPrivateKey()
     {
         return null;
@@ -55,6 +68,7 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
         return null;
     }
 
+    //用接收方的RSA公钥加密
     public String encryptKeyForReceiver(SecretKey secretKey, String receivePublicKeyBase64)throws GeneralSecurityException
     {
         return null;
@@ -66,7 +80,39 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
         return null;
     }
 
-    public AesGcmChunk encryptChunk
+    //加密一段字节数据
+    public AesGcmChunk encryptChunk(byte[] plain, SecretKey secretKey)throws GeneralSecurityException
+    {
+        return null;
+    }
 
+    //解密AES-GCM加密的数据块
+    public byte[] decryptChunk(byte[] nonce, byte[] ciphertext, byte[] tag, SecretKey secretKey)throws GeneralSecurityException
+    {
+        return null;
+    }
 
+    //用指定的RSA公钥加密字节数据，并返回Base64字符串
+    public String encryptWithPublicKeyToBase64(byte[] plain, String publicKeyBase64)throws  GeneralSecurityException
+    {
+        return null;
+    }
+
+    //用当前对象的RSA密钥解密Base64编码的密文
+    public byte[] decryptWithPrivateKey(String encryptedBase64)throws GeneralSecurityException
+    {
+        return null;
+    }
+
+    //把Base64字符串解析成Java的PublicKey对象
+    public PublicKey parsePublicKey(String pubilcKeyBase64)throws GeneralSecurityException
+    {
+        return null;
+    }
+
+    //把Base64字符串解析成Java的PrivateKey对象
+    public PrivateKey parsePrivateKey(String privKeyBase64)throws GeneralSecurityException
+    {
+        return null;
+    }
 }
