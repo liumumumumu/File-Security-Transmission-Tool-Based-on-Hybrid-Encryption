@@ -40,5 +40,5 @@ crypto-service:
 
 
 transfer:
-  chunk-size-bytes: 1048576
+  chunk-size-bytes: 1048576 #1mb
   receive-dir: downloads
