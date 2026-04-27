@@ -8,3 +8,15 @@ venv/
 .idea/
 .vscode/
 *.log
+
+# 资料文件，不入库
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.docx
+*.doc
+对话.docx
+题目.pdf
+题目.png
+加密模块需要的函数.md
