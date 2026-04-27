@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+test_input.bin
+test_output.bin
+.venv/
+venv/
+.idea/
+.vscode/
+*.log
