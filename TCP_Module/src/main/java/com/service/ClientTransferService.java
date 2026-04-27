@@ -174,7 +174,7 @@ public class ClientTransferService
 
     public void handleIncomingOffer(FileOfferPacket packet) throws GeneralSecurityException, IOException
     {
-        SecretKey secretKey=cryptoSupport.decryptAesKey(packet.getEncryptedSessionKey());
+        SecretKey secretKey=cryptoSupport.decryptAESKey(packet.getEncryptedSessionKey());
         Path receiveDir= Paths.get(transferProperties.getReceiveDir());
         Files.createDirectories(receiveDir);
         Path outputPath=uniqueReceivePath(receiveDir, packet.getFileName(),packet.getTransferId());
@@ -261,8 +261,8 @@ public class ClientTransferService
             );//发送后，当前线程等待结果
 
             String recipientPublicKey=recipientKeyFuture.get(clientProperties.getAckTimeoutSeconds(), TimeUnit.SECONDS);//会阻塞当前线程直到服务器返回目标设备信息，或者等待超时
-            SecretKey secretKey=cryptoSupport.generateAesKey();//生成本次传输使用的AES密钥，本次传输文件使用的对称加密密钥
-            String encryptedSessionKey=cryptoSupport.encryptKeyForReceiver(secretKey, recipientPublicKey);//用接收方的公钥加密这个AES密钥
+            SecretKey secretKey=cryptoSupport.generateAESKey();//生成本次传输使用的AES密钥，本次传输文件使用的对称加密密钥
+            String encryptedSessionKey=cryptoSupport.encryptAESKeyForReceiver(secretKey, recipientPublicKey);//用接收方的公钥加密这个AES密钥
 
             //创建本次发送任务的上下文
             context=new OutboundTransferContext(secretKey, task,recipientPublicKey);
