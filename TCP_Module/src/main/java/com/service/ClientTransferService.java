@@ -4,19 +4,19 @@ import com.client.ClientConnectionManager;
 import com.common.config.ClientProperties;
 import com.common.config.NodeProperties;
 import com.common.config.TransferProperties;
-import com.common.protocol.file.AckPacket;
-import com.common.protocol.file.DeviceSelectionPacket;
-import com.common.protocol.file.FileAcceptPacket;
-import com.common.protocol.file.FileOfferPacket;
+import com.common.crypto.AesGcmChunk;
+import com.common.protocol.file.*;
 import com.crypto.CryptoSupport;
 import com.session.TransferDirection;
 import com.session.TransferStatus;
 import com.session.TransferTask;
+import io.netty.util.concurrent.CompleteFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,22 +27,45 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 
+
+/**
+ * Author: LQH
+ * Date: 2026-04-26
+ * Purpose: 客户端文件传输业务类，收发文件流程的调度中心
+ * 负责：
+ * 1.连接服务器并认证
+ * 2.发起文件发送任务
+ * 3.处理目标设备选择结果
+ * 4.发送文件offer
+ * 5.等待接收方接收
+ * 6.分块加密发送文件
+ * 7.等待每个文件块的ACK
+ * 8.接收发来的文件
+ * 9.解密并按顺序写入本地文件
+ * 10.更新传输任务状态，并推送通知
+ *
+ * */
+
 @Service
 @Slf4j
 public class ClientTransferService
 {
-    private final ClientConnectionManager clientConnectionManager;
-    private final CryptoSupport cryptoSupport;
-    private final TransferProperties transferProperties;
-    private final ClientProperties clientProperties;
-    private final NodeProperties nodeProperties;
-    private final PushNotificationService pushNotificationService;
-    private final TransferTaskRegistry transferTaskRegistry;
+    private final ClientConnectionManager clientConnectionManager;//负责网络连接，认证状态，发送packet
+    private final CryptoSupport cryptoSupport;//提供加密，解密，生成AES密钥，RSA加密AES密钥，AES-GCM加密解密文件块
 
-    private final ExecutorService executorService= Executors.newCachedThreadPool();
-    private final Map<String, CompletableFuture<String>> deviceSelectionFutures = new ConcurrentHashMap<>();
-    private final Map<String, OutboundTransferContext>  outboundTransferContexts = new ConcurrentHashMap<>();
-    private final Map<String, InboundTransferContext> inboundTransferContexts = new ConcurrentHashMap<>();
+    //读取配置
+    private final TransferProperties transferProperties;//分块大小，接收目录
+    private final ClientProperties clientProperties;//服务器地址，超时时间，
+    private final NodeProperties nodeProperties;//是否启动自动连接
+    private final PushNotificationService pushNotificationService;//发布事件
+    private final TransferTaskRegistry transferTaskRegistry;//保存和管理传输任务状态
+
+    //创建线程池
+    private final ExecutorService executorService= Executors.newCachedThreadPool();//把耗时的任务放到后台线程执行，避免阻塞调用方
+
+    private final Map<String, CompletableFuture<String>> deviceSelectionFutures = new ConcurrentHashMap<>();//服务器确认目标设备是否存在，并返回目标设备公钥。deviceSelectionFutures关联等待结果
+    private final Map<String, OutboundTransferContext>  outboundTransferContexts = new ConcurrentHashMap<>();//保存正在发送的任务的上下文，AES密钥，等待接收方接收的Future，每个块的ACK Future
+    private final Map<String, InboundTransferContext> inboundTransferContexts = new ConcurrentHashMap<>();//保存正在接收的任务上下文，AES密钥，输出文件流，已收到但暂时不能写入的块
 
 
     public ClientTransferService(ClientConnectionManager clientConnectionManager, ClientProperties clientProperties, CryptoSupport cryptoSupport, NodeProperties nodeProperties, PushNotificationService pushNotificationService, TransferProperties transferProperties, TransferTaskRegistry transferTaskRegistry) {
@@ -55,25 +78,35 @@ public class ClientTransferService
         this.transferTaskRegistry = transferTaskRegistry;
     }
 
-    public void autoConectIfConfigured() throws Exception
+    //如果用户开启了自动连接，就在客户端启动时自动连接并认证服务器
+    public void autoConnectIfConfigured() throws Exception
     {
         if(nodeProperties.isAutoConnect())
         {
+            //连接服务器并认证
             clientConnectionManager.connectAndAuthenticate(clientProperties.getServerHost(), clientProperties.getServerPort()).get(clientProperties.getAuthTimeoutSeconds(), TimeUnit.SECONDS);
         }
     }
 
-    public String sendFile(Path filePath, String targetDeviceId)
+    //发送文件的入口方法；创建一个传输任务，然后把真正发送逻辑交给后台线程执行
+    public String sendFile(Path filePath, String targetDeviceId)//返回taskId
     {
+        //检查是否认证
         if(!clientConnectionManager.isAuthenticated())
         {
             throw new IllegalStateException("Client is not authenticated");
         }
 
-        if(!Files.exists(filePath) || Files.isRegularFile(filePath))
-        {
-            throw new IllegalStateException("File does not exist: "+filePath);
+        //检查文件路径
+        if (!Files.exists(filePath)) {
+            throw new IllegalArgumentException("File does not exist: " + filePath);
         }
+
+        //检查文件是否可以用二进制的形式打开
+        if (!Files.isRegularFile(filePath)) {
+            throw new IllegalArgumentException("Path is not a regular file: " + filePath);
+        }
+
 
         String transferId= UUID.randomUUID().toString();
         String taskId= UUID.randomUUID().toString();
@@ -81,8 +114,9 @@ public class ClientTransferService
         try
         {
             long fileSize = Files.size(filePath);
-            int totalBlocks=(int)((fileSize+transferProperties.getChunkSizeBytes()-1)/transferProperties.getChunkSizeBytes());
+            int totalBlocks=(int)((fileSize+transferProperties.getChunkSizeBytes()-1)/transferProperties.getChunkSizeBytes());//总块数
 
+            //创建传输任务对象
             TransferTask task=new TransferTask(
                     taskId,
                     transferId,
@@ -92,18 +126,18 @@ public class ClientTransferService
                     targetDeviceId,
                     fileSize,
                     totalBlocks,
-                    Instant.now()
+                    Instant.now() //创建时间
             );
-            task.updateStatus(TransferStatus.WAITING_FOR_TARGET, "Resolving target device");
-            transferTaskRegistry.register(task);
-            pushNotificationService.publish("transfer-created", task);
-            executorService.submit(()->executeSend(task, filePath, targetDeviceId));
+            task.updateStatus(TransferStatus.WAITING_FOR_TARGET, "Resolving target device");//更新任务状态
+            transferTaskRegistry.register(task);//注册任务
+            pushNotificationService.publish("transfer-created", task);//推送任务创建事件
+            executorService.submit(()->executeSend(task, filePath, targetDeviceId));//真正的发送交给后台线程处理，（异步任务）
             return taskId;
         }
         catch (IOException e)
         {
-            throw new IllegalStateException("Unable to read file metadata ", e);
             log.info(e.getStackTrace().toString());
+            throw new IllegalStateException("Unable to read file metadata ", e);
         }
     }
 
@@ -174,6 +208,173 @@ public class ClientTransferService
         clientConnectionManager.send(new FileAcceptPacket(true, "Auto accepted", packet.getTransferId()));
     }
 
+    public void handleIncommingBlock(FileBlockPacket packet) throws GeneralSecurityException, IOException
+    {
+        InboundTransferContext context = inboundTransferContexts.get(packet.getTransferId());
+        if(context==null)
+        {
+            clientConnectionManager.send(new AckPacket(packet.getBlockId(),false,packet.getTransferId()));
+            return;
+        }
+
+        byte[] plain=cryptoSupport.decryptChunk(packet.getNonce(),packet.getCiphertext(),packet.getTag(),context.secretKey);
+        boolean complete;
+        synchronized (context)
+        {
+            complete=context.acceptBlock(packet.getBlockId(), plain);
+        }
+
+        clientConnectionManager.send(new AckPacket(packet.getBlockId(),true,packet.getTransferId()));
+        pushNotificationService.publish("transfer-progress", context.transferTask);
+        persistTask(context.transferTask);
+
+        if(complete)
+        {
+            inboundTransferContexts.remove(packet.getTransferId());
+            pushNotificationService.publish("transfer-complete", context.transferTask);
+            persistTask(context.transferTask);
+        }
+    }
+
+    public Map<String, Object> clientStatus()
+    {
+        return clientConnectionManager.currentStatus();
+    }
+
+    private void executeSend(TransferTask task, Path filePath, String targetDeviceId)
+    {
+        OutboundTransferContext context = null;
+        try
+        {
+            //准备接收方的公钥
+            CompletableFuture<String> recipientKeyFuture=new CompletableFuture<>();
+            deviceSelectionFutures.put(task.getTransferId(), recipientKeyFuture);
+
+            //发送设备选择请求
+            clientConnectionManager.send(
+                    new DeviceSelectionPacket(
+                            false,
+                            "",
+                            targetDeviceId,
+                            task.getTransferId()
+                    )
+            );//发送后，当前线程等待结果
+
+            String recipientPublicKey=recipientKeyFuture.get(clientProperties.getAckTimeoutSeconds(), TimeUnit.SECONDS);//会阻塞当前线程直到服务器返回目标设备信息，或者等待超时
+            SecretKey secretKey=cryptoSupport.generateAesKey();//生成本次传输使用的AES密钥，本次传输文件使用的对称加密密钥
+            String encryptedSessionKey=cryptoSupport.encryptKeyForReceiver(secretKey, recipientPublicKey);//用接收方的公钥加密这个AES密钥
+
+            //创建本次发送任务的上下文
+            context=new OutboundTransferContext(secretKey, task,recipientPublicKey);
+            outboundTransferContexts.put(task.getTransferId(),context);//本次发送过程中的临时状态
+
+            //更新任务状态
+            task.updateStatus(TransferStatus.WAITING_FOR_ACCEPT, "Waiting for receiver acceptance");
+            persistTask(task);
+
+            //发送本次传输的文件信息
+            clientConnectionManager.send(
+                    new FileOfferPacket(
+                            encryptedSessionKey,
+                            task.getFileName(),
+                            task.getTotalBytes(),
+                            recipientPublicKey,
+                            clientConnectionManager.getLocalPublickey(),
+                            task.getTotalBlocks(),
+                            task.getTransferId()
+                    )
+            );
+
+            //等待接收方接受
+            FileAcceptPacket fileAcceptPacket=context.acceptFuture.get(clientProperties.getAckTimeoutSeconds(), TimeUnit.SECONDS);
+            if(!fileAcceptPacket.isAccept())
+            {
+                task.updateStatus(TransferStatus.REJECTED, fileAcceptPacket.getMessage());
+                persistTask(task);
+                pushNotificationService.publish("transfer-rejected", task);
+                outboundTransferContexts.remove(task.getTransferId());
+                return;
+            }
+
+            task.updateStatus(TransferStatus.TRANSFERRING, "Sending blocks");
+            persistTask(task);
+
+            try(InputStream inputStream=Files.newInputStream(filePath))
+            {
+                byte[] buffer=new byte[transferProperties.getChunkSizeBytes()];
+                int blockId=0;
+                int length;
+                long sentBytes=0;
+
+                while((length=inputStream.read(buffer))!=-1)
+                {
+                    byte[] plain=new byte[length];
+                    System.arraycopy(buffer,0,plain,0,length);
+                    AesGcmChunk encryptedChunk=cryptoSupport.encryptChunk(plain,secretKey);
+                    CompletableFuture<Boolean> ackFuture=new CompletableFuture<>();
+                    context.ackFutures.put(blockId, ackFuture);
+                    clientConnectionManager.send(
+                            new FileBlockPacket(
+                                    blockId,
+                                    encryptedChunk.ciphertext(),
+                                    encryptedChunk.nonce(),
+                                    encryptedChunk.tag(),
+                                    task.getTransferId()
+                            )
+                    );
+
+                    Boolean success=ackFuture.get(clientProperties.getAckTimeoutSeconds(), TimeUnit.SECONDS);
+                    if(!Boolean.TRUE.equals(success))
+                    {
+                        throw new IllegalStateException("ACK failed for block "+blockId);
+                    }
+
+                    blockId++;
+                    sentBytes+=length;
+                    task.updateProgress(sentBytes, blockId);
+                    persistTask(task);
+                    pushNotificationService.publish("transfer-progress", task);
+                }
+            }
+
+            task.updateStatus(TransferStatus.COMPLETED, "File sent");
+            persistTask(task);
+            pushNotificationService.publish("transfer-complete", task);
+        }
+        catch(Exception e)
+        {
+            log.info("TransferStatus: FAILED, "+e.getMessage());
+            task.updateStatus(TransferStatus.FAILED, e.getMessage());
+            persistTask(task);
+            pushNotificationService.publish("transfer-failed", task);
+        }
+        finally
+        {
+            outboundTransferContexts.remove(task.getTransferId());
+            deviceSelectionFutures.remove(task.getTransferId());
+            if(context!=null)
+            {
+                context.ackFutures.clear();
+            }
+        }
+
+    }
+
+    private Path uniqueReceivePath(Path receiveDir, String fileName, String transferId)
+    {
+        Path target=receiveDir.resolve(fileName);
+        if(!Files.exists(target))
+        {
+            return target;
+        }
+        return receiveDir.resolve(transferId+"-"+fileName);
+    }
+
+    private void persistTask(TransferTask task)
+    {
+        transferTaskRegistry.persist();
+    }
+
     //发送端传输上下文对象，在向外发送文件的过程中，把这次需要用到的状态集中保存起来
     private static final class OutboundTransferContext
     {
@@ -223,14 +424,14 @@ public class ClientTransferService
             pendingBlocks.put(blockId, plain); //先放入缓存再检查nextWriteBlockId有没有联系的块可以写
             flushContiguousBlocks();    //按顺序写入文件
             transferTask.updateProgress(receivedBytes, receivedBlocks);
-            transferTask.updateStatus(TransferTask.TRANSFERRING, "Receiving blocks");
+            transferTask.updateStatus(TransferStatus.TRANSFERRING, "Receiving blocks");
 
             //判断文件是否接收完成
             if(isCompleted())
             {
                 outputStream.flush();
                 outputStream.close();
-                transferTask.updateStatus(TransferTask.COMPILED, "File received");
+                transferTask.updateStatus(TransferStatus.COMPLETED, "File received");
                 return true;
             }
             return false;
