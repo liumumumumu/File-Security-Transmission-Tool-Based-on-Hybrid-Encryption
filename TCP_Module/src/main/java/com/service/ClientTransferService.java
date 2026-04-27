@@ -141,6 +141,7 @@ public class ClientTransferService
         }
     }
 
+    //处理设备选择结果
     public void handleDeviceSelection(DeviceSelectionPacket packet)
     {
         CompletableFuture<String> future=deviceSelectionFutures.remove(packet.getTransferId());
@@ -148,7 +149,7 @@ public class ClientTransferService
         {
             return;
         }
-        if(packet.isConfirmed())
+        if(packet.isConfirmed())//设备选择确认
         {
             future.complete(packet.getMessage());
         }
@@ -172,13 +173,15 @@ public class ClientTransferService
         }
     }
 
+    //接收端收到文件发送请求时的处理函数
     public void handleIncomingOffer(FileOfferPacket packet) throws GeneralSecurityException, IOException
     {
-        SecretKey secretKey=cryptoSupport.decryptAESKey(packet.getEncryptedSessionKey());
+        SecretKey secretKey=cryptoSupport.decryptAESKey(packet.getEncryptedSessionKey());//先解密AES密钥
         Path receiveDir= Paths.get(transferProperties.getReceiveDir());
         Files.createDirectories(receiveDir);
-        Path outputPath=uniqueReceivePath(receiveDir, packet.getFileName(),packet.getTransferId());
+        Path outputPath=uniqueReceivePath(receiveDir, packet.getFileName(),packet.getTransferId());//决定文件保存在哪里，并做防重名处理
 
+        //创建接收任务
         TransferTask task=new TransferTask(
                 UUID.randomUUID().toString(),
                 packet.getTransferId(),
@@ -191,44 +194,53 @@ public class ClientTransferService
                 Instant.now()
         );
         task.updateStatus(TransferStatus.TRANSFERRING, "Receiving file");
-        transferTaskRegistry.register(task);
+        transferTaskRegistry.register(task);//注册任务
+
+        //打开输出文件流
         OutputStream outputStream=Files.newOutputStream(
           outputPath,
           StandardOpenOption.CREATE,
           StandardOpenOption.TRUNCATE_EXISTING,
           StandardOpenOption.WRITE
         );
+
+        //创建接收上下文
         inboundTransferContexts.put(packet.getTransferId(),new InboundTransferContext(secretKey, outputStream, task));
+
+        //推送新文件提示
         pushNotificationService.publish("incoming-file-offer",
                 Map.of(
                         "transferId", packet.getTransferId(),
                         "fileName", packet.getFileName(),
                         "path", outputPath.toString()
                 ));
-        clientConnectionManager.send(new FileAcceptPacket(true, "Auto accepted", packet.getTransferId()));
+        clientConnectionManager.send(new FileAcceptPacket(true, "Auto accepted", packet.getTransferId()));//返回接收信息
     }
 
+    //处理接收到的文件数据块
     public void handleIncommingBlock(FileBlockPacket packet) throws GeneralSecurityException, IOException
     {
-        InboundTransferContext context = inboundTransferContexts.get(packet.getTransferId());
-        if(context==null)
+        InboundTransferContext context = inboundTransferContexts.get(packet.getTransferId());//根据transferId找到上下文
+        if(context==null)//接收方并不知道本次传输
         {
             clientConnectionManager.send(new AckPacket(packet.getBlockId(),false,packet.getTransferId()));
             return;
         }
 
+        //解密数据块
         byte[] plain=cryptoSupport.decryptChunk(packet.getNonce(),packet.getCiphertext(),packet.getTag(),context.secretKey);
-        boolean complete;
-        synchronized (context)
+        boolean complete;//文件接收完成的标志
+        synchronized (context)  //加锁，互斥修改任务上下文变量，避免多个文件块同时修改上下文和写文件
         {
             complete=context.acceptBlock(packet.getBlockId(), plain);
         }
 
+        //回复ACK
         clientConnectionManager.send(new AckPacket(packet.getBlockId(),true,packet.getTransferId()));
         pushNotificationService.publish("transfer-progress", context.transferTask);
         persistTask(context.transferTask);
 
-        if(complete)
+        if(complete)//判断文件是否接收完成
         {
             inboundTransferContexts.remove(packet.getTransferId());
             pushNotificationService.publish("transfer-complete", context.transferTask);
@@ -236,11 +248,14 @@ public class ClientTransferService
         }
     }
 
+    //获取当前客户端的连接状态
     public Map<String, Object> clientStatus()
     {
         return clientConnectionManager.currentStatus();
     }
 
+    //真正执行发送文件的函数
+    //目前是发送一块等待一块的ACK结果---2026-04-27；可以改成发送窗口的模式
     private void executeSend(TransferTask task, Path filePath, String targetDeviceId)
     {
         OutboundTransferContext context = null;
@@ -287,7 +302,7 @@ public class ClientTransferService
 
             //等待接收方接受
             FileAcceptPacket fileAcceptPacket=context.acceptFuture.get(clientProperties.getAckTimeoutSeconds(), TimeUnit.SECONDS);
-            if(!fileAcceptPacket.isAccept())
+            if(!fileAcceptPacket.isAccept())//判断是否被拒收
             {
                 task.updateStatus(TransferStatus.REJECTED, fileAcceptPacket.getMessage());
                 persistTask(task);
@@ -296,23 +311,27 @@ public class ClientTransferService
                 return;
             }
 
+            //同意接收
+            //更新任务状体
             task.updateStatus(TransferStatus.TRANSFERRING, "Sending blocks");
             persistTask(task);
 
+            //读取本地文件
             try(InputStream inputStream=Files.newInputStream(filePath))
             {
-                byte[] buffer=new byte[transferProperties.getChunkSizeBytes()];
+                byte[] buffer=new byte[transferProperties.getChunkSizeBytes()];//分块读取
                 int blockId=0;
                 int length;
                 long sentBytes=0;
 
-                while((length=inputStream.read(buffer))!=-1)
+                while((length=inputStream.read(buffer))!=-1)//只要还能读到文件就继续读
                 {
                     byte[] plain=new byte[length];
-                    System.arraycopy(buffer,0,plain,0,length);
-                    AesGcmChunk encryptedChunk=cryptoSupport.encryptChunk(plain,secretKey);
-                    CompletableFuture<Boolean> ackFuture=new CompletableFuture<>();
+                    System.arraycopy(buffer,0,plain,0,length);//拷贝当前块
+                    AesGcmChunk encryptedChunk=cryptoSupport.encryptChunk(plain,secretKey);//加密当前块
+                    CompletableFuture<Boolean> ackFuture=new CompletableFuture<>();//当前块的ACK等待对像
                     context.ackFutures.put(blockId, ackFuture);
+                    //发送
                     clientConnectionManager.send(
                             new FileBlockPacket(
                                     blockId,
@@ -323,8 +342,9 @@ public class ClientTransferService
                             )
                     );
 
+                    //等待该块的ACK结果
                     Boolean success=ackFuture.get(clientProperties.getAckTimeoutSeconds(), TimeUnit.SECONDS);
-                    if(!Boolean.TRUE.equals(success))
+                    if(!Boolean.TRUE.equals(success))//判断ACK是否失败
                     {
                         throw new IllegalStateException("ACK failed for block "+blockId);
                     }
@@ -337,9 +357,9 @@ public class ClientTransferService
                 }
             }
 
-            task.updateStatus(TransferStatus.COMPLETED, "File sent");
+            task.updateStatus(TransferStatus.COMPLETED, "File sent");//发送完成，更新任务状态
             persistTask(task);
-            pushNotificationService.publish("transfer-complete", task);
+            pushNotificationService.publish("transfer-complete", task);//推送完成的消息
         }
         catch(Exception e)
         {
@@ -348,7 +368,7 @@ public class ClientTransferService
             persistTask(task);
             pushNotificationService.publish("transfer-failed", task);
         }
-        finally
+        finally     //清理临时状态
         {
             outboundTransferContexts.remove(task.getTransferId());
             deviceSelectionFutures.remove(task.getTransferId());
@@ -360,6 +380,7 @@ public class ClientTransferService
 
     }
 
+    //创建独一文件名，避免重名
     private Path uniqueReceivePath(Path receiveDir, String fileName, String transferId)
     {
         Path target=receiveDir.resolve(fileName);
