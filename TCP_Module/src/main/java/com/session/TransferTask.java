@@ -24,7 +24,7 @@ public class TransferTask
 
     private volatile TransferStatus status = TransferStatus.PENDING;
     private volatile long transferredBytes;//已经传输的字节数
-    private volatile long transferredBlocks;//已经传输的块数
+    private volatile int transferredBlocks;//已经传输的块数
     private volatile String message="";
 
     public TransferTask(
@@ -125,11 +125,11 @@ public class TransferTask
         return transferId;
     }
 
-    public long getTransferredBlocks() {
+    public int getTransferredBlocks() {
         return transferredBlocks;
     }
 
-    public void setTransferredBlocks(long transferredBlocks) {
+    public void setTransferredBlocks(int transferredBlocks) {
         this.transferredBlocks = transferredBlocks;
     }
 

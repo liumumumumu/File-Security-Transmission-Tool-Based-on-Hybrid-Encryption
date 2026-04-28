@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Author: LQH
- * Date: 2026-04-23
+ * Date: 2026-04-28
  * Purpose: 传输任务注册表，将文件传输任务放在内从里统一管理，
  * 将传输记录保存在本地的JSON文件里面，
  * 当应用重启后还能回复之前的任务记录
