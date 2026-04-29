@@ -25,6 +25,20 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Author: LQH
+ * Date: 2026-04-28
+ * Purpose: 服务端中继路由器的核心服务。服务端不负责读写文件，也不负责加密，解密文件，
+ * 服务端的业务的主要职责是：
+ * 1. 处理客户端认证
+ * 2. 维护设备ID->Netty Channel的在线会话
+ * 3. 维护文件传输中发送方和接收方的路由关系
+ * 4. 把在线状态，认证日志，传输路由写入Redis/ MySQL
+ * 5. 推送服务端事件
+ * 6. 转发文件传输相关协议和数据包
+ *
+ * */
+
 @Service
 @Slf4j
 public class ServerRoutingService
@@ -35,8 +49,9 @@ public class ServerRoutingService
     private final RedisStateService redisStateService;
     private final MyBatisPersistenceService myBatisPersistenceService;
 
-    private final Map<String, ServerClientSession> sessionsByDeviceId=new ConcurrentHashMap<>();
-    private final Map<Channel, String> deviceIdByChannel=new ConcurrentHashMap<>();
+    //内存里的在线连接表
+    private final Map<String, ServerClientSession> sessionsByDeviceId=new ConcurrentHashMap<>();//根据设备ID找到对应的Netty Channel，从而将包发送给该设备
+    private final Map<Channel, String> deviceIdByChannel=new ConcurrentHashMap<>();//根据当前TCP连接反查这个连接属于那个设备
 
 
     public ServerRoutingService(AuthenticationResultProperties authenticationResultProperties, CryptoSupport cryptoSupport, PushNotificationService pushNotificationService, RedisStateService redisStateService, MyBatisPersistenceService myBatisPersistenceService) {
@@ -47,59 +62,63 @@ public class ServerRoutingService
         this.myBatisPersistenceService = myBatisPersistenceService;
     }
 
-    public void handlePacket(ChannelHandlerContext ctx, Packet packet)
+    //服务的入口
+    public void handlePacket(ChannelHandlerContext ctx, Packet packet)//当Netty Handler收到一个已经解码完成的数据包后进入这个函数
     {
         try
         {
-            if(packet instanceof AuthResultPacket authResultPacket)
+            if(packet instanceof AuthRequestPacket authRequestPacket)//认证请求处理
             {
-                handleAuthRequest(ctx.channel(), authResultPacket);
+                handleAuthRequest(ctx.channel(), authRequestPacket);
                 return;
             }
-            if(packet instanceof AuthResponsePacket authResponsePacket)
+            if(packet instanceof AuthResponsePacket authResponsePacket)//认证响应处理
             {
                 handleAuthResponse(ctx.channel(), authResponsePacket);
                 return;
             }
-            if(packet instanceof PingPacket)
+            if(packet instanceof PingPacket)//心跳包的处理
             {
                 String deviceId=authenticaedDeviceId(ctx.channel());
-                if(deviceId != null)
+                if(deviceId != null)//该连接已经认证过
                 {
-                    redisStateService.touchOnlineSession(deviceId);
+                    redisStateService.touchOnlineSession(deviceId);//刷新在线状态
                 }
                 ctx.writeAndFlush(new PongPacket());
                 return;
             }
+
+            //未认证连接禁止传输文件
             String deviceId=authenticaedDeviceId(ctx.channel());
             if(deviceId==null)
             {
                 ctx.close();
                 return;
             }
-            redisStateService.touchOnlineSession(deviceId);
 
-            if(packet instanceof DeviceSelectionPacket deviceSelectionPacket)
+            redisStateService.touchOnlineSession(deviceId);//已认证后刷新在线状态
+
+            if(packet instanceof DeviceSelectionPacket deviceSelectionPacket)//处理设备选择数据包
             {
                 handleDeviceSelection(ctx.channel(), deviceId, deviceSelectionPacket);
                 return;
             }
-            if(packet instanceof FileOfferPacket fileOfferPacket)
+            if(packet instanceof FileOfferPacket fileOfferPacket)//处理文件信息数据包
             {
                 forwardToReceiver(deviceId, fileOfferPacket.getTransferId(), fileOfferPacket);
                 return;
             }
-            if(packet instanceof FileAcceptPacket fileAcceptPacket)
+            if(packet instanceof FileAcceptPacket fileAcceptPacket)//处理文件接收状况包
             {
                 forwardToSender(deviceId, fileAcceptPacket.getTransferId(), fileAcceptPacket);
                 return;
             }
-            if(packet instanceof FileBlockPacket fileBlockPacket)
+            if(packet instanceof FileBlockPacket fileBlockPacket)//处理文件块数据包
             {
                 forwardToReceiver(deviceId, fileBlockPacket.getTransferId(), fileBlockPacket);
                 return;
             }
-            if(packet instanceof AckPacket ackPacket)
+            if(packet instanceof AckPacket ackPacket)//处理ACK包
             {
                 forwardToSender(deviceId, ackPacket.getTransferId(), ackPacket);
                 return;
@@ -113,47 +132,54 @@ public class ServerRoutingService
         }
     }
 
-    public void handleDisconnect(Channel channel)
+    //处理断线
+    public void handleDisconnect(Channel channel)//清理函数
     {
-        String deviceId=deviceIdByChannel.remove(channel);
-        if(deviceId!=null)
+        String deviceId=deviceIdByChannel.remove(channel);//根据断开的Channel找到他对应的deviceId, 并把这条映射删掉
+        if(deviceId==null)//连接不存在的情况
         {
             return;
         }
-        sessionsByDeviceId.remove(deviceId);
-        redisStateService.removeOnlineSession(deviceId);
-        redisStateService.removeRoutesForDevice(deviceId);
-        myBatisPersistenceService.markDeviceOfflineQuietly(deviceId);
-        pushNotificationService.publish("server-device-offline", Map.of("deviceId", deviceId));
+        sessionsByDeviceId.remove(deviceId);//清理服务端状态
+        redisStateService.removeOnlineSession(deviceId);//删除Redis里面的在线状态
+        redisStateService.removeRoutesForDevice(deviceId);//删除和该设备有关的传输路由
+        myBatisPersistenceService.markDeviceOfflineQuietly(deviceId);//在MySQL里面标记为离线
+        pushNotificationService.publish("server-device-offline", Map.of("deviceId", deviceId));//推送设备离线事件
     }
 
-    private void handleAuthRequest(Channel channel, AuthRequestPacket packet)
+    //处理认证
+    private void handleAuthRequest(Channel channel, AuthRequestPacket packet)//1. 生成ChallengeId, 2. 生成随机Challenge, 3. 把Challenge保存到Redis, 4. 返回Challenge给客户端
     {
         String challengeId= UUID.randomUUID().toString();
         String challenge=UUID.randomUUID().toString();
+
+        //把这个 challenge 保存到 Redis。
         redisStateService.saveChallenge(new PendingAuthChallenge(
                 packet.getDeviceId(),
                 packet.getPublicKey(),
                 challengeId,
                 challenge
         ));
-        channel.writeAndFlush(new ChallengePacket(challenge, challengeId));
+        channel.writeAndFlush(new ChallengePacket(challenge, challengeId));//返回 ChallengePacket 给客户端。
     }
 
+    //处理认证结果
     private void handleAuthResponse(Channel channel, AuthResponsePacket packet) throws GeneralSecurityException
     {
-        Optional<PendingAuthChallenge> challengeOptional=redisStateService.takeChallenge(packet.getChallengeId());
+        //根据challengeId取出之前保存的Challenge，Optional防空
+        Optional<PendingAuthChallenge> challengeOptional=redisStateService.takeChallenge(packet.getChallengeId());//取出来，然后删除，防止Challenge被重复使用
         PendingAuthChallenge challenge=challengeOptional.orElse(null);
-        if(challenge == null)
+        if(challenge == null)//判断Challenge是否存在
         {
             myBatisPersistenceService.logAuthFailure(null, packet.getPublicKey(), packet.getChallengeId(), channel, "Challenge not found");
-            channel.writeAndFlush(new AuthResultPacket("Challenge not found", false));
-            channel.close();
+            channel.writeAndFlush(new AuthResultPacket("Challenge not found", false));//认证失败反馈
+            channel.close();//端口连接
             return;
         }
 
+        //验证签名
         boolean verified = cryptoSupport.verifySignature(packet.getPublicKey(), challenge.getChallenge(), packet.getSignature());
-        if(!verified)
+        if(!verified)//签名验证失败的情况
         {
             myBatisPersistenceService.logAuthFailure(
                     challenge.getDeviceId(),
@@ -162,11 +188,12 @@ public class ServerRoutingService
                     channel,
                     authenticationResultProperties.getFailed()
             );
-            channel.writeAndFlush(new AuthResultPacket(authenticationResultProperties.getFailed(), false));
-            channel.close();
+            channel.writeAndFlush(new AuthResultPacket(authenticationResultProperties.getFailed(), false));//发送签名验证失败的结果
+            channel.close();//断开连接
             return;
         }
 
+        //签名验证成功，创建服务端会话
         ServerClientSession existing = sessionsByDeviceId.put(
                 challenge.getDeviceId(),
                 new ServerClientSession(
@@ -176,20 +203,22 @@ public class ServerRoutingService
         );
         if(existing!=null && existing.getChannel()!=channel)
         {
-            existing.getChannel().close();
+            existing.getChannel().close();//同设备已在线，关闭旧连接
         }
 
-        deviceIdByChannel.put(channel, challenge.getDeviceId());
-        redisStateService.saveOnlineSession(challenge.getDeviceId(), challenge.getPublicKey(), channel.id().asShortText());
-        myBatisPersistenceService.upsertOnlineDevice(challenge.getDeviceId(), challenge.getPublicKey());
-        myBatisPersistenceService.logAuthSuccess(challenge.getDeviceId(), challenge.getPublicKey(), packet.getChallengeId(), channel);
-        channel.writeAndFlush(new AuthResultPacket(authenticationResultProperties.getSucceed(), true));
+        deviceIdByChannel.put(channel, challenge.getDeviceId());//写入内存在线会话状态
+        redisStateService.saveOnlineSession(challenge.getDeviceId(), challenge.getPublicKey(), channel.id().asShortText());//写入Redis在线状态
+        myBatisPersistenceService.upsertOnlineDevice(challenge.getDeviceId(), challenge.getPublicKey());//写入MySQL设备状态
+        myBatisPersistenceService.logAuthSuccess(challenge.getDeviceId(), challenge.getPublicKey(), packet.getChallengeId(), channel);//记录认证成功日志
+        channel.writeAndFlush(new AuthResultPacket(authenticationResultProperties.getSucceed(), true));//将认证结果返回给客户端
         pushNotificationService.publish("server-device-online", Map.of(
                 "deviceId", challenge.getDeviceId()
-        ));
+        ));//推送设备上线
 
     }
 
+
+    //处理选择接收设备
     private void handleDeviceSelection(Channel channel, String senderDeviceId, DeviceSelectionPacket packet)
     {
         ServerClientSession receiver=sessionsByDeviceId.get(packet.getSelectedDeviceId());

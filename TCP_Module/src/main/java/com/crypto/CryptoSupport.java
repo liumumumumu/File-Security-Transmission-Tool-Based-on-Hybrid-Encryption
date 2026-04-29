@@ -5,7 +5,9 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.file.Path;
 import java.security.*;
+import java.util.Map;
 
 /**
  * Author: LQH
@@ -114,6 +116,108 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
 
     //把Base64字符串解析成Java的PrivateKey对象
     public PrivateKey parsePrivateKey(String privKeyBase64)throws GeneralSecurityException
+    {
+        return null;
+    }
+
+
+    //-----------------2026-04-29新增：客户端本地保存输入的密钥-----------------//
+
+    //返回密钥状态
+    public synchronized Map<String, Object> keyStatus() throws GeneralSecurityException
+    {
+        return null;
+    }
+
+    //从文本导入私钥
+    public synchronized void importPrivateKeyText(String privateKeyText)
+    {
+
+    }
+
+    //从文件导入私钥
+    public synchronized void importPrivateKeyFile(Path privateKeyPath)
+    {
+
+    }
+
+    //计算当前公钥的SHA-256指纹
+    //标识一个公钥，设备身份标识（类似账户的概念）
+    public synchronized String publicKeyFingerprint() throws GeneralSecurityException
+    {
+        return null;
+    }
+
+    //计算指定公钥的SHA-256指纹
+    //计算传入的公钥的指纹
+    public String publicKeyFingerprint(String publicKeyBase64) throws GeneralSecurityException
+    {
+        return null;
+    }
+
+    //从本地私钥文件加载密钥对
+    private void loadKeyPair(Path privateKeyPath, Path publicKeyPath)//读取私钥文件，解析私钥推导出公钥
+    {
+
+    }
+
+    //生成新的RSA密钥对，并保存到文件
+    private void generateAndPersistKeyPair(Path privateKeyPath, Path publicKeyPath)
+    {
+
+    }
+
+    //导入私钥后保存当前的密钥
+    private void persistCurrentKeyPair()
+    {
+
+    }
+
+    //把制定的密钥对保存成文件，编码成 PEM 格式。
+    private void persistKeyPair(Path privateKeyPath, Path publicKeyPath, KeyPair pair)
+    {
+
+    }
+
+    //书写密钥文件
+    private void writeKeyFile(Path path, String content, boolean privateFile)
+    {
+
+    }
+
+    //设置私钥文件权限,只有文件所有者可以读写
+    private void restrictOwnerOnly(Path path)
+    {
+
+    }
+
+    //把密钥字节数组编码成PEM格式
+    private String encodePem(String type, byte[] encoded)
+    {
+        return null;
+    }
+
+
+    //清理PEM文本，只保留真正的Base64内容
+    private String normalizeKeyText(String keyText)
+    {
+        return null;
+    }
+
+    //根据私钥推导出公钥
+    private PublicKey derivePublicKey(PrivateKey privateKey)
+    {
+        return null;
+    }
+
+    //将配置文件中的路径转成真正的绝对路径
+    private Path configuredPath(String value)
+    {
+        return null;
+    }
+
+    //把路径开头的 ~ 替换成当前用户的 home 目录。
+    private Path expandUserHome(Path path)
     {
         return null;
     }
