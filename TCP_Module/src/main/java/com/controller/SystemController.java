@@ -47,17 +47,22 @@ public class SystemController
     }
 
     @GetMapping("/status")
-    public Map<String, Object> status()
+    public Map<String, Object> status() throws Exception
     {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("application", "file-security-transmission-tool");
         payload.put("status", "UP");
+        payload.put("deviceId", nodeProperties.getDeviceId());
+        payload.put("accountId", cryptoSupport.publicKeyFingerprint());
         payload.put("clientServerHost", clientProperties.getServerHost());
         payload.put("clientServerPort", clientProperties.getServerPort());
+        payload.put("tcpEnabled", serverProperties.isEnabled());
         payload.put("tcpBindHost", serverProperties.getBindHost());
         payload.put("tcpBindPort", serverProperties.getBindPort());
         payload.put("cryptoServiceAddress", cryptoServiceProperties.getAddress());
         payload.put("cryptoServicePort", cryptoServiceProperties.getPort());
+        payload.put("taskCount", transferTaskRegistry.allTasks().size());
+        payload.put("localTransferHistoryPath", localTransferHistoryService.historyPath().toString());
         return payload;
     }
 

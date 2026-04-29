@@ -5,13 +5,23 @@ import org.springframework.stereotype.Component;
 
 public class ServerClientSession {
     private String deviceId;
+    private String accountId;
     private String publicKey;
     private Channel channel;
 
-    public ServerClientSession(String deviceId, String publicKey, Channel channel) {
+    public ServerClientSession(String accountId, Channel channel, String deviceId, String publicKey) {
+        this.accountId = accountId;
+        this.channel = channel;
         this.deviceId = deviceId;
         this.publicKey = publicKey;
-        this.channel = channel;
+    }
+
+    public String getAccountId() {
+        return accountId;
+    }
+
+    public void setAccountId(String accountId) {
+        this.accountId = accountId;
     }
 
     public Channel getChannel() {
@@ -41,11 +51,10 @@ public class ServerClientSession {
     @Override
     public String toString() {
         return "ServerClientSession{" +
-                "channel=" + channel +
+                "accountId='" + accountId + '\'' +
                 ", deviceId='" + deviceId + '\'' +
                 ", publicKey='" + publicKey + '\'' +
+                ", channel=" + channel +
                 '}';
     }
-
-
 }

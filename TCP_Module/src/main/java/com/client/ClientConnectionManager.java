@@ -200,15 +200,20 @@ public class ClientConnectionManager
         return status == ClientConnectionStatus.AUTHENTICATED && channel!=null && channel.isActive();
     }
 
-    //返回客户端动情连接状态信息
+    //返回客户端当前连接状态信息
     public Map<String, Object> currentStatus()
     {
-        return Map.of(
-                "deviceId", nodeProperties.getDeviceId(),
-                "status", status.name(),
-                "connectedHost", connectedHost==null?"":connectedHost,
-                "connectedPort", connectedPort
-        );
+        try {
+            return Map.of(
+                    "deviceId", nodeProperties.getDeviceId(),
+                    "accountId", cryptoSupport.publicKeyFingerprint(),
+                    "status", status.name(),
+                    "connectedHost", connectedHost == null ? "" : connectedHost,
+                    "connectedPort", connectedPort
+            );
+        } catch (GeneralSecurityException ex) {
+            throw new IllegalStateException("Unable to calculate accountId", ex);
+        }
     }
 
     //获取本地的公钥

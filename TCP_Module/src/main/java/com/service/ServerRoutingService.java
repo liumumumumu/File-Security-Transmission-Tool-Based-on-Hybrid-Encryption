@@ -12,6 +12,7 @@ import com.common.protocol.heartbeat.PingPacket;
 import com.common.protocol.heartbeat.PongPacket;
 import com.crypto.CryptoSupport;
 import com.server.PendingAuthChallenge;
+import com.server.PendingTransferRequest;
 import com.server.ServerClientSession;
 import com.server.TransferRoute;
 import io.netty.channel.Channel;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import java.security.GeneralSecurityException;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -52,6 +54,8 @@ public class ServerRoutingService
     //内存里的在线连接表
     private final Map<String, ServerClientSession> sessionsByDeviceId=new ConcurrentHashMap<>();//根据设备ID找到对应的Netty Channel，从而将包发送给该设备
     private final Map<Channel, String> deviceIdByChannel=new ConcurrentHashMap<>();//根据当前TCP连接反查这个连接属于那个设备
+    private final Map<String, Set<String>> deviceIdsByAccountId=new ConcurrentHashMap<>();
+    private final Map<String, PendingTransferRequest> pendingTransferRequests = new ConcurrentHashMap<>();
 
 
     public ServerRoutingService(AuthenticationResultProperties authenticationResultProperties, CryptoSupport cryptoSupport, PushNotificationService pushNotificationService, RedisStateService redisStateService, MyBatisPersistenceService myBatisPersistenceService) {
@@ -98,9 +102,12 @@ public class ServerRoutingService
 
             redisStateService.touchOnlineSession(deviceId);//已认证后刷新在线状态
 
-            if(packet instanceof DeviceSelectionPacket deviceSelectionPacket)//处理设备选择数据包
-            {
-                handleDeviceSelection(ctx.channel(), deviceId, deviceSelectionPacket);
+            if (packet instanceof TransferRequestPacket transferRequestPacket) {
+                handleTransferRequest(ctx.channel(), deviceId, transferRequestPacket);
+                return;
+            }
+            if (packet instanceof ReceiverDeviceSelectionPacket receiverDeviceSelectionPacket) {
+                handleReceiverDeviceSelection(ctx.channel(), deviceId, receiverDeviceSelectionPacket);
                 return;
             }
             if(packet instanceof FileOfferPacket fileOfferPacket)//处理文件信息数据包
@@ -140,9 +147,17 @@ public class ServerRoutingService
         {
             return;
         }
+        ServerClientSession session = sessionsByDeviceId.get(deviceId);
+        if (session != null && session.getChannel() != channel) {
+            return;
+        }
+        if (session != null) {
+            removeAccountSessionIndex(session.getAccountId(), deviceId);
+        }
         sessionsByDeviceId.remove(deviceId);//清理服务端状态
         redisStateService.removeOnlineSession(deviceId);//删除Redis里面的在线状态
         redisStateService.removeRoutesForDevice(deviceId);//删除和该设备有关的传输路由
+        pendingTransferRequests.entrySet().removeIf(entry -> entry.getValue().senderDeviceId().equals(deviceId));
         myBatisPersistenceService.markDeviceOfflineQuietly(deviceId);//在MySQL里面标记为离线
         pushNotificationService.publish("server-device-offline", Map.of("deviceId", deviceId));//推送设备离线事件
     }
@@ -198,15 +213,19 @@ public class ServerRoutingService
                 challenge.getDeviceId(),
                 new ServerClientSession(
                         challenge.getDeviceId(),
-                        challenge.getPublicKey(),
-                        channel)
+                        channel,
+                        challenge.getDeviceId(),
+                        challenge.getPublicKey())
         );
         if(existing!=null && existing.getChannel()!=channel)
         {
+            removeAccountSessionIndex(existing.getAccountId(), existing.getDeviceId());
             existing.getChannel().close();//同设备已在线，关闭旧连接
         }
 
         deviceIdByChannel.put(channel, challenge.getDeviceId());//写入内存在线会话状态
+        ServerClientSession current = sessionsByDeviceId.get(challenge.getDeviceId());
+        deviceIdsByAccountId.computeIfAbsent(current.getAccountId(), key -> ConcurrentHashMap.newKeySet()).add(current.getDeviceId());
         redisStateService.saveOnlineSession(challenge.getDeviceId(), challenge.getPublicKey(), channel.id().asShortText());//写入Redis在线状态
         myBatisPersistenceService.upsertOnlineDevice(challenge.getDeviceId(), challenge.getPublicKey());//写入MySQL设备状态
         myBatisPersistenceService.logAuthSuccess(challenge.getDeviceId(), challenge.getPublicKey(), packet.getChallengeId(), channel);//记录认证成功日志
@@ -219,32 +238,123 @@ public class ServerRoutingService
 
 
     //处理选择接收设备
-    private void handleDeviceSelection(Channel channel, String senderDeviceId, DeviceSelectionPacket packet)
+    private void handleTransferRequest(Channel channel, String senderDeviceId, TransferRequestPacket packet)
     {
-        ServerClientSession receiver=sessionsByDeviceId.get(packet.getSelectedDeviceId());
-        if(receiver==null)
+        Set<String> receiverDeviceIds = deviceIdsByAccountId.get(packet.getTargetAccountId());
+        if (receiverDeviceIds == null || receiverDeviceIds.isEmpty())
         {
             channel.writeAndFlush(new DeviceSelectionPacket(
                     false,
-                    "Target device is offline",
-                    packet.getSelectedDeviceId(),
+                    "Target account has no online devices",
+                    packet.getTargetAccountId(),
                     packet.getTransferId()
             ));
             return;
         }
 
-        redisStateService.saveTransferRoute(new TransferRoute(
+        pendingTransferRequests.put(packet.getTransferId(), new PendingTransferRequest(
+                packet.getFileName(),
+                packet.getFileSize(),
+                senderDeviceId,
+                packet.getTargetAccountId(),
+                packet.getTotalBlocks(),
+                packet.getTransferId()
+        ));
+
+        IncomingTransferRequestPacket requestPacket = new IncomingTransferRequestPacket(
                 packet.getTransferId(),
                 senderDeviceId,
+                packet.getTargetAccountId(),
+                packet.getFileName(),
+                packet.getFileSize(),
+                packet.getTotalBlocks()
+        );
+        for (String receiverDeviceId : receiverDeviceIds) {
+            ServerClientSession receiver = sessionsByDeviceId.get(receiverDeviceId);
+            if (receiver != null) {
+                receiver.getChannel().writeAndFlush(requestPacket);
+            }
+        }
+    }
+
+    private void handleReceiverDeviceSelection(Channel channel, String receiverDeviceId, ReceiverDeviceSelectionPacket packet)
+    {
+        PendingTransferRequest request = pendingTransferRequests.get(packet.getTransferId());
+        if (request == null) {
+            channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), false, "Transfer request not found"));
+            return;
+        }
+
+        ServerClientSession receiver = sessionsByDeviceId.get(receiverDeviceId);
+        if (receiver == null || !receiver.getAccountId().equals(request.getTargetAccountId())) {
+            channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), false, "Receiver device is not in target account"));
+            return;
+        }
+
+        ServerClientSession sender = sessionsByDeviceId.get(request.getSenderDeviceId());
+        if (sender == null) {
+            pendingTransferRequests.remove(packet.getTransferId());
+            channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), false, "Sender is offline"));
+            return;
+        }
+
+        if (!packet.isAccepted()) {
+            return;
+        }
+
+        PendingTransferRequest selected = pendingTransferRequests.remove(packet.getTransferId());
+        if (selected == null) {
+            channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), false, "Transfer request already selected"));
+            return;
+        }
+
+        redisStateService.saveTransferRoute(new TransferRoute(
+                selected.getTransferId(),
+                selected.getSenderDeviceId(),
                 receiver.getDeviceId()
         ));
 
-        channel.writeAndFlush(new DeviceSelectionPacket(
+        notifyUnselectedReceiverDevices(selected.getTargetAccountId(), receiver.getDeviceId(), selected.getTransferId());
+        sender.getChannel().writeAndFlush(new DeviceSelectionPacket(
                 true,
                 receiver.getPublicKey(),
-                packet.getSelectedDeviceId(),
-                packet.getTransferId()
+                receiver.getDeviceId(),
+                selected.getTransferId()
         ));
+        channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), true, "Receiver device selected"));
+    }
+
+    private void removeAccountSessionIndex(String accountId, String deviceId)
+    {
+        Set<String> deviceIds = deviceIdsByAccountId.get(accountId);
+        if (deviceIds == null) {
+            return;
+        }
+        deviceIds.remove(deviceId);
+        if (deviceIds.isEmpty()) {
+            deviceIdsByAccountId.remove(accountId, deviceIds);
+        }
+    }
+
+    private void notifyUnselectedReceiverDevices(String accountId, String selectedDeviceId, String transferId)
+    {
+        Set<String> deviceIds = deviceIdsByAccountId.get(accountId);
+        if (deviceIds == null) {
+            return;
+        }
+        for (String deviceId : deviceIds) {
+            if (deviceId.equals(selectedDeviceId)) {
+                continue;
+            }
+            ServerClientSession session = sessionsByDeviceId.get(deviceId);
+            if (session != null) {
+                session.getChannel().writeAndFlush(new ReceiverDeviceSelectionPacket(
+                        transferId,
+                        false,
+                        "Transfer request selected by another device"
+                ));
+            }
+        }
     }
 
     private void forwardToReceiver(String deviceId, String transferId, Packet packet)

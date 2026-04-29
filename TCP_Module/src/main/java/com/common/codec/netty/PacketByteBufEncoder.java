@@ -77,6 +77,15 @@ public class PacketByteBufEncoder extends MessageToMessageEncoder<Packet>
         {
             return new AckEncoder();
         }
+        if (packet instanceof TransferRequestPacket) {
+            return new TransferRequestEncoder();
+        }
+        if (packet instanceof IncomingTransferRequestPacket) {
+            return new IncomingTransferRequestEncoder();
+        }
+        if (packet instanceof ReceiverDeviceSelectionPacket) {
+            return new ReceiverDeviceSelectionEncoder();
+        }
         //心跳
         else if(packet instanceof PingPacket)
         {

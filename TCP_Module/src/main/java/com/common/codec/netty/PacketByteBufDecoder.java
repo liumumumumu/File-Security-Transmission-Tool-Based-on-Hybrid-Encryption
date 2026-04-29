@@ -63,6 +63,9 @@ public class PacketByteBufDecoder extends MessageToMessageDecoder<ByteBuf>
             case MessageType.File_Accept ->    new FileAcceptDecoder();
             case MessageType.File_Block ->    new FileBlockDecoder();
             case MessageType.ACk ->    new AckDecoder();
+            case MessageType.Transfer_Request -> new TransferRequestDecoder();
+            case MessageType.Incoming_Transfer_Request -> new IncomingTransferRequestDecoder();
+            case MessageType.Receiver_Device_Selection -> new ReceiverDeviceSelectionDecoder();
 
             //心跳
             case MessageType.Ping ->    new PingDecoder();

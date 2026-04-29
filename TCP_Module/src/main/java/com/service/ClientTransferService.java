@@ -66,6 +66,7 @@ public class ClientTransferService
     private final Map<String, CompletableFuture<String>> deviceSelectionFutures = new ConcurrentHashMap<>();//服务器确认目标设备是否存在，并返回目标设备公钥。deviceSelectionFutures关联等待结果
     private final Map<String, OutboundTransferContext>  outboundTransferContexts = new ConcurrentHashMap<>();//保存正在发送的任务的上下文，AES密钥，等待接收方接收的Future，每个块的ACK Future
     private final Map<String, InboundTransferContext> inboundTransferContexts = new ConcurrentHashMap<>();//保存正在接收的任务上下文，AES密钥，输出文件流，已收到但暂时不能写入的块
+    private final Map<String, IncomingTransferRequestPacket> pendingIncomingTransferRequests = new ConcurrentHashMap<>();
 
 
     public ClientTransferService(ClientConnectionManager clientConnectionManager, ClientProperties clientProperties, CryptoSupport cryptoSupport, NodeProperties nodeProperties, PushNotificationService pushNotificationService, TransferProperties transferProperties, TransferTaskRegistry transferTaskRegistry) {
@@ -89,7 +90,7 @@ public class ClientTransferService
     }
 
     //发送文件的入口方法；创建一个传输任务，然后把真正发送逻辑交给后台线程执行
-    public String sendFile(Path filePath, String targetDeviceId)//返回taskId
+    public String sendFile(Path filePath, String targetAccountId)//返回taskId
     {
         //检查是否认证
         if(!clientConnectionManager.isAuthenticated())
@@ -123,15 +124,15 @@ public class ClientTransferService
                     TransferDirection.SEND,
                     filePath.getFileName().toString(),
                     filePath.toAbsolutePath().toString(),
-                    targetDeviceId,
+                    targetAccountId,
                     fileSize,
                     totalBlocks,
                     Instant.now() //创建时间
             );
-            task.updateStatus(TransferStatus.WAITING_FOR_TARGET, "Resolving target device");//更新任务状态
+            task.updateStatus(TransferStatus.WAITING_FOR_TARGET, "Waiting for receiver device selection");//更新任务状态
             transferTaskRegistry.register(task);//注册任务
             pushNotificationService.publish("transfer-created", task);//推送任务创建事件
-            executorService.submit(()->executeSend(task, filePath, targetDeviceId));//真正的发送交给后台线程处理，（异步任务）
+            executorService.submit(()->executeSend(task, filePath, targetAccountId));//真正的发送交给后台线程处理，（异步任务）
             return taskId;
         }
         catch (IOException e)
@@ -156,6 +157,14 @@ public class ClientTransferService
         else
         {
             future.completeExceptionally(new IllegalStateException(packet.getMessage()));
+        }
+    }
+
+    public void handleFileAccept(FileAcceptPacket packet)
+    {
+        OutboundTransferContext context = outboundTransferContexts.get(packet.getTransferId());
+        if (context != null) {
+            context.acceptFuture.complete(packet);
         }
     }
 
@@ -256,7 +265,7 @@ public class ClientTransferService
 
     //真正执行发送文件的函数
     //目前是发送一块等待一块的ACK结果---2026-04-27；可以改成发送窗口的模式
-    private void executeSend(TransferTask task, Path filePath, String targetDeviceId)
+    private void executeSend(TransferTask task, Path filePath, String targetAccountId)
     {
         OutboundTransferContext context = null;
         try
@@ -266,12 +275,12 @@ public class ClientTransferService
             deviceSelectionFutures.put(task.getTransferId(), recipientKeyFuture);
 
             //发送设备选择请求
-            clientConnectionManager.send(
-                    new DeviceSelectionPacket(
-                            false,
-                            "",
-                            targetDeviceId,
-                            task.getTransferId()
+            clientConnectionManager.send(new TransferRequestPacket(
+                    task.getTransferId(),
+                    targetAccountId,
+                    task.getFileName(),
+                    task.getTotalBytes(),
+                    task.getTotalBlocks()
                     )
             );//发送后，当前线程等待结果
 
@@ -394,6 +403,50 @@ public class ClientTransferService
     private void persistTask(TransferTask task)
     {
         transferTaskRegistry.persist();
+    }
+
+    public void handleIncomingTransferRequest(IncomingTransferRequestPacket packet)
+    {
+        pendingIncomingTransferRequests.put(packet.getTransferId(), packet);
+        pushNotificationService.publish("incoming-transfer-request", Map.of(
+                "transferId", packet.getTransferId(),
+                "senderDeviceId", packet.getSenderDeviceId(),
+                "targetAccountId", packet.getTargetAccountId(),
+                "fileName", packet.getFileName(),
+                "fileSize", packet.getFileSize(),
+                "totalBlocks", packet.getTotalBlocks()
+        ));
+    }
+
+    public void handleReceiverDeviceSelection(ReceiverDeviceSelectionPacket packet)
+    {
+        if (packet.isAccepted()) {
+            pendingIncomingTransferRequests.remove(packet.getTransferId());
+            pushNotificationService.publish("incoming-transfer-selected", Map.of(
+                    "transferId", packet.getTransferId(),
+                    "message", packet.getMessage()
+            ));
+            return;
+        }
+        pendingIncomingTransferRequests.remove(packet.getTransferId());
+        pushNotificationService.publish("incoming-transfer-selection-failed", Map.of(
+                "transferId", packet.getTransferId(),
+                "message", packet.getMessage()
+        ));
+    }
+
+    public void acceptIncomingTransfer(String transferId)
+    {
+        IncomingTransferRequestPacket request = pendingIncomingTransferRequests.get(transferId);
+        if (request == null) {
+            throw new IllegalArgumentException("Incoming transfer request not found: " + transferId);
+        }
+        clientConnectionManager.send(new ReceiverDeviceSelectionPacket(transferId, true, "Accepted by receiver device"));
+    }
+
+    public Map<String, IncomingTransferRequestPacket> pendingIncomingTransferRequests()
+    {
+        return Map.copyOf(pendingIncomingTransferRequests);
     }
 
     //发送端传输上下文对象，在向外发送文件的过程中，把这次需要用到的状态集中保存起来

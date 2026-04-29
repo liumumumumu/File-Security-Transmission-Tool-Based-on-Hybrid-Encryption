@@ -12,6 +12,9 @@ public final class MessageType
     public static final byte File_Accept=12;
     public static final byte File_Block=13;
     public static final byte ACk=14;
+    public static final byte Transfer_Request=15;
+    public static final byte Incoming_Transfer_Request=16;
+    public static final byte Receiver_Device_Selection=17;
 
     public static final byte Ping=20;
     public static final byte Pong=21;
