@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SafeSend Hybrid - 文件安全传输</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <nav class="nav" aria-label="主导航">
+        <a class="brand" href="./index.html" aria-label="SafeSend Hybrid 首页">
+          <span class="brand-mark" aria-hidden="true">SH</span>
+          <span>SafeSend Hybrid</span>
+        </a>
+        <div class="nav-actions">
+          <button class="icon-button" type="button" title="查看连接状态" aria-label="查看连接状态">
+            <span aria-hidden="true">●</span>
+          </button>
+          <button class="text-button" type="button">开发模式</button>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero-band">
+        <div class="hero-layout">
+          <div class="hero-copy">
+            <p class="eyebrow">RSA/ECC + AES-256-GCM + TCP</p>
+            <h1>安全发送大文件，过程看得见。</h1>
+            <p class="hero-text">
+              面向课程项目的文件安全传输界面原型：选择文件、协商密钥、分块加密、传输进度和断点续传状态集中展示。
+            </p>
+          </div>
+
+          <section class="transfer-panel" aria-labelledby="transfer-title">
+            <div class="panel-head">
+              <div>
+                <p class="panel-kicker">传输任务</p>
+                <h2 id="transfer-title">发送文件</h2>
+              </div>
+              <div class="segmented" role="tablist" aria-label="传输模式">
+                <button class="segment active" type="button" data-mode="send" role="tab" aria-selected="true">发送</button>
+                <button class="segment" type="button" data-mode="receive" role="tab" aria-selected="false">接收</button>
+              </div>
+            </div>
+
+            <form class="transfer-form" id="transfer-form">
+              <label class="drop-zone" id="drop-zone" for="file-input">
+                <input id="file-input" type="file" multiple />
+                <span class="drop-icon" aria-hidden="true">+</span>
+                <strong>点击选择文件或拖拽到这里</strong>
+                <span>支持大文件分块传输，默认每块 1 MB</span>
+              </label>
+
+              <div class="file-list" id="file-list" aria-live="polite">
+                <p class="empty-state">还没有选择文件。</p>
+              </div>
+
+              <div class="form-grid">
+                <label>
+                  <span>服务器地址</span>
+                  <input id="server-host" type="text" value="127.0.0.1" autocomplete="off" />
+                </label>
+                <label>
+                  <span>端口</span>
+                  <input id="server-port" type="number" value="1749" min="1" max="65535" />
+                </label>
+                <label>
+                  <span>密钥协商</span>
+                  <select id="key-exchange">
+                    <option>RSA-2048</option>
+                    <option>ECC P-256</option>
+                  </select>
+                </label>
+                <label>
+                  <span>分块大小</span>
+                  <select id="chunk-size">
+                    <option value="1">1 MB</option>
+                    <option value="2">2 MB</option>
+                    <option value="4">4 MB</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="option-row" aria-label="传输选项">
+                <label class="check-option">
+                  <input type="checkbox" checked />
+                  <span>启用 AES-256-GCM</span>
+                </label>
+                <label class="check-option">
+                  <input type="checkbox" checked />
+                  <span>记录断点续传状态</span>
+                </label>
+                <label class="check-option">
+                  <input type="checkbox" />
+                  <span>传输后删除临时密钥</span>
+                </label>
+              </div>
+
+              <div class="action-row">
+                <button class="primary-button" id="start-button" type="submit">开始安全传输</button>
+                <button class="ghost-button" id="reset-button" type="button">清空</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      </section>
+
+      <section class="workspace-band" aria-label="传输状态">
+        <div class="workspace">
+          <section class="status-panel" aria-labelledby="status-title">
+            <div class="section-title-row">
+              <div>
+                <p class="panel-kicker">实时状态</p>
+                <h2 id="status-title">传输进度</h2>
+              </div>
+              <span class="status-pill" id="connection-status">未连接</span>
+            </div>
+
+            <div class="progress-block">
+              <div class="progress-meta">
+                <span id="progress-label">等待任务</span>
+                <strong id="progress-percent">0%</strong>
+              </div>
+              <div class="progress-track" aria-hidden="true">
+                <div class="progress-fill" id="progress-fill"></div>
+              </div>
+            </div>
+
+            <div class="metric-grid">
+              <div class="metric">
+                <span>速度</span>
+                <strong id="speed">0 MB/s</strong>
+              </div>
+              <div class="metric">
+                <span>ETA</span>
+                <strong id="eta">--</strong>
+              </div>
+              <div class="metric">
+                <span>已确认块</span>
+                <strong id="acked">0</strong>
+              </div>
+              <div class="metric">
+                <span>会话密钥</span>
+                <strong id="session-key">待协商</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="pipeline-panel" aria-labelledby="pipeline-title">
+            <div class="section-title-row">
+              <div>
+                <p class="panel-kicker">安全流程</p>
+                <h2 id="pipeline-title">混合加密管线</h2>
+              </div>
+            </div>
+
+            <ol class="pipeline">
+              <li class="pipeline-step active">
+                <span class="step-index">1</span>
+                <div>
+                  <strong>连接服务器</strong>
+                  <p>建立 TCP 连接并交换基础参数。</p>
+                </div>
+              </li>
+              <li class="pipeline-step">
+                <span class="step-index">2</span>
+                <div>
+                  <strong>协商会话密钥</strong>
+                  <p>使用 RSA-2048 或 ECC P-256 保护 AES 密钥。</p>
+                </div>
+              </li>
+              <li class="pipeline-step">
+                <span class="step-index">3</span>
+                <div>
+                  <strong>分块加密</strong>
+                  <p>每块独立加密并附带 GCM Tag。</p>
+                </div>
+              </li>
+              <li class="pipeline-step">
+                <span class="step-index">4</span>
+                <div>
+                  <strong>ACK 与断点续传</strong>
+                  <p>记录已确认块，重连后继续发送。</p>
+                </div>
+              </li>
+            </ol>
+          </section>
+        </div>
+      </section>
+
+      <section class="receive-band" aria-label="接收信息">
+        <div class="receive-layout">
+          <div>
+            <p class="panel-kicker">接收端</p>
+            <h2>用会话码或文件 ID 接收</h2>
+            <p>
+              这里先作为交互占位，后续可对接后端返回的 task_id、resume_token、download_code 或局域网连接信息。
+            </p>
+          </div>
+          <form class="receive-form" id="receive-form">
+            <label>
+              <span>接收码</span>
+              <input id="receive-code" type="text" placeholder="例如 SH-1749-ABCD" autocomplete="off" />
+            </label>
+            <button class="secondary-button" type="submit">查询任务</button>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
