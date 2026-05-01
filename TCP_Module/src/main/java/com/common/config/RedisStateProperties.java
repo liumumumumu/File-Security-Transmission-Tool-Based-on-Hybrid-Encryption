@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class RedisStateProperties
 {
     private long challengeTtlSeconds;
-    private long onlineSessionTtlSeconds;
+    private long onlineSessionTtlSeconds;//如果没有心跳刷新，Redis里的在线状态最多120s后自动过去
     private long transferRouteTtlSeconds;
 
     public long getChallengeTtlSeconds() {

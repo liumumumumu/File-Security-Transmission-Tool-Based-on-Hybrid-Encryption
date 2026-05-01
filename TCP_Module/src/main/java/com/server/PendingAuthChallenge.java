@@ -2,6 +2,13 @@ package com.server;
 
 import org.springframework.stereotype.Component;
 
+/**
+ * Author: LQH
+ * Date: 2026-04-27
+ * Purpose: 等待客户端完成签名验证的认证挑战信息
+ *
+ * */
+
 public class PendingAuthChallenge
 {
     private String deviceId;
