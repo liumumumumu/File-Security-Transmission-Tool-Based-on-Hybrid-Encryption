@@ -3,6 +3,13 @@ package com.server;
 import io.netty.channel.Channel;
 import org.springframework.stereotype.Component;
 
+/**
+ * Author: LQH
+ * Date: 2026-04-19
+ * Purpose: 服务端内存里的已认证的客户端连接会话实体类
+ *
+ **/
+
 public class ServerClientSession {
     private String deviceId;
     private String accountId;

@@ -2,6 +2,13 @@ package com.server;
 
 import org.springframework.stereotype.Component;
 
+/**
+ * Author: LQH
+ * Date: 2026-04-19
+ * Purpose: 确定接收设备后的文件传输路由关系实体类
+ *
+ **/
+
 public class TransferRoute
 {
     private String transferId;

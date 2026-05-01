@@ -1,6 +1,6 @@
 package com.session;
 
-public enum TransferStatus
+public enum TransferStatus  //传输状态枚举类
 {
     PENDING,
     WAITING_FOR_TARGET,

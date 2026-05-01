@@ -1,5 +1,12 @@
 package com.server;
 
+/**
+ * Author: LQH
+ * Date: 2026-04-29
+ * Purpose: 服务端用于暂存“等待接收端设备确认/选择”的文件传输请求实体类。
+ *
+ * */
+
 public class PendingTransferRequest
 {
     private String transferId;
