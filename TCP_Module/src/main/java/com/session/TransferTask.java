@@ -17,7 +17,7 @@ public class TransferTask
     private final TransferDirection direction;
     private final String fileName;
     private final String localPath;
-    private final String peerDeviceId;//发送方的公钥
+    private volatile String peerDeviceId;//发送方的公钥
     private final long totalBytes;//总字节数
     private final int totalBlocks;//总块数
     private final Instant createdAt;
@@ -62,6 +62,12 @@ public class TransferTask
     {
         this.status = status;
         this.message = message == null ? "" : message;
+    }
+
+    //更新传输任务里对端的设备Id
+    public synchronized void updatePeerDeviceId(String peerDeviceId)
+    {
+        this.peerDeviceId = peerDeviceId;
     }
 
     //恢复传输任务状态，用于程序启动后，从本地历史记录，数据库读取之前保存的传输任务，然后把之前的任务状态恢复回来

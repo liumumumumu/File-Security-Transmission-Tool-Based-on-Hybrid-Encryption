@@ -63,7 +63,7 @@ public class ClientTransferService
     //创建线程池
     private final ExecutorService executorService= Executors.newCachedThreadPool();//把耗时的任务放到后台线程执行，避免阻塞调用方
 
-    private final Map<String, CompletableFuture<String>> deviceSelectionFutures = new ConcurrentHashMap<>();//服务器确认目标设备是否存在，并返回目标设备公钥。deviceSelectionFutures关联等待结果
+    private final Map<String, CompletableFuture<SelectedReceiverDevice>> deviceSelectionFutures = new ConcurrentHashMap<>();//服务器确认目标设备是否存在，并返回目标设备公钥。deviceSelectionFutures关联等待结果
     private final Map<String, OutboundTransferContext>  outboundTransferContexts = new ConcurrentHashMap<>();//保存正在发送的任务的上下文，AES密钥，等待接收方接收的Future，每个块的ACK Future
     private final Map<String, InboundTransferContext> inboundTransferContexts = new ConcurrentHashMap<>();//保存正在接收的任务上下文，AES密钥，输出文件流，已收到但暂时不能写入的块
     private final Map<String, IncomingTransferRequestPacket> pendingIncomingTransferRequests = new ConcurrentHashMap<>();
@@ -145,18 +145,19 @@ public class ClientTransferService
     //处理设备选择结果
     public void handleDeviceSelection(DeviceSelectionPacket packet)
     {
-        CompletableFuture<String> future=deviceSelectionFutures.remove(packet.getTransferId());
+        CompletableFuture<SelectedReceiverDevice> future=deviceSelectionFutures.remove(packet.getTransferId());
         if(future==null)
         {
             return;
         }
         if(packet.isConfirmed())//设备选择确认
         {
-            future.complete(packet.getMessage());
+            future.complete(new SelectedReceiverDevice(packet.getSelectedDeviceId(), packet.getMessage()));
         }
         else
         {
-            future.completeExceptionally(new IllegalStateException(packet.getMessage()));
+            RuntimeException e=packet.getMessage() != null && packet.getMessage().startsWith("Transfer canceled")? new TransferCanceledException(packet.getMessage(), packet.getSelectedDeviceId()): new IllegalStateException(packet.getMessage());
+            future.completeExceptionally(e);
         }
     }
 
@@ -226,6 +227,17 @@ public class ClientTransferService
         clientConnectionManager.send(new FileAcceptPacket(true, "Auto accepted", packet.getTransferId()));//返回接收信息
     }
 
+    //接收方设备主动拒绝传输请求
+    public void rejectIncomingTransfer(String transferId)
+    {
+        IncomingTransferRequestPacket request=pendingIncomingTransferRequests.get(transferId);
+        if(request==null)
+        {
+            throw new IllegalStateException("Incoming transfer request not found: "+transferId);
+        }
+        clientConnectionManager.send(new ReceiverDeviceSelectionPacket(transferId, false, "Rejected by receiver device"));
+    }
+
     //处理接收到的文件数据块
     public void handleIncommingBlock(FileBlockPacket packet) throws GeneralSecurityException, IOException
     {
@@ -271,8 +283,8 @@ public class ClientTransferService
         try
         {
             //准备接收方的公钥
-            CompletableFuture<String> recipientKeyFuture=new CompletableFuture<>();
-            deviceSelectionFutures.put(task.getTransferId(), recipientKeyFuture);
+            CompletableFuture<SelectedReceiverDevice> recipientFuture=new CompletableFuture<>();
+            deviceSelectionFutures.put(task.getTransferId(), recipientFuture);
 
             //发送设备选择请求
             clientConnectionManager.send(new TransferRequestPacket(
@@ -284,7 +296,10 @@ public class ClientTransferService
                     )
             );//发送后，当前线程等待结果
 
-            String recipientPublicKey=recipientKeyFuture.get(clientProperties.getAckTimeoutSeconds(), TimeUnit.SECONDS);//会阻塞当前线程直到服务器返回目标设备信息，或者等待超时
+            SelectedReceiverDevice selectedReceiverDevice=recipientFuture.get(clientProperties.getAckTimeoutSeconds(), TimeUnit.SECONDS);//会阻塞当前线程直到服务器返回目标设备信息，或者等待超时
+            task.updatePeerDeviceId(selectedReceiverDevice.getDeviceId());
+            persistTask(task);
+            String recipientPublicKey=selectedReceiverDevice.getPublicKey();
             SecretKey secretKey=cryptoSupport.generateAESKey();//生成本次传输使用的AES密钥，本次传输文件使用的对称加密密钥
             String encryptedSessionKey=cryptoSupport.encryptAESKeyForReceiver(secretKey, recipientPublicKey);//用接收方的公钥加密这个AES密钥
 
@@ -373,9 +388,20 @@ public class ClientTransferService
         catch(Exception e)
         {
             log.info("TransferStatus: FAILED, "+e.getMessage());
-            task.updateStatus(TransferStatus.FAILED, e.getMessage());
-            persistTask(task);
-            pushNotificationService.publish("transfer-failed", task);
+            Throwable cause=e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
+            if(cause instanceof TransferCanceledException)
+            {
+                task.updatePeerDeviceId(((TransferCanceledException)cause).getDeviceId());
+                task.updateStatus(TransferStatus.CANCELED, cause.getMessage());
+                persistTask(task);
+                pushNotificationService.publish("transfer-cancelled", task);
+            }
+            else
+            {
+                task.updateStatus(TransferStatus.FAILED, e.getMessage());
+                persistTask(task);
+                pushNotificationService.publish("transfer-failed", task);
+            }
         }
         finally     //清理临时状态
         {
@@ -447,6 +473,43 @@ public class ClientTransferService
     public Map<String, IncomingTransferRequestPacket> pendingIncomingTransferRequests()
     {
         return Map.copyOf(pendingIncomingTransferRequests);
+    }
+
+
+    //临时数据结构，承接服务端返回的最终接收设备
+    private class SelectedReceiverDevice
+    {
+        private String deviceId;
+        private String publicKey;
+
+        public SelectedReceiverDevice(String deviceId, String publicKey) {
+            this.deviceId = deviceId;
+            this.publicKey = publicKey;
+        }
+
+        public String getDeviceId() {
+            return deviceId;
+        }
+
+        public void setDeviceId(String deviceId) {
+            this.deviceId = deviceId;
+        }
+
+        public String getPublicKey() {
+            return publicKey;
+        }
+
+        public void setPublicKey(String publicKey) {
+            this.publicKey = publicKey;
+        }
+
+        @Override
+        public String toString() {
+            return "SelectedReceiverDevice{" +
+                    "deviceId='" + deviceId + '\'' +
+                    ", publicKey='" + publicKey + '\'' +
+                    '}';
+        }
     }
 
     //发送端传输上下文对象，在向外发送文件的过程中，把这次需要用到的状态集中保存起来
@@ -536,5 +599,28 @@ public class ClientTransferService
             return receivedBlocks >= transferTask.getTotalBlocks();
         }
 
+    }
+
+    //用来区分普通失败和接收方拒绝接收的情况
+    private static final class TransferCanceledException extends RuntimeException
+    {
+        private final String deviceId;
+
+        private TransferCanceledException(String message, String deviceId)
+        {
+            super(message);
+            this.deviceId=deviceId;
+        }
+
+        public String getDeviceId() {
+            return deviceId;
+        }
+
+        @Override
+        public String toString() {
+            return "TransferCanceledException{" +
+                    "deviceId='" + deviceId + '\'' +
+                    '}';
+        }
     }
 }

@@ -157,7 +157,7 @@ public class ServerRoutingService
         sessionsByDeviceId.remove(deviceId);//清理服务端状态
         redisStateService.removeOnlineSession(deviceId);//删除Redis里面的在线状态
         redisStateService.removeRoutesForDevice(deviceId);//删除和该设备有关的传输路由
-        pendingTransferRequests.entrySet().removeIf(entry -> entry.getValue().senderDeviceId().equals(deviceId));
+        pendingTransferRequests.entrySet().removeIf(entry -> entry.getValue().getSenderDeviceId().equals(deviceId));
         myBatisPersistenceService.markDeviceOfflineQuietly(deviceId);//在MySQL里面标记为离线
         pushNotificationService.publish("server-device-offline", Map.of("deviceId", deviceId));//推送设备离线事件
     }
@@ -299,7 +299,22 @@ public class ServerRoutingService
         }
 
         if (!packet.isAccepted()) {
-            return;
+            PendingTransferRequest canceled = pendingTransferRequests.remove(packet.getTransferId());
+            if(canceled != null)
+            {
+                sender.getChannel().writeAndFlush(new DeviceSelectionPacket(
+                        false,
+                        "Transfer canceled by receiver device: "+receiver.getDeviceId(),
+                        receiver.getDeviceId(),
+                        canceled.getTransferId()
+                ));
+                notifyReceiverDevices(
+                        canceled.getTargetAccountId(),
+                        canceled.getTransferId(),
+                        false,
+                        "Transfer request canceled by receiver device: "+receiver.getDeviceId()
+                );
+            }
         }
 
         PendingTransferRequest selected = pendingTransferRequests.remove(packet.getTransferId());
@@ -375,7 +390,7 @@ public class ServerRoutingService
 
     private void forwardToSender(String receiverDeviceId, String transferId, Packet packet)
     {
-        TransferRoute route=redisStateService.findTransferRoute(transferId);
+        TransferRoute route=redisStateService.findTransferRoute(transferId).orElse(null);
         if(route==null || !route.getReceiverDeviceId().equals(receiverDeviceId))
         {
             throw new IllegalStateException("TransferRoute not found for receiver and transferId="+transferId);
@@ -392,5 +407,26 @@ public class ServerRoutingService
     private String authenticaedDeviceId(Channel channel)
     {
         return deviceIdByChannel.get(channel);
+    }
+
+    private void notifyReceiverDevices(String accountId, String transferId, boolean accepted, String message)
+    {
+        Set<String> deviceIds=deviceIdsByAccountId.get(accountId);
+        if(deviceIds==null)
+        {
+            return;
+        }
+        for(String deviceId : deviceIds)
+        {
+            ServerClientSession session=sessionsByDeviceId.get(deviceId);
+            if(session!=null)
+            {
+                session.getChannel().writeAndFlush(new ReceiverDeviceSelectionPacket(
+                   transferId,
+                   accepted,
+                   message
+                ));
+            }
+        }
     }
 }

@@ -7,6 +7,7 @@ public enum TransferStatus  //传输状态枚举类
     WAITING_FOR_ACCEPT,
     TRANSFERRING,
     COMPLETED,
+    CANCELED,
     FAILED,
     REJECTED
 }
