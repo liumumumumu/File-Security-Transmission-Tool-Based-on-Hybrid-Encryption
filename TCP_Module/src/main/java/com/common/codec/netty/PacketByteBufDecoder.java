@@ -37,7 +37,7 @@ public class PacketByteBufDecoder extends MessageToMessageDecoder<ByteBuf>
             byte messageType=copy.getByte(copy.readerIndex());
 
             //将ByteBuf转成一个具体的协议对象，并放进out
-            out.add(resolveDecoder(messageType));//加入out之后，该对象就会继续流向Netty pipline后面的handler
+            out.add(resolveDecoder(messageType).decode(copy));//加入out之后，该对象就会继续流向Netty pipline后面的handler
         }
         finally
         {

@@ -28,6 +28,6 @@ public class AuthRequestDecoder extends Decoder
         in.readBytes(deviceIdBytes);
         String deviceId = new String(deviceIdBytes, StandardCharsets.UTF_8);
 
-        return new AuthRequestPacket(publicKey, deviceId);
+        return new AuthRequestPacket(deviceId, publicKey);
     }
 }
