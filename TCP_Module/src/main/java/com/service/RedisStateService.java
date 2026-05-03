@@ -137,8 +137,8 @@ public class RedisStateService
         }
 
         return Optional.of(new TransferRoute(
-                stringValue(values.get("transferId")),
                 stringValue(values.get("senderDeviceId")),
+                stringValue(values.get("transferId")),
                 stringValue(values.get("receiverDeviceId"))
         ));//以TransferRoute对象的形式返回传输路由的信息
     }

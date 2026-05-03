@@ -3,7 +3,7 @@ spring:
     name: file-security-transmission-tool
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:db_FileSecurityTransmission}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
-    password: ${MYSQL_USERNAME:root}
+    username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:qh20050908}
     driver-class-name: com.mysql.cj.jdbc.Driver
   data:

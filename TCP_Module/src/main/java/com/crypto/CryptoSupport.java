@@ -1,6 +1,7 @@
 package com.crypto;
 
 import com.common.config.CryptoKeyProperties;
+import com.common.config.CryptoServiceProperties;
 import com.common.crypto.AesGcmChunk;
 import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
@@ -19,6 +20,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.security.*;
 import java.util.Base64;
 import java.util.Map;
@@ -36,11 +39,9 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
 {
 
     private final CryptoKeyProperties cryptoKeyProperties;
-    @Value("${crypto-service.address}")
-    private String CryptoServiceAddress;
-    @Value("${crypto-service.port}")
-    private String CryptoServicePort;
-    private String CRYPTO_SERVICE_URL="http://"+CryptoServiceAddress+":"+CryptoServicePort;
+    private final CryptoServiceProperties  cryptoServiceProperties;
+    private String CRYPTO_SERVICE_URL;
+
     private final HttpClient httpClient=HttpClient.newHttpClient();
     private final Gson gson=new Gson();//序列化/ 反序列化工具
 
@@ -56,8 +57,20 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
     //保存RSA公钥和私钥
     private KeyPair keyPair; //非对称密钥对（待定）
 
-    public CryptoSupport(CryptoKeyProperties cryptoKeyProperties) {
+    public CryptoSupport(CryptoKeyProperties cryptoKeyProperties, CryptoServiceProperties cryptoServiceProperties) {
         this.cryptoKeyProperties = cryptoKeyProperties;
+        this.cryptoServiceProperties = cryptoServiceProperties;
+    }
+
+    //手动设置Crypto url
+    public void setCRYPTO_SERVICE_URL(String CRYPTO_SERVICE_URL)
+    {
+        this.CRYPTO_SERVICE_URL=CRYPTO_SERVICE_URL;
+    }
+
+    public String getCryptoServiceUrl()
+    {
+        return CRYPTO_SERVICE_URL;
     }
 
 
@@ -65,6 +78,7 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
     @PostConstruct  //初始化回调注解
     public synchronized void init()
     {
+        CRYPTO_SERVICE_URL="http://"+cryptoServiceProperties.getAddress() +":"+cryptoServiceProperties.getPort();
         Path privateKeyPath=configuredPath(cryptoKeyProperties.getPrivateKeyPath());
         Path publicKeyPath=configuredPath(cryptoKeyProperties.getPublicKeyPath());
         if(Files.exists(privateKeyPath))
@@ -72,7 +86,7 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
             loadKeyPair(privateKeyPath, publicKeyPath);
             return;
         }
-        generateAndPersistKeyPair(privateKeyPath, publicKeyPath);
+        // generateAndPersistKeyPair(privateKeyPath, publicKeyPath);
     }
 
     //返回公钥的Base64字符串
@@ -266,10 +280,67 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
     }
 
     //生成新的RSA密钥对，并保存到文件
-    private void generateAndPersistKeyPair(Path privateKeyPath, Path publicKeyPath)
+    //2026-05-03尚未决定号这两个Path的用途
+    public void generateAndPersistKeyPair(Path privateKeyPath, Path publicKeyPath)
     {
+        Map<String, String> result = POST("/key/generate", Map.of());
 
+        if (!"true".equals(result.get("success"))) {
+            throw new IllegalStateException("Key generation failed");
+        }
+
+        String privateKey = result.get("privateKey");
+        String publicKey = result.get("publicKey");
+
+        if (privateKey == null || privateKey.isBlank()) {
+            throw new IllegalStateException("Crypto service did not return privateKey");
+        }
+
+        if (publicKey == null || publicKey.isBlank()) {
+            throw new IllegalStateException("Crypto service did not return publicKey");
+        }
+
+        try {
+            if (privateKeyPath.getParent() != null) {
+                Files.createDirectories(privateKeyPath.getParent());
+            }
+
+            if (publicKeyPath.getParent() != null) {
+                Files.createDirectories(publicKeyPath.getParent());
+            }
+
+            Files.writeString(
+                    privateKeyPath,
+                    privateKey,
+                    StandardOpenOption.CREATE_NEW,
+                    StandardOpenOption.WRITE
+            );
+
+            Files.writeString(
+                    publicKeyPath,
+                    publicKey,
+                    StandardOpenOption.CREATE_NEW,
+                    StandardOpenOption.WRITE
+            );
+
+            restrictOwnerOnly(privateKeyPath);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to persist key pair", e);
+        }
     }
+
+    //手动删除密钥对
+    public synchronized Map<String, String> deleteLocalKeyPair()
+    {
+        Map<String, String> result = POST("/key/delete", Map.of());
+
+        if (!"true".equals(result.get("success"))) {
+            throw new IllegalStateException("Key deletion failed");
+        }
+
+        return result;
+    }
+
 
     //导入私钥后保存当前的密钥
     private void persistCurrentKeyPair()
@@ -317,13 +388,34 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
     //将配置文件中的路径转成真正的绝对路径
     private Path configuredPath(String value)
     {
-        return null;
+//        return null;
+
+        if(value == null || value.isBlank())
+        {
+            throw new IllegalStateException("Configured path must not be blank");
+        }
+
+        Path path = Paths.get(value);
+        return expandUserHome(path).toAbsolutePath().normalize();
+
     }
 
     //把路径开头的 ~ 替换成当前用户的 home 目录。
     private Path expandUserHome(Path path)
     {
-        return null;
+//        return null;
+
+        String text=path.toString();
+        if(text.equals("~"))
+        {
+            return Path.of(System.getProperty("user.home"));
+        }
+
+        if(text.startsWith("~/"))
+        {
+            return Path.of(System.getProperty("user.home"));
+        }
+        return path;
     }
 
     //测试用的GET/ POST函数

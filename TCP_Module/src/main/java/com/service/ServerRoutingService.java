@@ -192,8 +192,22 @@ public class ServerRoutingService
             return;
         }
 
-        //验证签名
-        boolean verified = cryptoSupport.verifySignature(packet.getPublicKey(), challenge.getChallenge(), packet.getSignature());
+        // 校验响应公钥必须和发起认证时的公钥一致，避免认证过程被换绑公钥
+        if (!challenge.getPublicKey().equals(packet.getPublicKey())) {
+            myBatisPersistenceService.logAuthFailure(
+                    challenge.getDeviceId(),
+                    challenge.getPublicKey(),
+                    packet.getChallengeId(),
+                    channel,
+                    "Public key mismatch"
+            );
+            channel.writeAndFlush(new AuthResultPacket("Public key mismatch", false));
+            channel.close();
+            return;
+        }
+
+//验证签名
+        boolean verified = cryptoSupport.verifySignature(challenge.getPublicKey(), challenge.getChallenge(), packet.getSignature());
         if(!verified)//签名验证失败的情况
         {
             myBatisPersistenceService.logAuthFailure(
@@ -203,10 +217,11 @@ public class ServerRoutingService
                     channel,
                     authenticationResultProperties.getFailed()
             );
-            channel.writeAndFlush(new AuthResultPacket(authenticationResultProperties.getFailed(), false));//发送签名验证失败的结果
-            channel.close();//断开连接
+            channel.writeAndFlush(new AuthResultPacket(authenticationResultProperties.getFailed(), false));
+            channel.close();
             return;
         }
+
 
         //签名验证成功，创建服务端会话
         ServerClientSession existing = sessionsByDeviceId.put(
@@ -324,8 +339,8 @@ public class ServerRoutingService
         }
 
         redisStateService.saveTransferRoute(new TransferRoute(
-                selected.getTransferId(),
                 selected.getSenderDeviceId(),
+                selected.getTransferId(),
                 receiver.getDeviceId()
         ));
 
