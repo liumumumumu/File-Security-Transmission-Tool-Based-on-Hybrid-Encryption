@@ -1,13 +1,11 @@
 package com.crypto;
 
-import com.common.config.CryptoKeyProperties;
 import com.common.config.CryptoServiceProperties;
 import com.common.crypto.AesGcmChunk;
 import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -18,10 +16,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.security.*;
 import java.util.Base64;
 import java.util.Map;
@@ -35,10 +30,9 @@ import java.util.Map;
 
 @Component
 @Slf4j
-public class CryptoSupport  //负责加密，解密，签名，验证签名，密钥处理；但是真正的实现是由Python cryptography库实现，并部署在本地，因此这个类负责调用相关的服务
+public class CryptoSupport   //负责加密，解密，签名，验证签名，密钥管理；但是真正的实现是由Python cryptography库实现，并部署在本地，因此这个类负责调用相关的服务
 {
 
-    private final CryptoKeyProperties cryptoKeyProperties;
     private final CryptoServiceProperties  cryptoServiceProperties;
     private String CRYPTO_SERVICE_URL;
 
@@ -57,8 +51,7 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
     //保存RSA公钥和私钥
     private KeyPair keyPair; //非对称密钥对（待定）
 
-    public CryptoSupport(CryptoKeyProperties cryptoKeyProperties, CryptoServiceProperties cryptoServiceProperties) {
-        this.cryptoKeyProperties = cryptoKeyProperties;
+    public CryptoSupport(CryptoServiceProperties cryptoServiceProperties) {
         this.cryptoServiceProperties = cryptoServiceProperties;
     }
 
@@ -79,14 +72,6 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
     public synchronized void init()
     {
         CRYPTO_SERVICE_URL="http://"+cryptoServiceProperties.getAddress() +":"+cryptoServiceProperties.getPort();
-        Path privateKeyPath=configuredPath(cryptoKeyProperties.getPrivateKeyPath());
-        Path publicKeyPath=configuredPath(cryptoKeyProperties.getPublicKeyPath());
-        if(Files.exists(privateKeyPath))
-        {
-            loadKeyPair(privateKeyPath, publicKeyPath);
-            return;
-        }
-        // generateAndPersistKeyPair(privateKeyPath, publicKeyPath);
     }
 
     //返回公钥的Base64字符串
@@ -225,7 +210,7 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
 //    }
 
 
-    //-----------------2026-04-29新增：客户端本地保存输入的密钥-----------------//
+    //-----------------密钥管理：密钥文件由Python加密服务统一管理-----------------//
 
     //返回密钥状态
     public synchronized Map<String, Object> keyStatus() throws GeneralSecurityException
@@ -274,15 +259,8 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
         )).get("fingerprint");
     }
 
-    //从本地私钥文件加载密钥对
-    private void loadKeyPair(Path privateKeyPath, Path publicKeyPath)//读取私钥文件，解析私钥推导出公钥
-    {
-
-    }
-
-    //生成新的RSA密钥对，并保存到文件
-    //2026-05-03尚未决定号这两个Path的用途
-    public void generateAndPersistKeyPair(Path privateKeyPath, Path publicKeyPath)
+    //生成新的RSA密钥对。密钥由Python加密服务落盘管理，TCP_Module不再保存密钥文件。
+    public synchronized Map<String, String> generateKeyPair()
     {
         Map<String, String> result = POST("/key/generate", Map.of());
 
@@ -290,48 +268,11 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
             throw new IllegalStateException("Key generation failed");
         }
 
-        String privateKey = result.get("privateKey");
-        String publicKey = result.get("publicKey");
-
-        if (privateKey == null || privateKey.isBlank()) {
-            throw new IllegalStateException("Crypto service did not return privateKey");
-        }
-
-        if (publicKey == null || publicKey.isBlank()) {
-            throw new IllegalStateException("Crypto service did not return publicKey");
-        }
-
-        try {
-            if (privateKeyPath.getParent() != null) {
-                Files.createDirectories(privateKeyPath.getParent());
-            }
-
-            if (publicKeyPath.getParent() != null) {
-                Files.createDirectories(publicKeyPath.getParent());
-            }
-
-            Files.writeString(
-                    privateKeyPath,
-                    privateKey,
-                    StandardOpenOption.CREATE_NEW,
-                    StandardOpenOption.WRITE
-            );
-
-            Files.writeString(
-                    publicKeyPath,
-                    publicKey,
-                    StandardOpenOption.CREATE_NEW,
-                    StandardOpenOption.WRITE
-            );
-
-            restrictOwnerOnly(privateKeyPath);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to persist key pair", e);
-        }
+        return result;
     }
 
-    //手动删除密钥对
-    public synchronized Map<String, String> deleteLocalKeyPair()
+    //手动删除密钥对。删除动作由Python加密服务在它管理的磁盘目录中执行。
+    public synchronized Map<String, String> deleteKeyPair()
     {
         Map<String, String> result = POST("/key/delete", Map.of());
 
@@ -342,81 +283,10 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
         return result;
     }
 
-
-    //导入私钥后保存当前的密钥
-    private void persistCurrentKeyPair()
+    //兼容旧调用名；实际删除的是Python加密服务管理的本地密钥文件。
+    public synchronized Map<String, String> deleteLocalKeyPair()
     {
-
-    }
-
-    //把制定的密钥对保存成文件，编码成 PEM 格式。
-    private void persistKeyPair(Path privateKeyPath, Path publicKeyPath, KeyPair pair)
-    {
-
-    }
-
-    //书写密钥文件
-    private void writeKeyFile(Path path, String content, boolean privateFile)
-    {
-
-    }
-
-    //设置私钥文件权限,只有文件所有者可以读写
-    private void restrictOwnerOnly(Path path)
-    {
-
-    }
-
-    //把密钥字节数组编码成PEM格式
-    private String encodePem(String type, byte[] encoded)
-    {
-        return null;
-    }
-
-
-    //清理PEM文本，只保留真正的Base64内容
-    private String normalizeKeyText(String keyText)
-    {
-        return null;
-    }
-
-    //根据私钥推导出公钥
-    private PublicKey derivePublicKey(PrivateKey privateKey)
-    {
-        return null;
-    }
-
-    //将配置文件中的路径转成真正的绝对路径
-    private Path configuredPath(String value)
-    {
-//        return null;
-
-        if(value == null || value.isBlank())
-        {
-            throw new IllegalStateException("Configured path must not be blank");
-        }
-
-        Path path = Paths.get(value);
-        return expandUserHome(path).toAbsolutePath().normalize();
-
-    }
-
-    //把路径开头的 ~ 替换成当前用户的 home 目录。
-    private Path expandUserHome(Path path)
-    {
-//        return null;
-
-        String text=path.toString();
-        if(text.equals("~"))
-        {
-            return Path.of(System.getProperty("user.home"));
-        }
-
-        if(text.startsWith("~/"))
-        {
-            return Path.of(System.getProperty("user.home"));
-        }
-        return path;
+        return deleteKeyPair();
     }
 
     //测试用的GET/ POST函数

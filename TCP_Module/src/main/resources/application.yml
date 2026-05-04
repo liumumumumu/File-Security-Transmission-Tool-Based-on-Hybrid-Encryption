@@ -35,9 +35,6 @@ node:
 app:
   local-storage:
     transfer-history-path: ${TRANSFER_HISTORY_PATH:${user.home}/.file-security-transmission/transfer-history.json} #本机传输记录文件的保存路径
-  crypto-key:
-    private-key-path: ${PRIVATE_KEY_PATH:${user.home}/.file-security-transmission/identity_private.pkcs8}
-    public-key-path: ${PUBLIC_KEY_PATH:${user.home}/.file-security-transmission/identity_public.x509}
   redis-state:
     challenge-ttl-seconds: 300
     online-session-ttl-seconds: 120

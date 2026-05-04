@@ -72,6 +72,18 @@ public class SystemController
         return ResponseEntity.ok(cryptoSupport.keyStatus());
     }
 
+    @PostMapping("/key/generate")
+    public ResponseEntity<Map<String, String>> generateKey() throws Exception
+    {
+        return ResponseEntity.ok(cryptoSupport.generateKeyPair());
+    }
+
+    @PostMapping("/key/delete")
+    public ResponseEntity<Map<String, String>> deleteKey() throws Exception
+    {
+        return ResponseEntity.ok(cryptoSupport.deleteKeyPair());
+    }
+
     @PostMapping("/key/import-private")
     public ResponseEntity<Map<String, Object>> importPrivateKey(@RequestBody ImportPrivateKeyRequest request) throws Exception
     {

@@ -123,7 +123,9 @@ public class ConsoleCommandRunner
                 case "tasks" -> printTasks();                   //列出所有传输任务
                 case "task" -> printTask(args);                 //查看单个任务详情， task <taskId|transferId>    //参数可以是任务Id, 也可以是传输Id
                 case "public-key" -> printPublicKey();          //查看和导入密钥,打印当前客户端的本地公钥
-                case "key-info" -> printKeyInfo();              //打印本地的密钥状态
+                case "key-info" -> printKeyInfo();              //打印Python加密服务管理的密钥状态
+                case "generate-key" -> generateKey();           //请求Python加密服务生成密钥
+                case "delete-key" -> deleteKey();               //请求Python加密服务删除密钥
                 case "import-private-key" -> importPrivateKey(args);                //以文本的方式导入私钥，import-private-key <keyText>
                 case "import-private-key-file" -> importPrivateKeyFile(args);       //从文件导入私钥，import-private-key-file <path>
                 case "import-private-key-paste" -> importPrivateKeyPaste(reader);   //进入多行粘贴模式，用户可以粘贴多行私钥内容，最后一行只输入一个'.'标识结束， import-private-key-paste
@@ -156,7 +158,9 @@ public class ConsoleCommandRunner
         System.out.println("  tasks                             List transfer tasks");
         System.out.println("  task <taskId|transferId>          Show one transfer task");
         System.out.println("  public-key                        Print local public key");
-        System.out.println("  key-info                          Show local key paths and public key fingerprint");
+        System.out.println("  key-info                          Show crypto service key status");
+        System.out.println("  generate-key                      Generate key pair in the crypto service");
+        System.out.println("  delete-key                        Delete key pair from the crypto service");
         System.out.println("  import-private-key <keyText>      Import private key text from manual copy or QR scan");
         System.out.println("  import-private-key-file <path>    Import private key from a file");
         System.out.println("  import-private-key-paste          Paste a multi-line private key, then enter a single dot");
@@ -329,6 +333,16 @@ public class ConsoleCommandRunner
         printMap(cryptoSupport.keyStatus());
     }
 
+    private void generateKey() throws Exception
+    {
+        printMap(cryptoSupport.generateKeyPair());
+    }
+
+    private void deleteKey() throws Exception
+    {
+        printMap(cryptoSupport.deleteKeyPair());
+    }
+
     private void importPrivateKey(List<String> args) throws Exception
     {
         if (args.size() < 2) {
@@ -376,9 +390,9 @@ public class ConsoleCommandRunner
         applicationContext.close();
     }
 
-    private void printMap(Map<String, Object> map)
+    private void printMap(Map<String, ?> map)
     {
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
+        for (Map.Entry<String, ?> entry : map.entrySet()) {
             System.out.println(entry.getKey() + ": " + entry.getValue());
         }
     }

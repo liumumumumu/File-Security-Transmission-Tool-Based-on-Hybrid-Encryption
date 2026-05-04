@@ -1,6 +1,5 @@
 package com.crypto;
 
-import com.common.config.CryptoKeyProperties;
 import com.common.config.CryptoServiceProperties;
 import lombok.extern.slf4j.Slf4j;
 
@@ -51,13 +50,11 @@ public class CryptoSupportTest_Signature {
     }
 
     public static void main(String[] args) {
-        CryptoKeyProperties cryptoKeyProperties = new CryptoKeyProperties();
-
         CryptoServiceProperties cryptoServiceProperties = new CryptoServiceProperties();
         cryptoServiceProperties.setAddress("127.0.0.1");
         cryptoServiceProperties.setPort(9080);
 
-        CryptoSupport cryptoSupport = new CryptoSupport(cryptoKeyProperties, cryptoServiceProperties);
+        CryptoSupport cryptoSupport = new CryptoSupport(cryptoServiceProperties);
 
         // 手动创建对象时，@PostConstruct 不会自动执行，所以这里必须手动调用
         cryptoSupport.init();
