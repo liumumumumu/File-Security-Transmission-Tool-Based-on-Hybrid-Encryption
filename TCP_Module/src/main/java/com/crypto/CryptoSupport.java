@@ -253,6 +253,7 @@ public class CryptoSupport  //负责加密，解密，签名，验证签名，�
 
     //计算当前公钥的SHA-256指纹
     //标识一个公钥，设备身份标识（类似账户的概念）
+    //账户Id就是公钥指纹(64 位)
     public synchronized String publicKeyFingerprint() throws GeneralSecurityException
     {
 //        return null;

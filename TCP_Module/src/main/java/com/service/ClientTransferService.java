@@ -318,7 +318,7 @@ public class ClientTransferService
                             task.getFileName(),
                             task.getTotalBytes(),
                             recipientPublicKey,
-                            clientConnectionManager.getLocalPublickey(),
+                            clientConnectionManager.getLocalPublicKey(),
                             task.getTotalBlocks(),
                             task.getTransferId()
                     )

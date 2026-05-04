@@ -217,7 +217,7 @@ public class ClientConnectionManager
     }
 
     //获取本地的公钥
-    public String getLocalPublickey()
+    public String getLocalPublicKey()
     {
         return cryptoSupport.getEncodedPublicKey();
     }
