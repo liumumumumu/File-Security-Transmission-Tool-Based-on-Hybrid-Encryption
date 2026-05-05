@@ -6,6 +6,8 @@ public class SendFileRequest
     private String targetAccountId;
     private String targetDeviceId;
 
+    public SendFileRequest(){}
+
     public SendFileRequest(String filePath, String targetAccountId, String targetDeviceId) {
         this.filePath = filePath;
         this.targetAccountId = targetAccountId;

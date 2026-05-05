@@ -224,10 +224,11 @@ public class ServerRoutingService
 
 
         //签名验证成功，创建服务端会话
+        String accountId=cryptoSupport.publicKeyFingerprint(challenge.getPublicKey());
         ServerClientSession existing = sessionsByDeviceId.put(
                 challenge.getDeviceId(),
                 new ServerClientSession(
-                        challenge.getDeviceId(),
+                        accountId,
                         channel,
                         challenge.getDeviceId(),
                         challenge.getPublicKey())
@@ -330,6 +331,7 @@ public class ServerRoutingService
                         "Transfer request canceled by receiver device: "+receiver.getDeviceId()
                 );
             }
+            return;
         }
 
         PendingTransferRequest selected = pendingTransferRequests.remove(packet.getTransferId());
