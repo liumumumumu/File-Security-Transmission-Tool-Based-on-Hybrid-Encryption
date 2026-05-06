@@ -34,13 +34,13 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class ConsoleCommandRunner
 {
-    private final ClientConnectionManager clientConnectionManager;
-    private final ClientTransferService clientTransferService;
-    private final ClientProperties clientProperties;
-    private final CryptoSupport cryptoSupport;
-    private final TransferTaskRegistry transferTaskRegistry;
-    private final ConfigurableApplicationContext applicationContext;
-    private final PushNotificationService pushNotificationService;
+    private final ClientConnectionManager clientConnectionManager;//负责客户端连接服务器，认证，断开连接
+    private final ClientTransferService clientTransferService;//负责收发文件，处理传输请求
+    private final ClientProperties clientProperties;//负责读取客户端配置
+    private final CryptoSupport cryptoSupport;//负责访问本地的加密服务，管理密钥，获取密钥状态，生成密钥，导入密钥
+    private final TransferTaskRegistry transferTaskRegistry;//负责保持传输任务状态，用于对tasks, task的命令查询
+    private final ConfigurableApplicationContext applicationContext;//负责控制Spring应用的生命周期
+    private final PushNotificationService pushNotificationService;//监听本地通知
     private Runnable notificationSubscription;
 
     public ConsoleCommandRunner(
@@ -65,7 +65,8 @@ public class ConsoleCommandRunner
     @EventListener(ApplicationReadyEvent.class)
     public void startConsole()//startConsole监听ApplicationReadyEvent
     {
-        notificationSubscription=pushNotificationService.subscribeLocal(this::handleNotification);
+        notificationSubscription=pushNotificationService.subscribeLocal(this::handleNotification);//订阅本地通知
+        //创建一个后台线程运行控制台
         Thread consoleThread = new Thread(this::runCommandLoop, "console-command-runner");//console-command-runner守护线程
         consoleThread.setDaemon(true);
         consoleThread.start();
@@ -76,16 +77,17 @@ public class ConsoleCommandRunner
     {
         if(notificationSubscription!=null)
         {
-            notificationSubscription.run();
+            notificationSubscription.run();//取消通知订阅服务
             notificationSubscription=null;
         }
     }
 
-    private void runCommandLoop()//打印欢迎消息
+    private void runCommandLoop()
     {
-        printWelcome();
+        printWelcome();//打印欢迎消息
+        remindIfKeyMissing();//检查当前是否有密钥
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
-            while (applicationContext.isActive()) {
+            while (applicationContext.isActive()) {//进入大循环
                 System.out.print("fst> ");
                 String line = reader.readLine();
                 if (line == null) {
@@ -98,18 +100,18 @@ public class ConsoleCommandRunner
         }
     }
 
-    private void handleCommand(BufferedReader reader, String line)
+    private void handleCommand(BufferedReader reader, String line)//命令分发
     {
-        if (line.isBlank()) {
+        if (line.isBlank()) {//空命令的情况
             return;
         }
 
-        List<String> args = parseArguments(line);
+        List<String> args = parseArguments(line);//解析命令参数
         if (args.isEmpty()) {
             return;
         }
 
-        String command = args.get(0).toLowerCase(Locale.ROOT);
+        String command = args.get(0).toLowerCase(Locale.ROOT);//第一个参数是命令名
         try {
             switch (command) {
                 case "help" -> printHelp();                     //打印所有可用命令
@@ -137,14 +139,14 @@ public class ConsoleCommandRunner
         }
     }
 
-    private void printWelcome()
+    private void printWelcome()//打印欢迎消息
     {
         System.out.println();
         System.out.println("File Security Transmission console is ready.");
         System.out.println("Type 'help' for commands.");
     }
 
-    private void printHelp()
+    private void printHelp()//打印该控制台程序支持的所有命令
     {
         System.out.println("Commands:");
         System.out.println("  help                              Show this help");
@@ -208,12 +210,15 @@ public class ConsoleCommandRunner
         printMap(clientConnectionManager.currentStatus());
     }
 
-    private void connect(List<String> args) throws Exception
+    private void connect(List<String> args) throws Exception    //处理connect命令
     {
-        String host = args.size() >= 2 ? args.get(1) : clientProperties.getServerHost();
-        int port = args.size() >= 3 ? Integer.parseInt(args.get(2)) : clientProperties.getServerPort();
+        if (!ensureKeyPresent()) {  //先检查是否有密钥
+            return;
+        }
+        String host = args.size() >= 2 ? args.get(1) : clientProperties.getServerHost();//host参数
+        int port = args.size() >= 3 ? Integer.parseInt(args.get(2)) : clientProperties.getServerPort();//port参数
         clientConnectionManager.connectAndAuthenticate(host, port)
-                .get(clientProperties.getAuthTimeoutSeconds(), TimeUnit.SECONDS);
+                .get(clientProperties.getAuthTimeoutSeconds(), TimeUnit.SECONDS);//通过该方法连接服务器并完成身份认证
         System.out.println("Connected and authenticated: " + host + ":" + port);
     }
 
@@ -223,24 +228,28 @@ public class ConsoleCommandRunner
         System.out.println("Disconnected.");
     }
 
-    private void sendFile(List<String> args)
+    private void sendFile(List<String> args)    //处理发送文件的命令
     {
-        if (args.size() < 3) {
+        if (!ensureKeyPresent()) {  //检查当前是否有密钥
+            return;
+        }
+        if (args.size() < 3) {  //校验参数
             System.out.println("Usage: send <filePath> <targetAccountId>");
             return;
         }
-        String taskId = clientTransferService.sendFile(Path.of(args.get(1)), args.get(2));
+        //第一个参数是文件路径(支持绝对路径和相对路径(相对可执行程序的路径))，第二个参数是目标账户的公钥指纹
+        String taskId = clientTransferService.sendFile(Path.of(args.get(1)), args.get(2));//处理发送文件的函数
         System.out.println("Send task created: " + taskId);
     }
 
-    private void printTasks()
+    private void printTasks()//任务查询命令，打印所有任务
     {
         List<TransferTask> tasks = transferTaskRegistry.allTasks();
         if (tasks.isEmpty()) {
             System.out.println("No transfer tasks.");
             return;
         }
-
+        System.out.println("taskId | direction | status | progress | fileName | message");
         for (TransferTask task : tasks) {
             System.out.printf(
                     "%s | %s | %s | %.2f%% | %s | %s%n",
@@ -254,16 +263,17 @@ public class ConsoleCommandRunner
         }
     }
 
-    private void printIncomingRequests()
+    private void printIncomingRequests()//打印所有待处理的接收请求
     {
         Map<String, IncomingTransferRequestPacket> requests = clientTransferService.pendingIncomingTransferRequests();
         if (requests.isEmpty()) {
             System.out.println("No incoming transfer requests.");
             return;
         }
+        System.out.println("transferId | sender | file | bytes | blocks");
         for (IncomingTransferRequestPacket request : requests.values()) {
             System.out.printf(
-                    "%s | sender=%s | file=%s | bytes=%d | blocks=%d%n",
+                    "%s | %s | %s | %d | %d%n",
                     request.getTransferId(),
                     request.getSenderDeviceId(),
                     request.getFileName(),
@@ -273,23 +283,23 @@ public class ConsoleCommandRunner
         }
     }
 
-    private void acceptIncomingRequest(List<String> args)
+    private void acceptIncomingRequest(List<String> args)//接受某个传输请求
     {
         if (args.size() < 2) {
             System.out.println("Usage: accept <transferId>");
             return;
         }
-        clientTransferService.acceptIncomingTransfer(args.get(1));
+        clientTransferService.acceptIncomingTransfer(args.get(1));//参数是任务Id
         System.out.println("Accepted incoming transfer request: " + args.get(1));
     }
 
-    private void rejectIncomingRequest(List<String> args)
+    private void rejectIncomingRequest(List<String> args)//拒绝某个传输请求
     {
         if (args.size() < 2) {
             System.out.println("Usage: reject <transferId>");
             return;
         }
-        clientTransferService.rejectIncomingTransfer(args.get(1));
+        clientTransferService.rejectIncomingTransfer(args.get(1));//参数是任务Id
         System.out.println("Rejected incoming transfer request: " + args.get(1));
     }
 
@@ -323,27 +333,32 @@ public class ConsoleCommandRunner
         System.out.println("message: " + task.getMessage());
     }
 
-    private void printPublicKey()
+    private void printPublicKey()//打印当前的公钥
     {
+        if (!ensureKeyPresent()) {//检查当前是否有密钥
+            return;
+        }
         System.out.println(clientConnectionManager.getLocalPublicKey());
     }
 
-    private void printKeyInfo() throws Exception
+    private void printKeyInfo() throws Exception    //打印crypto-service返回的密钥状态
     {
         printMap(cryptoSupport.keyStatus());
     }
 
-    private void generateKey() throws Exception
+    private void generateKey() throws Exception //生成新的一对密钥
     {
         printMap(cryptoSupport.generateKeyPair());
     }
 
-    private void deleteKey() throws Exception
+    private void deleteKey() throws Exception   //删除当前的密钥
     {
         printMap(cryptoSupport.deleteKeyPair());
     }
 
-    private void importPrivateKey(List<String> args) throws Exception
+    //--------------------------导入密钥的三种方式------------------------------//
+
+    private void importPrivateKey(List<String> args) throws Exception      //手动输入的方式
     {
         if (args.size() < 2) {
             System.out.println("Usage: import-private-key <privateKeyBase64OrPem>");
@@ -354,7 +369,7 @@ public class ConsoleCommandRunner
         System.out.println("Reconnect to register/update this public key on the server.");
     }
 
-    private void importPrivateKeyFile(List<String> args) throws Exception
+    private void importPrivateKeyFile(List<String> args) throws Exception   //导入密钥文件的方式
     {
         if (args.size() < 2) {
             System.out.println("Usage: import-private-key-file <path>");
@@ -365,7 +380,7 @@ public class ConsoleCommandRunner
         System.out.println("Reconnect to register/update this public key on the server.");
     }
 
-    private void importPrivateKeyPaste(BufferedReader reader) throws Exception
+    private void importPrivateKeyPaste(BufferedReader reader) throws Exception  //通过负责粘贴的方式输入密钥
     {
         System.out.println("Paste private key text. Enter a single dot on its own line to finish.");
         StringBuilder keyText = new StringBuilder();
@@ -384,7 +399,9 @@ public class ConsoleCommandRunner
         System.out.println("Reconnect to register/update this public key on the server.");
     }
 
-    private void exit()
+        //--------------------------导入密钥的三种方式------------------------------//
+
+    private void exit() //退出程序的指令；退出整个TCP模块！！！；退出整个Spring应用
     {
         System.out.println("Stopping application...");
         applicationContext.close();
@@ -397,13 +414,60 @@ public class ConsoleCommandRunner
         }
     }
 
-    private List<String> parseArguments(String line)
+    private void remindIfKeyMissing()//如果当前没有有效的密钥就提醒用户
+    {
+        try {
+            if (isKeyMissing(cryptoSupport.keyStatus())) {
+                printMissingKeyReminder();
+            }
+        } catch (Exception ex) {
+            System.out.println("Unable to check key status: " + ex.getMessage());
+            System.out.println("Run 'key-info' after confirming the crypto service is running.");
+        }
+    }
+
+    private boolean ensureKeyPresent()//检查当前是否有有效的密钥，有返回true,无返回false
+    {
+        try {
+            if (!isKeyMissing(cryptoSupport.keyStatus())) {
+                return true;
+            }
+            printMissingKeyReminder();
+            return false;
+        } catch (Exception ex) {
+            System.out.println("Unable to check key status: " + ex.getMessage());
+            System.out.println("Run 'key-info' after confirming the crypto service is running.");
+            return false;
+        }
+    }
+
+    private boolean isKeyMissing(Map<String, ?> keyStatus)  //判断是否缺少密钥
+    {
+        return !isTruthy(keyStatus.get("hasPrivateKey")) || !isTruthy(keyStatus.get("hasPublicKey"));
+    }
+
+    private boolean isTruthy(Object value)  //只要公钥和私钥中的任意一个不存在就认为当前密钥不可用(有待修改)
+    {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        return "true".equalsIgnoreCase(String.valueOf(value));
+    }
+
+    private void printMissingKeyReminder()
+    {
+        System.out.println("No local key pair is available.");
+        System.out.println("Run 'generate-key' to create one, or use 'import-private-key-file <path>' / 'import-private-key-paste' to import an existing private key.");
+    }
+
+    private List<String> parseArguments(String line)//参数解析函数
     {
         List<String> args = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean quoted = false;
         boolean escaping = false;
 
+        //将用户输入的命令解析成为String数组
         for (int i = 0; i < line.length(); i++) {
             char ch = line.charAt(i);
             if (escaping) {
