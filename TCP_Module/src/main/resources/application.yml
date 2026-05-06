@@ -50,8 +50,8 @@ server:
     bind-port: 9000
 
 crypto-service:
-  address: 127.0.0.1
-  port: 9080
+  address: ${CRYPTO_SERVICE_ADDRESS:127.0.0.1}
+  port: ${CRYPTO_SERVICE_PORT:9080}
 
 
 transfer:

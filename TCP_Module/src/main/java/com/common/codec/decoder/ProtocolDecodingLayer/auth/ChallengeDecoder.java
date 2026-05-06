@@ -28,6 +28,6 @@ public class ChallengeDecoder extends Decoder
         in.readBytes(challengeBytes);
         String challenge = new String(challengeBytes, StandardCharsets.UTF_8);
 
-        return new ChallengePacket(challengeId, challenge);
+        return new ChallengePacket(challenge, challengeId);
     }
 }
