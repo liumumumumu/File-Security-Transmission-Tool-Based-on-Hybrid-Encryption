@@ -1,0 +1,14 @@
+@echo off
+setlocal
+
+set "SCRIPT_DIR=%~dp0"
+
+if "%CRYPTO_SERVICE_HOST%"=="" set "CRYPTO_SERVICE_HOST=0.0.0.0"
+if "%CRYPTO_SERVICE_PORT%"=="" set "CRYPTO_SERVICE_PORT=9080"
+if "%CRYPTO_SERVICE_KEY_DIR%"=="" set "CRYPTO_SERVICE_KEY_DIR=%SCRIPT_DIR%crypto_keys"
+
+if not exist "%CRYPTO_SERVICE_KEY_DIR%" mkdir "%CRYPTO_SERVICE_KEY_DIR%"
+
+set "PATH=%SCRIPT_DIR%;%PATH%"
+
+"%SCRIPT_DIR%crypto-service.exe" --host "%CRYPTO_SERVICE_HOST%" --port "%CRYPTO_SERVICE_PORT%" --key-dir "%CRYPTO_SERVICE_KEY_DIR%"

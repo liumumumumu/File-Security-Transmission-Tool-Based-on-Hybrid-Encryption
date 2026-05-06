@@ -1,13 +1,28 @@
 spring:
   application:
     name: file-security-transmission-tool
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:db_FileSecurityTransmission}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456zxc@}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      database: 0
+      timeout: 5s
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
 
 authentication-result:
   succeed: "Authentication Passed"
   failed: "Authentication Failed"
 
 client:
-  serverHost: 127.0.0.1
+  serverHost: 82.156.228.71
   serverPort: 9000
   connectionTimeout: 5000
   authTimeoutSeconds: 10
@@ -35,10 +50,10 @@ server:
     bind-port: 9000
 
 crypto-service:
-  address: 127.0.0.1
-  port: 9080
+  address: ${CRYPTO_SERVICE_ADDRESS:127.0.0.1}
+  port: ${CRYPTO_SERVICE_PORT:9080}
 
 
 transfer:
-  chunk-size-bytes: 1048576
+  chunk-size-bytes: 1048576 #1mb
   receive-dir: downloads
