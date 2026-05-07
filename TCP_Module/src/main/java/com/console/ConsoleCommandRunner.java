@@ -125,6 +125,7 @@ public class ConsoleCommandRunner
                 case "tasks" -> printTasks();                   //列出所有传输任务
                 case "task" -> printTask(args);                 //查看单个任务详情， task <taskId|transferId>    //参数可以是任务Id, 也可以是传输Id
                 case "public-key" -> printPublicKey();          //查看和导入密钥,打印当前客户端的本地公钥
+                case "public-key-fingerprint" -> printPublicKeyFingerprint(args);  //计算指定公钥或本地公钥的指纹
                 case "key-info" -> printKeyInfo();              //打印Python加密服务管理的密钥状态
                 case "generate-key" -> generateKey();           //请求Python加密服务生成密钥
                 case "delete-key" -> deleteKey();               //请求Python加密服务删除密钥
@@ -160,6 +161,7 @@ public class ConsoleCommandRunner
         System.out.println("  tasks                             List transfer tasks");
         System.out.println("  task <taskId|transferId>          Show one transfer task");
         System.out.println("  public-key                        Print local public key");
+        System.out.println("  public-key-fingerprint [publicKey] Print fingerprint for the given public key, or local public key when omitted");
         System.out.println("  key-info                          Show crypto service key status");
         System.out.println("  generate-key                      Generate key pair in the crypto service");
         System.out.println("  delete-key                        Delete key pair from the crypto service");
@@ -341,6 +343,19 @@ public class ConsoleCommandRunner
         System.out.println(clientConnectionManager.getLocalPublicKey());
     }
 
+    private void printPublicKeyFingerprint(List<String> args) throws Exception  //处理计算公钥指纹的指令
+    {
+        if (args.size() >= 2) { //输入公钥的情况
+            System.out.println(cryptoSupport.publicKeyFingerprint(args.get(1)));
+            return;
+        }
+        if (!ensureLocalPublicKeyPresent()) {   //当前是否密钥文件
+            System.out.println("Command invalid: no local public key is available.");
+            return;
+        }
+        System.out.println(cryptoSupport.publicKeyFingerprint());//输出当前公钥的指纹
+    }
+
     private void printKeyInfo() throws Exception    //打印crypto-service返回的密钥状态
     {
         printMap(cryptoSupport.keyStatus());
@@ -441,9 +456,20 @@ public class ConsoleCommandRunner
         }
     }
 
+    private boolean ensureLocalPublicKeyPresent()
+    {
+        try {
+            return isTruthy(cryptoSupport.keyStatus().get("hasPublicKey"));//检查当前是否有密钥
+        } catch (Exception ex) {
+            System.out.println("Unable to check key status: " + ex.getMessage());
+            System.out.println("Run 'key-info' after confirming the crypto service is running.");
+            return false;
+        }
+    }
+
     private boolean isKeyMissing(Map<String, ?> keyStatus)  //判断是否缺少密钥
     {
-        return !isTruthy(keyStatus.get("hasPrivateKey")) || !isTruthy(keyStatus.get("hasPublicKey"));
+        return !isTruthy(keyStatus.get("hasPrivateKey"));
     }
 
     private boolean isTruthy(Object value)  //只要公钥和私钥中的任意一个不存在就认为当前密钥不可用(有待修改)

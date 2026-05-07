@@ -54,5 +54,6 @@ The HTTP endpoints match the original version:
 - `POST /aes-gcm/encrypt`
 - `POST /aes-gcm/decrypt`
 - `POST /key/fingerprint`
+- `POST /key/derive-public`
 - `POST /key/import-text`
 - `POST /key/import-file`

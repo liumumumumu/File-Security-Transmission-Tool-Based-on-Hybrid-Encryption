@@ -5,6 +5,7 @@ import com.common.config.CryptoServiceProperties;
 import com.common.config.NodeProperties;
 import com.common.config.ServerProperties;
 import com.controller.dto.ImportPrivateKeyRequest;
+import com.controller.dto.PublicKeyFingerprintRequest;
 import com.crypto.CryptoSupport;
 import com.service.LocalTransferHistoryService;
 import com.service.TransferTaskRegistry;
@@ -98,5 +99,16 @@ public class SystemController
             throw new IllegalArgumentException("privateKey or privateKeyPath is required");
         }
         return ResponseEntity.ok(cryptoSupport.keyStatus());
+    }
+
+    @PostMapping("/key/fingerprint")
+    public ResponseEntity<Map<String, String>> fingerprint(@RequestBody PublicKeyFingerprintRequest request) throws Exception
+    {
+        if (request == null || request.getPublicKey() == null || request.getPublicKey().isBlank()) {
+            throw new IllegalArgumentException("publicKey is required");
+        }
+        return ResponseEntity.ok(Map.of(
+                "fingerprint", cryptoSupport.publicKeyFingerprint(request.getPublicKey())
+        ));
     }
 }

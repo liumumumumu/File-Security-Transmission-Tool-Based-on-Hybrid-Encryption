@@ -207,11 +207,37 @@ static QByteArray publicKeyToPem(EVP_PKEY* key)
     return QByteArray(mem->data, static_cast<int>(mem->length));
 }
 
+static QByteArray derivePublicKeyPemFromPrivateKeyPem(const QByteArray& privateKeyPem)
+{
+    EVP_PKEY* key = privateKeyFromPem(privateKeyPem);
+    auto keyCleanup = qScopeGuard([&] { EVP_PKEY_free(key); });
+    return publicKeyToPem(key);
+}
+
+static QString derivePublicKeyFromPrivateKeyPem(const QString& privateKeyPem)
+{
+    return QString::fromUtf8(derivePublicKeyPemFromPrivateKeyPem(privateKeyPem.toUtf8()));
+}
+
 static void persistKeyPair(EVP_PKEY* key)
 {
     QDir().mkpath(keyDir);
     writeTextFile(privateKeyFile, privateKeyToPem(key));
     writeTextFile(publicKeyFile, publicKeyToPem(key));
+}
+
+static QByteArray importPrivateKeyAndPersistKeyPair(const QByteArray& privateKeyPem)
+{
+    EVP_PKEY* key = privateKeyFromPem(privateKeyPem);
+    auto keyCleanup = qScopeGuard([&] { EVP_PKEY_free(key); });
+
+    const QByteArray normalizedPrivateKeyPem = privateKeyToPem(key);
+    const QByteArray derivedPublicKeyPem = publicKeyToPem(key);
+
+    QDir().mkpath(keyDir);
+    writeTextFile(privateKeyFile, normalizedPrivateKeyPem);
+    writeTextFile(publicKeyFile, derivedPublicKeyPem);
+    return derivedPublicKeyPem;
 }
 
 static void generateAndPersistKeyPair()
@@ -695,14 +721,24 @@ static void registerRoutes(QHash<QString, Handler>* routes)
         }
     });
 
+    routes->insert(QStringLiteral("POST /key/derive-public"), [](const HttpRequest& request) {
+        try {
+            const QJsonObject body = parseJsonBody(request);
+            return ok({{QStringLiteral("publicKey"), derivePublicKeyFromPrivateKeyPem(requiredString(body, QStringLiteral("privateKey")))}});
+        } catch (const std::exception& e) {
+            return errorResponse(e);
+        }
+    });
+
     routes->insert(QStringLiteral("POST /key/import-text"), [](const HttpRequest& request) {
         try {
             const QJsonObject body = parseJsonBody(request);
             const QByteArray privateKeyPem = requiredString(body, QStringLiteral("privateKey")).toUtf8();
-            EVP_PKEY* key = privateKeyFromPem(privateKeyPem);
-            auto keyCleanup = qScopeGuard([&] { EVP_PKEY_free(key); });
-            persistKeyPair(key);
-            return ok({{QStringLiteral("success"), QStringLiteral("true")}});
+            const QByteArray publicKeyPem = importPrivateKeyAndPersistKeyPair(privateKeyPem);
+            return ok({
+                {QStringLiteral("success"), QStringLiteral("true")},
+                {QStringLiteral("publicKey"), QString::fromUtf8(publicKeyPem)}
+            });
         } catch (const std::exception& e) {
             return errorResponse(e);
         }
@@ -712,10 +748,11 @@ static void registerRoutes(QHash<QString, Handler>* routes)
         try {
             const QJsonObject body = parseJsonBody(request);
             const QByteArray privateKeyPem = readTextFile(requiredString(body, QStringLiteral("path")));
-            EVP_PKEY* key = privateKeyFromPem(privateKeyPem);
-            auto keyCleanup = qScopeGuard([&] { EVP_PKEY_free(key); });
-            persistKeyPair(key);
-            return ok({{QStringLiteral("success"), QStringLiteral("true")}});
+            const QByteArray publicKeyPem = importPrivateKeyAndPersistKeyPair(privateKeyPem);
+            return ok({
+                {QStringLiteral("success"), QStringLiteral("true")},
+                {QStringLiteral("publicKey"), QString::fromUtf8(publicKeyPem)}
+            });
         } catch (const std::exception& e) {
             return errorResponse(e);
         }
