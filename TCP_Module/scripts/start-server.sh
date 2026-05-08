@@ -18,6 +18,8 @@ if [[ ! -f "${JAR_PATH}" ]]; then
 fi
 
 ARGS=(
+  "--app.role=server"
+  "--spring.profiles.active=server"
   "--server.tcp.enabled=${SERVER_TCP_ENABLED:-true}"
   "--server.tcp.bind-host=${SERVER_TCP_BIND_HOST:-0.0.0.0}"
   "--server.tcp.bind-port=${SERVER_TCP_BIND_PORT:-9000}"
@@ -28,7 +30,7 @@ ARGS=(
 )
 
 if [[ -f "${CONFIG_PATH}" ]]; then
-  ARGS=("--spring.config.location=file:${CONFIG_PATH}" "${ARGS[@]}")
+  ARGS=("--spring.config.additional-location=file:${CONFIG_PATH}" "${ARGS[@]}")
 fi
 
 exec java ${JAVA_OPTS:-} -jar "${JAR_PATH}" "${ARGS[@]}"

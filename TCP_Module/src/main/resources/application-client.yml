@@ -4,12 +4,12 @@ spring:
       on-profile: client
 
 client:
-  serverHost: ${CLIENT_SERVER_HOST:127.0.0.1}
+  serverHost: ${CLIENT_SERVER_HOST:82.156.228.71}
   serverPort: ${CLIENT_SERVER_PORT:9000}
 
 node:
-  device-id: ${NODE_DEVICE_ID:client-device-1}
-  auto-connect: ${NODE_AUTO_CONNECT:false}
+  device-id: ${NODE_DEVICE_ID:}
+  auto-connect: ${NODE_AUTO_CONNECT:true}
 
 server:
   address: ${CLIENT_HTTP_ADDRESS:127.0.0.1}

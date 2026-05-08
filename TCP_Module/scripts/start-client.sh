@@ -18,18 +18,23 @@ if [[ ! -f "${JAR_PATH}" ]]; then
 fi
 
 ARGS=(
+  "--app.role=client"
+  "--spring.profiles.active=client"
   "--server.tcp.enabled=false"
   "--server.address=${CLIENT_HTTP_ADDRESS:-127.0.0.1}"
   "--server.port=${CLIENT_HTTP_PORT:-8081}"
-  "--node.device-id=${NODE_DEVICE_ID:-client-device-1}"
-  "--node.auto-connect=${NODE_AUTO_CONNECT:-true}"
+  "--node.auto-connect=${NODE_AUTO_CONNECT:-false}"
   "--client.serverHost=${CLIENT_SERVER_HOST:-127.0.0.1}"
   "--client.serverPort=${CLIENT_SERVER_PORT:-9000}"
   "--transfer.receive-dir=${TRANSFER_RECEIVE_DIR:-downloads-client-1}"
 )
 
+if [[ -n "${NODE_DEVICE_ID:-}" ]]; then
+  ARGS+=("--node.device-id=${NODE_DEVICE_ID}")
+fi
+
 if [[ -f "${CONFIG_PATH}" ]]; then
-  ARGS=("--spring.config.location=file:${CONFIG_PATH}" "${ARGS[@]}")
+  ARGS=("--spring.config.additional-location=file:${CONFIG_PATH}" "${ARGS[@]}")
 fi
 
 exec java ${JAVA_OPTS:-} -jar "${JAR_PATH}" "${ARGS[@]}"

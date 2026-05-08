@@ -7,6 +7,7 @@ public class LocalStorageProperties
 {
     private String transferHistoryPath;
     private String sqlitePath;
+    private String deviceIdPath;
 
     public String getTransferHistoryPath() {
         return transferHistoryPath;
@@ -24,10 +25,19 @@ public class LocalStorageProperties
         this.sqlitePath = sqlitePath;
     }
 
+    public String getDeviceIdPath() {
+        return deviceIdPath;
+    }
+
+    public void setDeviceIdPath(String deviceIdPath) {
+        this.deviceIdPath = deviceIdPath;
+    }
+
     @Override
     public String toString() {
         return "LocalStorageProperties{" +
                 "sqlitePath='" + sqlitePath + '\'' +
+                ", deviceIdPath='" + deviceIdPath + '\'' +
                 ", transferHistoryPath='" + transferHistoryPath + '\'' +
                 '}';
     }

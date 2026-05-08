@@ -21,16 +21,19 @@ if not exist "%JAR_PATH%" (
 
 if "%CLIENT_HTTP_ADDRESS%"=="" set "CLIENT_HTTP_ADDRESS=127.0.0.1"
 if "%CLIENT_HTTP_PORT%"=="" set "CLIENT_HTTP_PORT=8081"
-if "%NODE_DEVICE_ID%"=="" set "NODE_DEVICE_ID=client-device-1"
-if "%NODE_AUTO_CONNECT%"=="" set "NODE_AUTO_CONNECT=true"
+if "%NODE_AUTO_CONNECT%"=="" set "NODE_AUTO_CONNECT=false"
 if "%CLIENT_SERVER_HOST%"=="" set "CLIENT_SERVER_HOST=127.0.0.1"
 if "%CLIENT_SERVER_PORT%"=="" set "CLIENT_SERVER_PORT=9000"
 if "%TRANSFER_RECEIVE_DIR%"=="" set "TRANSFER_RECEIVE_DIR=downloads-client-1"
 
-set "APP_ARGS=--server.tcp.enabled=false --server.address=%CLIENT_HTTP_ADDRESS% --server.port=%CLIENT_HTTP_PORT% --node.device-id=%NODE_DEVICE_ID% --node.auto-connect=%NODE_AUTO_CONNECT% --client.serverHost=%CLIENT_SERVER_HOST% --client.serverPort=%CLIENT_SERVER_PORT% --transfer.receive-dir=%TRANSFER_RECEIVE_DIR%"
+set "APP_ARGS=--app.role=client --spring.profiles.active=client --server.tcp.enabled=false --server.address=%CLIENT_HTTP_ADDRESS% --server.port=%CLIENT_HTTP_PORT% --node.auto-connect=%NODE_AUTO_CONNECT% --client.serverHost=%CLIENT_SERVER_HOST% --client.serverPort=%CLIENT_SERVER_PORT% --transfer.receive-dir=%TRANSFER_RECEIVE_DIR%"
+
+if not "%NODE_DEVICE_ID%"=="" (
+  set "APP_ARGS=%APP_ARGS% --node.device-id=%NODE_DEVICE_ID%"
+)
 
 if exist "%CONFIG_PATH%" (
-  set "APP_ARGS=--spring.config.location=file:%CONFIG_PATH% %APP_ARGS%"
+  set "APP_ARGS=--spring.config.additional-location=file:%CONFIG_PATH% %APP_ARGS%"
 )
 
 java %JAVA_OPTS% -jar "%JAR_PATH%" %APP_ARGS%

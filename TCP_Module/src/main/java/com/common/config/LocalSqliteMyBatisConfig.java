@@ -28,7 +28,8 @@ import java.nio.file.Path;
 @MapperScan(basePackages = "com.persistence.local.mapper.contactsRecord", sqlSessionFactoryRef = "sqliteSqlSessionFactory")
 public class LocalSqliteMyBatisConfig
 {
-    private DataSource createSqliteDataSource(LocalStorageProperties localStorageProperties) throws Exception
+    @Bean(name = "sqliteDataSource")
+    public DataSource sqliteDataSource(LocalStorageProperties localStorageProperties) throws Exception
     {
         Path sqlitePath=Path.of(localStorageProperties.getSqlitePath()).toAbsolutePath();
         Path parent=sqlitePath.getParent();
@@ -45,10 +46,12 @@ public class LocalSqliteMyBatisConfig
     }
 
     @Bean(name = "sqliteSqlSessionFactory")
-    public SqlSessionFactory sqlSessionFactory(LocalStorageProperties localStorageProperties)throws  Exception
+    public SqlSessionFactory sqlSessionFactory(
+            @Qualifier("sqliteDataSource") DataSource sqliteDataSource
+    )throws  Exception
     {
         SqlSessionFactoryBean factoryBean = new SqlSessionFactoryBean();
-        factoryBean.setDataSource(createSqliteDataSource(localStorageProperties));
+        factoryBean.setDataSource(sqliteDataSource);
         return factoryBean.getObject();
     }
 

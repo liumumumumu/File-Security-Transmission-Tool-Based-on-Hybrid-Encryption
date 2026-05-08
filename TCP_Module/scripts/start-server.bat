@@ -26,10 +26,10 @@ if "%SERVER_HTTP_ADDRESS%"=="" set "SERVER_HTTP_ADDRESS=0.0.0.0"
 if "%SERVER_HTTP_PORT%"=="" set "SERVER_HTTP_PORT=8080"
 if "%NODE_DEVICE_ID%"=="" set "NODE_DEVICE_ID=server-node"
 
-set "APP_ARGS=--server.tcp.enabled=%SERVER_TCP_ENABLED% --server.tcp.bind-host=%SERVER_TCP_BIND_HOST% --server.tcp.bind-port=%SERVER_TCP_BIND_PORT% --server.address=%SERVER_HTTP_ADDRESS% --server.port=%SERVER_HTTP_PORT% --node.device-id=%NODE_DEVICE_ID% --node.auto-connect=false"
+set "APP_ARGS=--app.role=server --spring.profiles.active=server --server.tcp.enabled=%SERVER_TCP_ENABLED% --server.tcp.bind-host=%SERVER_TCP_BIND_HOST% --server.tcp.bind-port=%SERVER_TCP_BIND_PORT% --server.address=%SERVER_HTTP_ADDRESS% --server.port=%SERVER_HTTP_PORT% --node.device-id=%NODE_DEVICE_ID% --node.auto-connect=false"
 
 if exist "%CONFIG_PATH%" (
-  set "APP_ARGS=--spring.config.location=file:%CONFIG_PATH% %APP_ARGS%"
+  set "APP_ARGS=--spring.config.additional-location=file:%CONFIG_PATH% %APP_ARGS%"
 )
 
 java %JAVA_OPTS% -jar "%JAR_PATH%" %APP_ARGS%

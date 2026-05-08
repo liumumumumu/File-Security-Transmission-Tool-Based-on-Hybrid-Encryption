@@ -125,7 +125,7 @@ public class CryptoSupport   //负责加密，解密，签名，验证签名，�
     {
 //        return null;
 
-        return POST("rsa/encrypt", Map.of(
+        return POST("/rsa/encrypt", Map.of(
                 "publicKey", receivePublicKeyBase64,
                 "plain", Base64.getEncoder().encodeToString(AESKey.getEncoded())
         )).get("cipher");
@@ -189,7 +189,7 @@ public class CryptoSupport   //负责加密，解密，签名，验证签名，�
     {
 //        return null;
 
-        String plainBase64=POST("rsa/decrypt", Map.of(
+        String plainBase64=POST("/rsa/decrypt", Map.of(
                 "cipher", encryptedBase64
         )).get("plain");
         return Base64.getDecoder().decode(plainBase64);
@@ -295,7 +295,7 @@ public class CryptoSupport   //负责加密，解密，签名，验证签名，�
         try
         {
             HttpRequest request= HttpRequest.newBuilder()
-                    .uri(URI.create(CRYPTO_SERVICE_URL+path))
+                    .uri(URI.create(resolveUrl(path)))
                     .GET()
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
@@ -315,7 +315,7 @@ public class CryptoSupport   //负责加密，解密，签名，验证签名，�
         {
             String json=gson.toJson(body);
             HttpRequest request=HttpRequest.newBuilder()
-                    .uri(URI.create(CRYPTO_SERVICE_URL+path))
+                    .uri(URI.create(resolveUrl(path)))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .build();
@@ -340,5 +340,11 @@ public class CryptoSupport   //负责加密，解密，签名，验证签名，�
     {
         Type type=new TypeToken<Map<String, String>>(){}.getType();
         return gson.fromJson(json, type);
+    }
+
+    private String resolveUrl(String path)
+    {
+        String normalizedPath = path.startsWith("/") ? path : "/" + path;
+        return CRYPTO_SERVICE_URL + normalizedPath;
     }
 }
