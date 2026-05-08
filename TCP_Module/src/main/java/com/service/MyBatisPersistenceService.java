@@ -1,9 +1,9 @@
 package com.service;
 
-import com.persistence.mapper.AuthLogMapper;
-import com.persistence.mapper.DeviceMapper;
-import com.persistence.model.AuthLogRecord;
-import com.persistence.model.DeviceRecord;
+import com.persistence.local.mapper.transmissionRecord.AuthLogMapper;
+import com.persistence.local.mapper.transmissionRecord.DeviceMapper;
+import com.persistence.local.model.transmissionRecord.AuthLogRecord;
+import com.persistence.local.model.transmissionRecord.DeviceRecord;
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

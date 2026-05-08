@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class LocalStorageProperties
 {
     private String transferHistoryPath;
+    private String sqlitePath;
 
     public String getTransferHistoryPath() {
         return transferHistoryPath;
@@ -15,10 +16,19 @@ public class LocalStorageProperties
         this.transferHistoryPath = transferHistoryPath;
     }
 
+    public String getSqlitePath() {
+        return sqlitePath;
+    }
+
+    public void setSqlitePath(String sqlitePath) {
+        this.sqlitePath = sqlitePath;
+    }
+
     @Override
     public String toString() {
         return "LocalStorageProperties{" +
-                "transferHistoryPath='" + transferHistoryPath + '\'' +
+                "sqlitePath='" + sqlitePath + '\'' +
+                ", transferHistoryPath='" + transferHistoryPath + '\'' +
                 '}';
     }
 }

@@ -1,4 +1,4 @@
-package com.persistence.model;
+package com.persistence.local.model.transmissionRecord;
 
 import java.time.LocalDateTime;
 

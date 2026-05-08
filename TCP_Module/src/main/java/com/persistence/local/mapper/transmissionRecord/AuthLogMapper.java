@@ -1,6 +1,6 @@
-package com.persistence.mapper;
+package com.persistence.local.mapper.transmissionRecord;
 
-import com.persistence.model.AuthLogRecord;
+import com.persistence.local.model.transmissionRecord.AuthLogRecord;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 
