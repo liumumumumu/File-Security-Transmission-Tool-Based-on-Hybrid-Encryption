@@ -25,8 +25,8 @@ client:
   serverHost: 82.156.228.71
   serverPort: 9000
   connectionTimeout: 5000
-  authTimeoutSeconds: 10
-  ackTimeoutSeconds: 10
+  authTimeoutSeconds: 1000
+  ackTimeoutSeconds: 1000
 
 node:
   device-id: device-default

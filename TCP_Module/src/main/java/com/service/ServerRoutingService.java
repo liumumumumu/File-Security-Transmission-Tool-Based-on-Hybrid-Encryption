@@ -10,6 +10,8 @@ import com.common.protocol.auth.ChallengePacket;
 import com.common.protocol.file.*;
 import com.common.protocol.heartbeat.PingPacket;
 import com.common.protocol.heartbeat.PongPacket;
+import com.common.protocol.searchUser.OnlineUserSearchRequestPacket;
+import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
 import com.crypto.CryptoSupport;
 import com.server.PendingAuthChallenge;
 import com.server.PendingTransferRequest;
@@ -21,6 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -108,6 +112,11 @@ public class ServerRoutingService
             }
             if (packet instanceof ReceiverDeviceSelectionPacket receiverDeviceSelectionPacket) {
                 handleReceiverDeviceSelection(ctx.channel(), deviceId, receiverDeviceSelectionPacket);
+                return;
+            }
+            if(packet instanceof OnlineUserSearchRequestPacket onlineUserSearchRequestPacket)
+            {
+                handleOnlineUserSearch(ctx.channel(), onlineUserSearchRequestPacket);
                 return;
             }
             if(packet instanceof FileOfferPacket fileOfferPacket)//处理文件信息数据包
@@ -291,6 +300,65 @@ public class ServerRoutingService
                 receiver.getChannel().writeAndFlush(requestPacket);
             }
         }
+    }
+
+    private void handleOnlineUserSearch(Channel channel, OnlineUserSearchRequestPacket packet)
+    {
+        if(packet.getAccountId()==null || packet.getAccountId().isBlank())
+        {
+            channel.writeAndFlush(new OnlineUserSearchResultPacket(
+                    packet.getAccountId(),
+                    packet.getRequestId(),
+                    null,
+                    false,
+                    "accountId is required"
+            ));
+            return;
+        }
+
+        Set<String> deviceIds = deviceIdsByAccountId.get(packet.getAccountId());
+        if(deviceIds==null || deviceIds.isEmpty())
+        {
+            channel.writeAndFlush(new OnlineUserSearchResultPacket(
+                    packet.getAccountId(),
+                    packet.getRequestId(),
+                    null,
+                    false,
+                    "Target account has no online devices"
+            ));
+            return;
+        }
+
+        List<ServerClientSession> onlineSessions = new ArrayList<>();
+        for(String deviceId : deviceIds)
+        {
+            ServerClientSession session = sessionsByDeviceId.get(deviceId);
+            if(session!=null)
+            {
+                onlineSessions.add(session);
+            }
+        }
+
+        if(onlineSessions.isEmpty())
+        {
+            channel.writeAndFlush(new OnlineUserSearchResultPacket(
+                    packet.getAccountId(),
+                    packet.getRequestId(),
+                    null,
+                    false,
+                    "Target account has no active sessions"
+            ));
+            return;
+        }
+
+        ServerClientSession firstSession = onlineSessions.get(0);
+        channel.writeAndFlush(new OnlineUserSearchResultPacket(
+                packet.getAccountId(),
+                packet.getRequestId(),
+                firstSession.getPublicKey(),
+                true,
+                "Online user found, onlineDeviceCount="+onlineSessions.size()
+        ));
     }
 
     private void handleReceiverDeviceSelection(Channel channel, String receiverDeviceId, ReceiverDeviceSelectionPacket packet)

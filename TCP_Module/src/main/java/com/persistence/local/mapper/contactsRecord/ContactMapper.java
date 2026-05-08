@@ -14,7 +14,7 @@ public interface ContactMapper
                 contact_index INTEGER NOT NULL UNIQUE,
                 alias TEXT,
                 account_id TEXT NOT NULL UNIQUE,
-                public_key TEXT NOT NULL,
+                public_key TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )

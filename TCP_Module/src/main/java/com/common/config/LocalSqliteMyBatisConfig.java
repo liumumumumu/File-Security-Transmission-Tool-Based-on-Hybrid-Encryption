@@ -4,9 +4,10 @@ import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.SqlSessionFactoryBean;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.sqlite.SQLiteDataSource;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import javax.sql.DataSource;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,8 +26,7 @@ import java.nio.file.Path;
 @MapperScan(basePackages = "com.persistence.local.mapper.contactsRecord", sqlSessionFactoryRef = "sqliteSqlSessionFactory")
 public class LocalSqliteMyBatisConfig
 {
-    @Bean
-    public DataSource sqliteDataSource(LocalStorageProperties localStorageProperties) throws Exception
+    private DataSource createSqliteDataSource(LocalStorageProperties localStorageProperties) throws Exception
     {
         Path sqlitePath=Path.of(localStorageProperties.getSqlitePath()).toAbsolutePath();
         Path parent=sqlitePath.getParent();
@@ -36,22 +36,25 @@ public class LocalSqliteMyBatisConfig
             Files.createDirectories(parent);
         }
 
-        SQLiteDataSource dataSource=new SQLiteDataSource();
-        dataSource.setUrl("jdbc:sqlite"+sqlitePath);
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName("org.sqlite.JDBC");
+        dataSource.setUrl("jdbc:sqlite:"+sqlitePath);
         return dataSource;
     }
 
-    @Bean
-    public SqlSessionFactory sqlSessionFactory(DataSource sqliteDataSource)throws  Exception
+    @Bean(name = "sqliteSqlSessionFactory")
+    public SqlSessionFactory sqlSessionFactory(LocalStorageProperties localStorageProperties)throws  Exception
     {
-        SqlSessionFactoryBean sqlSessionFactoryBean=new SqlSessionFactoryBean();
-        sqlSessionFactoryBean.setDataSource(sqliteDataSource);
-        return sqlSessionFactoryBean.getObject();
+        SqlSessionFactoryBean factoryBean = new SqlSessionFactoryBean();
+        factoryBean.setDataSource(createSqliteDataSource(localStorageProperties));
+        return factoryBean.getObject();
     }
 
-    @Bean
-    public SqlSessionTemplate sqliteSqlSessionTemplate(SqlSessionFactory sqlSessionFactory)
+    @Bean(name = "sqliteSqlSessionTemplate")
+    public SqlSessionTemplate sqliteSqlSessionTemplate(
+            @Qualifier("sqliteSqlSessionFactory") SqlSessionFactory sqliteSqlSessionFactory
+    )
     {
-        return new SqlSessionTemplate(sqlSessionFactory);
+        return new SqlSessionTemplate(sqliteSqlSessionFactory);
     }
 }

@@ -3,10 +3,14 @@ package com.console;
 import com.client.ClientConnectionManager;
 import com.common.config.ClientProperties;
 import com.common.protocol.file.IncomingTransferRequestPacket;
+import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
 import com.crypto.CryptoSupport;
 import com.service.ClientTransferService;
+import com.service.LocalContactBookService;
 import com.service.PushNotificationService;
 import com.service.TransferTaskRegistry;
+import com.persistence.local.model.contactsRecord.BlacklistRecord;
+import com.persistence.local.model.contactsRecord.ContactRecord;
 import com.session.TransferTask;
 import jakarta.annotation.PreDestroy;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -41,6 +45,7 @@ public class ConsoleCommandRunner
     private final TransferTaskRegistry transferTaskRegistry;//负责保持传输任务状态，用于对tasks, task的命令查询
     private final ConfigurableApplicationContext applicationContext;//负责控制Spring应用的生命周期
     private final PushNotificationService pushNotificationService;//监听本地通知
+    private final LocalContactBookService localContactBookService;//负责本地联系人和黑名单
     private Runnable notificationSubscription;
 
     public ConsoleCommandRunner(
@@ -50,7 +55,8 @@ public class ConsoleCommandRunner
             CryptoSupport cryptoSupport,
             TransferTaskRegistry transferTaskRegistry,
             ConfigurableApplicationContext applicationContext,
-            PushNotificationService pushNotificationService
+            PushNotificationService pushNotificationService,
+            LocalContactBookService localContactBookService
     )
     {
         this.clientConnectionManager = clientConnectionManager;
@@ -60,6 +66,7 @@ public class ConsoleCommandRunner
         this.transferTaskRegistry = transferTaskRegistry;
         this.applicationContext = applicationContext;
         this.pushNotificationService = pushNotificationService;
+        this.localContactBookService = localContactBookService;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -120,8 +127,18 @@ public class ConsoleCommandRunner
                 case "disconnect" -> disconnect();              //断开当前连接
                 case "send" -> sendFile(args);                  //发送文件，send <filePath> <targetAccountId>     //filePath可以是绝对路径也可以是相对路径（相对程序运行的位置），accountId就是公钥指纹(64 位)
                 case "incoming" -> printIncomingRequests();     //列出当前待处理的文件接收请求
-                case "accept" -> acceptIncomingRequest(args);   //接收指定的incoming transfer， accept <transferId>
-                case "reject" -> rejectIncomingRequest(args);   //拒绝指定的incoming transfer， reject <transferId>
+                case "accept" -> acceptIncomingRequest(args);   //接收指定的incoming transfer任务， accept <transferId>
+                case "reject" -> rejectIncomingRequest(args);   //拒绝指定的incoming transfer任务， reject <transferId>
+                case "contacts" -> printContacts();             //列出联系人
+                case "contact-add" -> addContact(args);         //添加联系人，contact-add <accountId> [alias]
+                case "contact-remove" -> removeContact(args);   //删除联系人，contact-remove <contact-数字|数字>
+                case "contact-show" -> showContact(args);       //查看联系人详情，contact-show <contact-数字|数字>
+                case "blacklist" -> printBlacklist();           //列出黑名单
+                case "blacklist-add" -> addBlacklist(args);     //添加黑名单，blacklist-add <accountId> [reason]
+                case "blacklist-add-contact" -> addBlacklistContact(args); //添加联系人到黑名单
+                case "blacklist-remove" -> removeBlacklist(args);//删除黑名单，blacklist-remove <accountId>
+                case "search-user" -> searchUser(args);         //搜索在线用户，search-user <accountId>
+                case "search-user-add" -> searchUserAndAddContact(args); //搜索在线用户并加入联系人
                 case "tasks" -> printTasks();                   //列出所有传输任务
                 case "task" -> printTask(args);                 //查看单个任务详情， task <taskId|transferId>    //参数可以是任务Id, 也可以是传输Id
                 case "public-key" -> printPublicKey();          //查看和导入密钥,打印当前客户端的本地公钥
@@ -158,6 +175,16 @@ public class ConsoleCommandRunner
         System.out.println("  incoming                          List incoming transfer requests");
         System.out.println("  accept <transferId>               Accept an incoming transfer on this device");
         System.out.println("  reject <transferId>               Reject and cancel an incoming transfer");
+        System.out.println("  contacts                          List local contacts");
+        System.out.println("  contact-add <accountId> [alias] Add or update a local contact");
+        System.out.println("  contact-remove <contact-N|N>      Remove a local contact");
+        System.out.println("  contact-show <contact-N|N>        Show one local contact");
+        System.out.println("  blacklist                         List blacklist records");
+        System.out.println("  blacklist-add <accountId> [reason] Add or update a blacklist record");
+        System.out.println("  blacklist-add-contact <contact-N|N> [reason] Add a contact to blacklist");
+        System.out.println("  blacklist-remove <accountId>      Remove a blacklist record");
+        System.out.println("  search-user <accountId>           Search whether an account is online");
+        System.out.println("  search-user-add <accountId> [alias] Search online user and add to contacts");
         System.out.println("  tasks                             List transfer tasks");
         System.out.println("  task <taskId|transferId>          Show one transfer task");
         System.out.println("  public-key                        Print local public key");
@@ -303,6 +330,180 @@ public class ConsoleCommandRunner
         }
         clientTransferService.rejectIncomingTransfer(args.get(1));//参数是任务Id
         System.out.println("Rejected incoming transfer request: " + args.get(1));
+    }
+
+    private void printContacts()
+    {
+        List<ContactRecord> contacts = localContactBookService.listContacts();
+        if (contacts.isEmpty()) {
+            System.out.println("No contacts.");
+            return;
+        }
+
+        System.out.println("contact | alias | accountId | publicKey");
+        for (ContactRecord contact : contacts) {
+            System.out.printf(
+                    "contact-%d | %s | %s | %s%n",
+                    contact.getContactIndex(),
+                    displayNullable(contact.getAlias()),
+                    contact.getAccountId(),
+                    abbreviate(contact.getPublicKey(), 32)
+            );
+        }
+    }
+
+    private void addContact(List<String> args)
+    {
+        if (args.size() < 2) {
+            System.out.println("Usage: contact-add <accountId> [alias]");
+            return;
+        }
+
+        String alias = args.size() >= 3 ? joinArguments(args, 2) : null;
+        ContactRecord contact = localContactBookService.addContact(args.get(1), null, alias);
+        System.out.printf(
+                "Contact saved: contact-%d | %s | %s%n",
+                contact.getContactIndex(),
+                displayNullable(contact.getAlias()),
+                contact.getAccountId()
+        );
+    }
+
+    private void removeContact(List<String> args)
+    {
+        if (args.size() < 2) {
+            System.out.println("Usage: contact-remove <contact-N|N>");
+            return;
+        }
+
+        int contactIndex = parseContactIndexArgument(args.get(1));
+        localContactBookService.removeContactByIndex(contactIndex);
+        System.out.println("Contact removed: contact-" + contactIndex);
+    }
+
+    private void showContact(List<String> args)
+    {
+        if (args.size() < 2) {
+            System.out.println("Usage: contact-show <contact-N|N>");
+            return;
+        }
+
+        int contactIndex = parseContactIndexArgument(args.get(1));
+        ContactRecord contact = localContactBookService.findContactByIndex(contactIndex).orElse(null);
+        if (contact == null) {
+            System.out.println("Contact not found: contact-" + contactIndex);
+            return;
+        }
+
+        System.out.println("contact: contact-" + contact.getContactIndex());
+        System.out.println("alias: " + displayNullable(contact.getAlias()));
+        System.out.println("accountId: " + contact.getAccountId());
+        System.out.println("publicKey: " + contact.getPublicKey());
+        System.out.println("createdAt: " + contact.getCreatedAt());
+        System.out.println("updatedAt: " + contact.getUpdatedAt());
+    }
+
+    private void printBlacklist()
+    {
+        List<BlacklistRecord> records = localContactBookService.listBlacklist();
+        if (records.isEmpty()) {
+            System.out.println("No blacklist records.");
+            return;
+        }
+
+        System.out.println("accountId | reason | publicKey | createdAt");
+        for (BlacklistRecord record : records) {
+            System.out.printf(
+                    "%s | %s | %s | %s%n",
+                    record.getAccountId(),
+                    displayNullable(record.getReason()),
+                    abbreviate(record.getPublicKey(), 32),
+                    record.getCreatedAt()
+            );
+        }
+    }
+
+    private void addBlacklist(List<String> args)
+    {
+        if (args.size() < 2) {
+            System.out.println("Usage: blacklist-add <accountId> [reason]");
+            return;
+        }
+
+        String reason = args.size() >= 3 ? joinArguments(args, 2) : null;
+        BlacklistRecord record = localContactBookService.addBlacklist(args.get(1), null, reason);
+        System.out.println("Blacklist record saved: " + record.getAccountId());
+    }
+
+    private void addBlacklistContact(List<String> args)
+    {
+        if (args.size() < 2) {
+            System.out.println("Usage: blacklist-add-contact <contact-N|N> [reason]");
+            return;
+        }
+
+        int contactIndex = parseContactIndexArgument(args.get(1));
+        String reason = args.size() >= 3 ? joinArguments(args, 2) : null;
+        BlacklistRecord record = localContactBookService.addBlacklistByContactIndex(contactIndex, reason);
+        System.out.println("Blacklist record saved from contact-" + contactIndex + ": " + record.getAccountId());
+    }
+
+    private void removeBlacklist(List<String> args)
+    {
+        if (args.size() < 2) {
+            System.out.println("Usage: blacklist-remove <accountId>");
+            return;
+        }
+
+        localContactBookService.removeBlacklist(args.get(1));
+        System.out.println("Blacklist record removed: " + args.get(1));
+    }
+
+    private void searchUser(List<String> args)
+    {
+        if (args.size() < 2) {
+            System.out.println("Usage: search-user <accountId>");
+            return;
+        }
+
+        OnlineUserSearchResultPacket result = clientTransferService.searchOnlineUser(args.get(1));
+        printOnlineUserSearchResult(result);
+    }
+
+    private void searchUserAndAddContact(List<String> args)
+    {
+        if (args.size() < 2) {
+            System.out.println("Usage: search-user-add <accountId> [alias]");
+            return;
+        }
+
+        String alias = args.size() >= 3 ? joinArguments(args, 2) : null;
+        OnlineUserSearchResultPacket result = clientTransferService.searchOnlineUser(args.get(1));
+        printOnlineUserSearchResult(result);
+        if(!result.isSearchResult())
+        {
+            return;
+        }
+
+        ContactRecord contact = localContactBookService.addContact(result.getAccountId(), result.getPublicKey(), alias);
+        System.out.printf(
+                "Contact saved: contact-%d | %s | %s%n",
+                contact.getContactIndex(),
+                displayNullable(contact.getAlias()),
+                contact.getAccountId()
+        );
+    }
+
+    private void printOnlineUserSearchResult(OnlineUserSearchResultPacket result)
+    {
+        System.out.println("found: " + result.isSearchResult());
+        System.out.println("accountId: " + result.getAccountId());
+        System.out.println("message: " + result.getMessage());
+        if(!result.isSearchResult())
+        {
+            return;
+        }
+        System.out.println("publicKey: " + result.getPublicKey());
     }
 
     private void printTask(List<String> args)
@@ -478,6 +679,54 @@ public class ConsoleCommandRunner
             return bool;
         }
         return "true".equalsIgnoreCase(String.valueOf(value));
+    }
+
+    private int parseContactIndexArgument(String value)
+    {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("contact index is required");
+        }
+        String normalized = value.startsWith("contact-") ? value.substring("contact-".length()) : value;
+        try {
+            int contactIndex = Integer.parseInt(normalized);
+            if (contactIndex <= 0) {
+                throw new IllegalArgumentException("contact index must be positive: " + value);
+            }
+            return contactIndex;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid contact token: " + value);
+        }
+    }
+
+    private String joinArguments(List<String> args, int startIndex)
+    {
+        StringBuilder builder = new StringBuilder();
+        for (int i = startIndex; i < args.size(); i++) {
+            if (!builder.isEmpty()) {
+                builder.append(' ');
+            }
+            builder.append(args.get(i));
+        }
+        return builder.toString();
+    }
+
+    private String displayNullable(String value)
+    {
+        return value == null || value.isBlank() ? "-" : value;
+    }
+
+    private String abbreviate(String value, int maxLength)
+    {
+        if (value == null || value.isBlank()) {
+            return "-";
+        }
+        if (value.length() <= maxLength) {
+            return value;
+        }
+        if (maxLength <= 3) {
+            return value.substring(0, maxLength);
+        }
+        return value.substring(0, maxLength - 3) + "...";
     }
 
     private void printMissingKeyReminder()

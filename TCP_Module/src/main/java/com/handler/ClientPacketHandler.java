@@ -7,6 +7,7 @@ import com.common.protocol.auth.ChallengePacket;
 import com.common.protocol.file.*;
 import com.common.protocol.heartbeat.PingPacket;
 import com.common.protocol.heartbeat.PongPacket;
+import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
 import com.service.ClientTransferService;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -76,6 +77,11 @@ public class ClientPacketHandler extends SimpleChannelInboundHandler<Packet>
         if(msg instanceof ReceiverDeviceSelectionPacket receiverDeviceSelectionPacket)
         {
             clientTransferService.handleReceiverDeviceSelection(receiverDeviceSelectionPacket);
+            return;
+        }
+        if(msg instanceof OnlineUserSearchResultPacket onlineUserSearchResultPacket)
+        {
+            clientTransferService.handleOnlineUserSearchResult(onlineUserSearchResultPacket);
             return;
         }
         if(msg instanceof FileBlockPacket fileBlockPacket)

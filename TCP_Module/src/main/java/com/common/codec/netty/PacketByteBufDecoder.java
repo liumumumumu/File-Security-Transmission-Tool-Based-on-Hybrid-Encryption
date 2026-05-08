@@ -8,6 +8,8 @@ import com.common.codec.decoder.ProtocolDecodingLayer.auth.ChallengeDecoder;
 import com.common.codec.decoder.ProtocolDecodingLayer.file.*;
 import com.common.codec.decoder.ProtocolDecodingLayer.heartbeat.PingDecoder;
 import com.common.codec.decoder.ProtocolDecodingLayer.heartbeat.PongDecoder;
+import com.common.codec.decoder.ProtocolDecodingLayer.searchUser.OnlineUserSearchRequestDecoder;
+import com.common.codec.decoder.ProtocolDecodingLayer.searchUser.OnlineUserSearchResultDecoder;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
@@ -66,6 +68,8 @@ public class PacketByteBufDecoder extends MessageToMessageDecoder<ByteBuf>
             case MessageType.Transfer_Request -> new TransferRequestDecoder();
             case MessageType.Incoming_Transfer_Request -> new IncomingTransferRequestDecoder();
             case MessageType.Receiver_Device_Selection -> new ReceiverDeviceSelectionDecoder();
+            case MessageType.Onlie_User_Search_Request -> new OnlineUserSearchRequestDecoder();
+            case MessageType.Onlie_User_Search_Result -> new OnlineUserSearchResultDecoder();
 
             //心跳
             case MessageType.Ping ->    new PingDecoder();

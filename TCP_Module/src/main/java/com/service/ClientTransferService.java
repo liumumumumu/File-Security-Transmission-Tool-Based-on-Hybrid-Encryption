@@ -6,6 +6,8 @@ import com.common.config.NodeProperties;
 import com.common.config.TransferProperties;
 import com.common.crypto.AesGcmChunk;
 import com.common.protocol.file.*;
+import com.common.protocol.searchUser.OnlineUserSearchRequestPacket;
+import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
 import com.crypto.CryptoSupport;
 import com.session.TransferDirection;
 import com.session.TransferStatus;
@@ -67,6 +69,7 @@ public class ClientTransferService
     private final Map<String, OutboundTransferContext>  outboundTransferContexts = new ConcurrentHashMap<>();//保存正在发送的任务的上下文，AES密钥，等待接收方接收的Future，每个块的ACK Future
     private final Map<String, InboundTransferContext> inboundTransferContexts = new ConcurrentHashMap<>();//保存正在接收的任务上下文，AES密钥，输出文件流，已收到但暂时不能写入的块
     private final Map<String, IncomingTransferRequestPacket> pendingIncomingTransferRequests = new ConcurrentHashMap<>();
+    private final Map<String, CompletableFuture<OnlineUserSearchResultPacket>> onlineUserSearchFutures = new ConcurrentHashMap<>();
 
 
     public ClientTransferService(ClientConnectionManager clientConnectionManager, ClientProperties clientProperties, CryptoSupport cryptoSupport, NodeProperties nodeProperties, PushNotificationService pushNotificationService, TransferProperties transferProperties, TransferTaskRegistry transferTaskRegistry) {
@@ -87,6 +90,45 @@ public class ClientTransferService
             //连接服务器并认证
             clientConnectionManager.connectAndAuthenticate(clientProperties.getServerHost(), clientProperties.getServerPort()).get(clientProperties.getAuthTimeoutSeconds(), TimeUnit.SECONDS);
         }
+    }
+
+    public OnlineUserSearchResultPacket searchOnlineUser(String accountId)
+    {
+        if(!clientConnectionManager.isAuthenticated())
+        {
+            throw new IllegalStateException("Client is not authenticated");
+        }
+        if(accountId==null || accountId.isBlank())
+        {
+            throw new IllegalArgumentException("accountId is required");
+        }
+
+        String requestId = UUID.randomUUID().toString();
+        CompletableFuture<OnlineUserSearchResultPacket> future = new CompletableFuture<>();
+        onlineUserSearchFutures.put(requestId, future);
+        try
+        {
+            clientConnectionManager.send(new OnlineUserSearchRequestPacket(accountId, requestId));
+            return future.get(clientProperties.getAckTimeoutSeconds(), TimeUnit.SECONDS);
+        }
+        catch(Exception e)
+        {
+            throw new IllegalStateException("Online user search failed: "+e.getMessage(), e);
+        }
+        finally
+        {
+            onlineUserSearchFutures.remove(requestId);
+        }
+    }
+
+    public void handleOnlineUserSearchResult(OnlineUserSearchResultPacket packet)
+    {
+        CompletableFuture<OnlineUserSearchResultPacket> future=onlineUserSearchFutures.remove(packet.getRequestId());
+        if(future==null)
+        {
+            return;
+        }
+        future.complete(packet);
     }
 
     //发送文件的入口方法；创建一个传输任务，然后把真正发送逻辑交给后台线程执行

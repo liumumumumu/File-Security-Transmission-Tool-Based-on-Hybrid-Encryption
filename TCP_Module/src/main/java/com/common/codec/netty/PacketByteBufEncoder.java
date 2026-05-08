@@ -9,6 +9,8 @@ import com.common.codec.encoder.auth.ChallengeEncoder;
 import com.common.codec.encoder.file.*;
 import com.common.codec.encoder.heartbeat.PingEncoder;
 import com.common.codec.encoder.heartbeat.PongEncoder;
+import com.common.codec.encoder.searchUser.OnlineUserSearchRequestEncoder;
+import com.common.codec.encoder.searchUser.OnlineUserSearchResultEncoder;
 import com.common.protocol.Packet;
 import com.common.protocol.auth.AuthRequestPacket;
 import com.common.protocol.auth.AuthResponsePacket;
@@ -17,6 +19,8 @@ import com.common.protocol.auth.ChallengePacket;
 import com.common.protocol.file.*;
 import com.common.protocol.heartbeat.PingPacket;
 import com.common.protocol.heartbeat.PongPacket;
+import com.common.protocol.searchUser.OnlineUserSearchRequestPacket;
+import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageEncoder;
 
@@ -85,6 +89,12 @@ public class PacketByteBufEncoder extends MessageToMessageEncoder<Packet>
         }
         if (packet instanceof ReceiverDeviceSelectionPacket) {
             return new ReceiverDeviceSelectionEncoder();
+        }
+        if (packet instanceof OnlineUserSearchRequestPacket) {
+            return new OnlineUserSearchRequestEncoder();
+        }
+        if (packet instanceof OnlineUserSearchResultPacket) {
+            return new OnlineUserSearchResultEncoder();
         }
         //心跳
         else if(packet instanceof PingPacket)

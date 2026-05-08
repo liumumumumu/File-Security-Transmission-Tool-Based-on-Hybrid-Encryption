@@ -63,5 +63,4 @@ public interface BlacklistMapper
             WHERE account_id = #{accountId}
             """)
     int deleteByAccountId(@Param("accountId") String accountId);
-
 }
