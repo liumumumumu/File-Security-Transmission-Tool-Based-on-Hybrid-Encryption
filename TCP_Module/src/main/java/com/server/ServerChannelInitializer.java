@@ -2,7 +2,7 @@ package com.server;
 
 import com.common.codec.netty.PacketByteBufDecoder;
 import com.common.codec.netty.PacketByteBufEncoder;
-import com.handler.ServerPacketHandler;
+import com.server.handler.ServerPacketHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;

@@ -1,4 +1,4 @@
-package com.service;
+package com.server.service;
 
 import com.common.config.RedisStateProperties;
 import com.server.PendingAuthChallenge;

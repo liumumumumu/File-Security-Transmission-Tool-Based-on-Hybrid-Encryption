@@ -29,7 +29,7 @@
 
 struct ServiceConfig {
     QHostAddress host = QHostAddress::Any;
-    quint16 port = 9080;
+    quint16 port = 20202;
     QString keyDir = QStringLiteral("./crypto_keys");
 };
 
@@ -83,7 +83,7 @@ static ServiceConfig parseArgs(const QCoreApplication& app)
     parser.addHelpOption();
 
     QCommandLineOption hostOption(QStringLiteral("host"), QStringLiteral("Listen host, default 0.0.0.0"), QStringLiteral("host"), QStringLiteral("0.0.0.0"));
-    QCommandLineOption portOption(QStringLiteral("port"), QStringLiteral("Listen port, default 9080"), QStringLiteral("port"), QStringLiteral("9080"));
+    QCommandLineOption portOption(QStringLiteral("port"), QStringLiteral("Listen port, default 20202"), QStringLiteral("port"), QStringLiteral("20202"));
     QCommandLineOption keyDirOption(QStringLiteral("key-dir"), QStringLiteral("Key storage directory, default ./crypto_keys"), QStringLiteral("dir"), QStringLiteral("./crypto_keys"));
 
     parser.addOption(hostOption);

@@ -1,4 +1,4 @@
-package com.service;
+package com.client.service;
 
 import com.client.ClientConnectionManager;
 import com.common.config.ClientProperties;
@@ -8,11 +8,11 @@ import com.common.crypto.AesGcmChunk;
 import com.common.protocol.file.*;
 import com.common.protocol.searchUser.OnlineUserSearchRequestPacket;
 import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
+import com.common.service.PushNotificationService;
 import com.crypto.CryptoSupport;
 import com.session.TransferDirection;
 import com.session.TransferStatus;
 import com.session.TransferTask;
-import io.netty.util.concurrent.CompleteFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 

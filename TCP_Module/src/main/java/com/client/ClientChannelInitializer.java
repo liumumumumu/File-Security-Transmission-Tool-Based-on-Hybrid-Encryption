@@ -3,7 +3,7 @@ package com.client;
 import com.common.codec.netty.PacketByteBufDecoder;
 import com.common.codec.netty.PacketByteBufEncoder;
 import com.common.protocol.Packet;
-import com.handler.ClientPacketHandler;
+import com.client.handler.ClientPacketHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 

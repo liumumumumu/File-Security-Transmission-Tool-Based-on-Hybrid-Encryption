@@ -1,4 +1,4 @@
-package com.handler;
+package com.client.handler;
 
 import com.client.ClientConnectionManager;
 import com.common.protocol.Packet;
@@ -8,7 +8,7 @@ import com.common.protocol.file.*;
 import com.common.protocol.heartbeat.PingPacket;
 import com.common.protocol.heartbeat.PongPacket;
 import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
-import com.service.ClientTransferService;
+import com.client.service.ClientTransferService;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;

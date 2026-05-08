@@ -1,4 +1,4 @@
-package com.service;
+package com.common.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;

@@ -1,4 +1,4 @@
-package com.service;
+package com.server.service;
 
 import com.persistence.local.mapper.transmissionRecord.AuthLogMapper;
 import com.persistence.local.mapper.transmissionRecord.DeviceMapper;

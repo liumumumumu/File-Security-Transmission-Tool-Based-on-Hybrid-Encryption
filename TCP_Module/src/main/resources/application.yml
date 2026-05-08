@@ -1,17 +1,6 @@
 spring:
   application:
     name: file-security-transmission-tool
-  datasource:
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:db_FileSecurityTransmission}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
-    username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:123456zxc@}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  data:
-    redis:
-      host: 127.0.0.1
-      port: 6379
-      database: 0
-      timeout: 5s
 
 mybatis:
   configuration:
@@ -22,7 +11,7 @@ authentication-result:
   failed: "Authentication Failed"
 
 client:
-  serverHost: 82.156.228.71
+  serverHost: 127.0.0.1
   serverPort: 9000
   connectionTimeout: 5000
   authTimeoutSeconds: 1000
@@ -36,23 +25,19 @@ app:
   local-storage:
     transfer-history-path: ${TRANSFER_HISTORY_PATH:${user.home}/.file-security-transmission/transfer-history.json} #本机传输记录文件的保存路径
     sqlite-path: ${LOCAL_SQLITE_PATH:${user.home}/.file-security-transmission/local-data.db}
-  redis-state:
-    challenge-ttl-seconds: 300
-    online-session-ttl-seconds: 120
-    transfer-route-ttl-seconds: 86400
 
 
 server:
-  address: localhost
-  port: 8080
+  address: 127.0.0.1
+  port: 8081
   tcp:
-    enabled: true
+    enabled: false
     bind-host: 0.0.0.0
     bind-port: 9000
 
 crypto-service:
   address: ${CRYPTO_SERVICE_ADDRESS:127.0.0.1}
-  port: ${CRYPTO_SERVICE_PORT:9080}
+  port: ${CRYPTO_SERVICE_PORT:20202}
 
 
 transfer:

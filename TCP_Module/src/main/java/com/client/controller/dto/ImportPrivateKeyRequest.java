@@ -1,4 +1,4 @@
-package com.controller.dto;
+package com.client.controller.dto;
 
 public class ImportPrivateKeyRequest
 {

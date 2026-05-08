@@ -1,4 +1,4 @@
-package com.service;
+package com.client.service;
 
 import com.common.config.LocalStorageProperties;
 import com.persistence.local.mapper.contactsRecord.BlacklistMapper;

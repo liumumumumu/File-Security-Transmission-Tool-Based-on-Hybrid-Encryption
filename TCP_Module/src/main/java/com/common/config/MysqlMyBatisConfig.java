@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Profile;
 
 import javax.sql.DataSource;
 
@@ -17,6 +18,7 @@ import javax.sql.DataSource;
  * Purpose: 负责给MySQL传输记录Mapper配置MyBatis运行环境
  */
 @Configuration
+@Profile("server")
 @MapperScan(
         basePackages = "com.persistence.local.mapper.transmissionRecord",
         sqlSessionFactoryRef = "mysqlSqlSessionFactory"

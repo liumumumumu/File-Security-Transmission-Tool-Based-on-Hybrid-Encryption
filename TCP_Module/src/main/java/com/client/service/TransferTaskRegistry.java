@@ -1,12 +1,6 @@
-package com.service;
+package com.client.service;
 
-
-import com.common.config.AuthenticationResultProperties;
-import com.crypto.CryptoSupport;
-import com.server.ServerClientSession;
-import com.session.TransferStatus;
 import com.session.TransferTask;
-import io.netty.channel.Channel;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 

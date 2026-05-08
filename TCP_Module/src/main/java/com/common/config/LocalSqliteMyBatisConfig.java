@@ -7,6 +7,7 @@ import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import javax.sql.DataSource;
 import java.nio.file.Files;
@@ -23,6 +24,7 @@ import java.nio.file.Path;
  * */
 
 @Configuration
+@Profile("client")
 @MapperScan(basePackages = "com.persistence.local.mapper.contactsRecord", sqlSessionFactoryRef = "sqliteSqlSessionFactory")
 public class LocalSqliteMyBatisConfig
 {

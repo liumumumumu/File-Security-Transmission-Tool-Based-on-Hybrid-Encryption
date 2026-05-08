@@ -1,14 +1,14 @@
-package com.console;
+package com.client.console;
 
 import com.client.ClientConnectionManager;
 import com.common.config.ClientProperties;
 import com.common.protocol.file.IncomingTransferRequestPacket;
 import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
 import com.crypto.CryptoSupport;
-import com.service.ClientTransferService;
-import com.service.LocalContactBookService;
-import com.service.PushNotificationService;
-import com.service.TransferTaskRegistry;
+import com.client.service.ClientTransferService;
+import com.client.service.LocalContactBookService;
+import com.common.service.PushNotificationService;
+import com.client.service.TransferTaskRegistry;
 import com.persistence.local.model.contactsRecord.BlacklistRecord;
 import com.persistence.local.model.contactsRecord.ContactRecord;
 import com.session.TransferTask;

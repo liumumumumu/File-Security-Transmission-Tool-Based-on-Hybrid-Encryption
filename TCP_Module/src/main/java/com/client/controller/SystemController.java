@@ -1,14 +1,14 @@
-package com.controller;
+package com.client.controller;
 
 import com.common.config.ClientProperties;
 import com.common.config.CryptoServiceProperties;
 import com.common.config.NodeProperties;
 import com.common.config.ServerProperties;
-import com.controller.dto.ImportPrivateKeyRequest;
-import com.controller.dto.PublicKeyFingerprintRequest;
+import com.client.controller.dto.ImportPrivateKeyRequest;
+import com.client.controller.dto.PublicKeyFingerprintRequest;
 import com.crypto.CryptoSupport;
-import com.service.LocalTransferHistoryService;
-import com.service.TransferTaskRegistry;
+import com.client.service.LocalTransferHistoryService;
+import com.client.service.TransferTaskRegistry;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

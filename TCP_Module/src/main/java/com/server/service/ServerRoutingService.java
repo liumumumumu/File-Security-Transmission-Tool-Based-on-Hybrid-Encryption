@@ -1,4 +1,4 @@
-package com.service;
+package com.server.service;
 
 
 import com.common.config.AuthenticationResultProperties;
@@ -12,6 +12,7 @@ import com.common.protocol.heartbeat.PingPacket;
 import com.common.protocol.heartbeat.PongPacket;
 import com.common.protocol.searchUser.OnlineUserSearchRequestPacket;
 import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
+import com.common.service.PushNotificationService;
 import com.crypto.CryptoSupport;
 import com.server.PendingAuthChallenge;
 import com.server.PendingTransferRequest;
@@ -23,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.security.GeneralSecurityException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -100,6 +102,13 @@ public class ServerRoutingService
             String deviceId=authenticaedDeviceId(ctx.channel());
             if(deviceId==null)
             {
+                logServerEvent(
+                        "unauthenticated-packet",
+                        sourcePublicKey(packet, ctx.channel()),
+                        "FAILED",
+                        "Connection is not authenticated",
+                        eventDetails("packetType", packet.getClass().getSimpleName())
+                );
                 ctx.close();
                 return;
             }
@@ -142,7 +151,13 @@ public class ServerRoutingService
         }
         catch(Exception e)
         {
-            log.info("server-error: "+e.getMessage());
+            logServerEvent(
+                    "server-packet",
+                    sourcePublicKey(packet, ctx.channel()),
+                    "FAILED",
+                    e.getMessage(),
+                    eventDetails("packetType", packet == null ? "" : packet.getClass().getSimpleName())
+            );
             pushNotificationService.publish("server-error", Map.of("message", e.getMessage()));
             ctx.close();
         }
@@ -185,6 +200,16 @@ public class ServerRoutingService
                 challenge
         ));
         channel.writeAndFlush(new ChallengePacket(challenge, challengeId));//返回 ChallengePacket 给客户端。
+        logServerEvent(
+                "auth-request",
+                packet.getPublicKey(),
+                "CHALLENGE_SENT",
+                null,
+                eventDetails(
+                        "deviceId", packet.getDeviceId(),
+                        "challengeId", challengeId
+                )
+        );
     }
 
     //处理认证结果
@@ -197,6 +222,13 @@ public class ServerRoutingService
         {
             myBatisPersistenceService.logAuthFailure(null, packet.getPublicKey(), packet.getChallengeId(), channel, "Challenge not found");
             channel.writeAndFlush(new AuthResultPacket("Challenge not found", false));//认证失败反馈
+            logServerEvent(
+                    "auth-response",
+                    packet.getPublicKey(),
+                    "FAILED",
+                    "Challenge not found",
+                    eventDetails("challengeId", packet.getChallengeId())
+            );
             channel.close();//端口连接
             return;
         }
@@ -211,6 +243,17 @@ public class ServerRoutingService
                     "Public key mismatch"
             );
             channel.writeAndFlush(new AuthResultPacket("Public key mismatch", false));
+            logServerEvent(
+                    "auth-response",
+                    packet.getPublicKey(),
+                    "FAILED",
+                    "Public key mismatch",
+                    eventDetails(
+                            "deviceId", challenge.getDeviceId(),
+                            "challengeId", packet.getChallengeId(),
+                            "expectedPublicKey", challenge.getPublicKey()
+                    )
+            );
             channel.close();
             return;
         }
@@ -227,6 +270,16 @@ public class ServerRoutingService
                     authenticationResultProperties.getFailed()
             );
             channel.writeAndFlush(new AuthResultPacket(authenticationResultProperties.getFailed(), false));
+            logServerEvent(
+                    "auth-response",
+                    challenge.getPublicKey(),
+                    "FAILED",
+                    authenticationResultProperties.getFailed(),
+                    eventDetails(
+                            "deviceId", challenge.getDeviceId(),
+                            "challengeId", packet.getChallengeId()
+                    )
+            );
             channel.close();
             return;
         }
@@ -258,6 +311,17 @@ public class ServerRoutingService
         pushNotificationService.publish("server-device-online", Map.of(
                 "deviceId", challenge.getDeviceId()
         ));//推送设备上线
+        logServerEvent(
+                "auth-response",
+                challenge.getPublicKey(),
+                "SUCCESS",
+                null,
+                eventDetails(
+                        "deviceId", challenge.getDeviceId(),
+                        "accountId", accountId,
+                        "challengeId", packet.getChallengeId()
+                )
+        );
 
     }
 
@@ -265,15 +329,31 @@ public class ServerRoutingService
     //处理选择接收设备
     private void handleTransferRequest(Channel channel, String senderDeviceId, TransferRequestPacket packet)
     {
+        String sourcePublicKey = sourcePublicKey(senderDeviceId);
         Set<String> receiverDeviceIds = deviceIdsByAccountId.get(packet.getTargetAccountId());
         if (receiverDeviceIds == null || receiverDeviceIds.isEmpty())
         {
+            String reason = "Target account has no online devices";
             channel.writeAndFlush(new DeviceSelectionPacket(
                     false,
-                    "Target account has no online devices",
+                    reason,
                     packet.getTargetAccountId(),
                     packet.getTransferId()
             ));
+            logServerEvent(
+                    "file-transfer-request",
+                    sourcePublicKey,
+                    "FAILED",
+                    reason,
+                    eventDetails(
+                            "senderDeviceId", senderDeviceId,
+                            "targetAccountId", packet.getTargetAccountId(),
+                            "transferId", packet.getTransferId(),
+                            "fileName", packet.getFileName(),
+                            "fileSize", packet.getFileSize(),
+                            "totalBlocks", packet.getTotalBlocks()
+                    )
+            );
             return;
         }
 
@@ -300,32 +380,70 @@ public class ServerRoutingService
                 receiver.getChannel().writeAndFlush(requestPacket);
             }
         }
+        logServerEvent(
+                "file-transfer-request",
+                sourcePublicKey,
+                "SUCCESS",
+                null,
+                eventDetails(
+                        "senderDeviceId", senderDeviceId,
+                        "targetAccountId", packet.getTargetAccountId(),
+                        "receiverDeviceCount", receiverDeviceIds.size(),
+                        "transferId", packet.getTransferId(),
+                        "fileName", packet.getFileName(),
+                        "fileSize", packet.getFileSize(),
+                        "totalBlocks", packet.getTotalBlocks()
+                )
+        );
     }
 
     private void handleOnlineUserSearch(Channel channel, OnlineUserSearchRequestPacket packet)
     {
+        String sourcePublicKey = sourcePublicKey(channel);
         if(packet.getAccountId()==null || packet.getAccountId().isBlank())
         {
+            String reason = "accountId is required";
             channel.writeAndFlush(new OnlineUserSearchResultPacket(
                     packet.getAccountId(),
                     packet.getRequestId(),
                     null,
                     false,
-                    "accountId is required"
+                    reason
             ));
+            logServerEvent(
+                    "online-user-search",
+                    sourcePublicKey,
+                    "FAILED",
+                    reason,
+                    eventDetails(
+                            "requestId", packet.getRequestId(),
+                            "targetAccountId", safeValue(packet.getAccountId())
+                    )
+            );
             return;
         }
 
         Set<String> deviceIds = deviceIdsByAccountId.get(packet.getAccountId());
         if(deviceIds==null || deviceIds.isEmpty())
         {
+            String reason = "Target account has no online devices";
             channel.writeAndFlush(new OnlineUserSearchResultPacket(
                     packet.getAccountId(),
                     packet.getRequestId(),
                     null,
                     false,
-                    "Target account has no online devices"
+                    reason
             ));
+            logServerEvent(
+                    "online-user-search",
+                    sourcePublicKey,
+                    "FAILED",
+                    reason,
+                    eventDetails(
+                            "requestId", packet.getRequestId(),
+                            "targetAccountId", packet.getAccountId()
+                    )
+            );
             return;
         }
 
@@ -341,13 +459,24 @@ public class ServerRoutingService
 
         if(onlineSessions.isEmpty())
         {
+            String reason = "Target account has no active sessions";
             channel.writeAndFlush(new OnlineUserSearchResultPacket(
                     packet.getAccountId(),
                     packet.getRequestId(),
                     null,
                     false,
-                    "Target account has no active sessions"
+                    reason
             ));
+            logServerEvent(
+                    "online-user-search",
+                    sourcePublicKey,
+                    "FAILED",
+                    reason,
+                    eventDetails(
+                            "requestId", packet.getRequestId(),
+                            "targetAccountId", packet.getAccountId()
+                    )
+            );
             return;
         }
 
@@ -359,26 +488,77 @@ public class ServerRoutingService
                 true,
                 "Online user found, onlineDeviceCount="+onlineSessions.size()
         ));
+        logServerEvent(
+                "online-user-search",
+                sourcePublicKey,
+                "SUCCESS",
+                null,
+                eventDetails(
+                        "requestId", packet.getRequestId(),
+                        "targetAccountId", packet.getAccountId(),
+                        "targetPublicKey", firstSession.getPublicKey(),
+                        "onlineDeviceCount", onlineSessions.size()
+                )
+        );
     }
 
     private void handleReceiverDeviceSelection(Channel channel, String receiverDeviceId, ReceiverDeviceSelectionPacket packet)
     {
+        String sourcePublicKey = sourcePublicKey(receiverDeviceId);
         PendingTransferRequest request = pendingTransferRequests.get(packet.getTransferId());
         if (request == null) {
-            channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), false, "Transfer request not found"));
+            String reason = "Transfer request not found";
+            channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), false, reason));
+            logServerEvent(
+                    "receiver-device-selection",
+                    sourcePublicKey,
+                    "FAILED",
+                    reason,
+                    eventDetails(
+                            "receiverDeviceId", receiverDeviceId,
+                            "transferId", packet.getTransferId(),
+                            "accepted", packet.isAccepted()
+                    )
+            );
             return;
         }
 
         ServerClientSession receiver = sessionsByDeviceId.get(receiverDeviceId);
         if (receiver == null || !receiver.getAccountId().equals(request.getTargetAccountId())) {
-            channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), false, "Receiver device is not in target account"));
+            String reason = "Receiver device is not in target account";
+            channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), false, reason));
+            logServerEvent(
+                    "receiver-device-selection",
+                    sourcePublicKey,
+                    "FAILED",
+                    reason,
+                    eventDetails(
+                            "receiverDeviceId", receiverDeviceId,
+                            "targetAccountId", request.getTargetAccountId(),
+                            "transferId", packet.getTransferId(),
+                            "accepted", packet.isAccepted()
+                    )
+            );
             return;
         }
 
         ServerClientSession sender = sessionsByDeviceId.get(request.getSenderDeviceId());
         if (sender == null) {
             pendingTransferRequests.remove(packet.getTransferId());
-            channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), false, "Sender is offline"));
+            String reason = "Sender is offline";
+            channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), false, reason));
+            logServerEvent(
+                    "receiver-device-selection",
+                    sourcePublicKey,
+                    "FAILED",
+                    reason,
+                    eventDetails(
+                            "receiverDeviceId", receiverDeviceId,
+                            "senderDeviceId", request.getSenderDeviceId(),
+                            "transferId", packet.getTransferId(),
+                            "accepted", packet.isAccepted()
+                    )
+            );
             return;
         }
 
@@ -399,12 +579,36 @@ public class ServerRoutingService
                         "Transfer request canceled by receiver device: "+receiver.getDeviceId()
                 );
             }
+            logServerEvent(
+                    "receiver-device-selection",
+                    sourcePublicKey,
+                    "REJECTED",
+                    packet.getMessage() == null || packet.getMessage().isBlank() ? "Receiver rejected transfer" : packet.getMessage(),
+                    eventDetails(
+                            "receiverDeviceId", receiverDeviceId,
+                            "senderDeviceId", request.getSenderDeviceId(),
+                            "transferId", packet.getTransferId(),
+                            "accepted", false
+                    )
+            );
             return;
         }
 
         PendingTransferRequest selected = pendingTransferRequests.remove(packet.getTransferId());
         if (selected == null) {
-            channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), false, "Transfer request already selected"));
+            String reason = "Transfer request already selected";
+            channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), false, reason));
+            logServerEvent(
+                    "receiver-device-selection",
+                    sourcePublicKey,
+                    "FAILED",
+                    reason,
+                    eventDetails(
+                            "receiverDeviceId", receiverDeviceId,
+                            "transferId", packet.getTransferId(),
+                            "accepted", packet.isAccepted()
+                    )
+            );
             return;
         }
 
@@ -422,6 +626,18 @@ public class ServerRoutingService
                 selected.getTransferId()
         ));
         channel.writeAndFlush(new ReceiverDeviceSelectionPacket(packet.getTransferId(), true, "Receiver device selected"));
+        logServerEvent(
+                "receiver-device-selection",
+                sourcePublicKey,
+                "SUCCESS",
+                null,
+                eventDetails(
+                        "receiverDeviceId", receiverDeviceId,
+                        "senderDeviceId", selected.getSenderDeviceId(),
+                        "transferId", selected.getTransferId(),
+                        "accepted", true
+                )
+        );
     }
 
     private void removeAccountSessionIndex(String accountId, String deviceId)
@@ -492,6 +708,72 @@ public class ServerRoutingService
     private String authenticaedDeviceId(Channel channel)
     {
         return deviceIdByChannel.get(channel);
+    }
+
+    private String sourcePublicKey(Channel channel)
+    {
+        String deviceId = authenticaedDeviceId(channel);
+        return sourcePublicKey(deviceId);
+    }
+
+    private String sourcePublicKey(Packet packet, Channel channel)
+    {
+        if (packet instanceof AuthRequestPacket authRequestPacket) {
+            return authRequestPacket.getPublicKey();
+        }
+        if (packet instanceof AuthResponsePacket authResponsePacket) {
+            return authResponsePacket.getPublicKey();
+        }
+        return sourcePublicKey(channel);
+    }
+
+    private String sourcePublicKey(String deviceId)
+    {
+        if (deviceId == null) {
+            return null;
+        }
+        ServerClientSession session = sessionsByDeviceId.get(deviceId);
+        return session == null ? null : session.getPublicKey();
+    }
+
+    private void logServerEvent(String event, String sourcePublicKey, String result, String failureReason, Map<String, ?> details)
+    {
+        Map<String, ?> safeDetails = details == null ? Map.of() : details;
+        if (failureReason == null || failureReason.isBlank()) {
+            log.info(
+                    "server-event event={} time={} sourcePublicKey={} result={} details={}",
+                    event,
+                    Instant.now(),
+                    safeValue(sourcePublicKey),
+                    result,
+                    safeDetails
+            );
+            return;
+        }
+
+        log.warn(
+                "server-event event={} time={} sourcePublicKey={} result={} failureReason={} details={}",
+                event,
+                Instant.now(),
+                safeValue(sourcePublicKey),
+                result,
+                failureReason,
+                safeDetails
+        );
+    }
+
+    private String safeValue(String value)
+    {
+        return value == null ? "" : value;
+    }
+
+    private Map<String, Object> eventDetails(Object... keyValues)
+    {
+        Map<String, Object> details = new java.util.LinkedHashMap<>();
+        for (int i = 0; i + 1 < keyValues.length; i += 2) {
+            details.put(String.valueOf(keyValues[i]), keyValues[i + 1] == null ? "" : keyValues[i + 1]);
+        }
+        return details;
     }
 
     private void notifyReceiverDevices(String accountId, String transferId, boolean accepted, String message)
