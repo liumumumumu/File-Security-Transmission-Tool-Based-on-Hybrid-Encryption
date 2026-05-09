@@ -51,7 +51,7 @@ public class ClientConnectionManager
     private volatile Channel channel;
     private volatile String connectedHost;
     private volatile int connectedPort;
-    private volatile ClientConnectionStatus status;
+    private volatile ClientConnectionStatus status = ClientConnectionStatus.DISCONNECTED;
 
     //CompletableFuture是异步编程类
     private volatile CompletableFuture<Void> authFuture;//认证结果的异步凭证

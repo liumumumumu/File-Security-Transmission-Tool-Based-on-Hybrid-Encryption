@@ -5,6 +5,9 @@ public class ConnectRequest
     private String host;
     private Integer port;
 
+    public ConnectRequest() {
+    }
+
     public ConnectRequest(String host, Integer port) {
         this.host = host;
         this.port = port;
