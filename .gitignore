@@ -1,0 +1,70 @@
+# OS
+**/.DS_Store
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Java / other build outputs
+target/
+*.class
+
+# Build directories
+Build/
+build/
+cmake-build-*/
+dist/
+
+# CMake generated
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+CMakeLists.txt.user
+CMakeLists.txt.user.*
+
+# qmake / Qt Creator generated
+*.pro.user
+*.pro.user.*
+.qmake.stash
+Makefile
+Makefile.*
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.moc
+
+# Object / library / executable outputs
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.dSYM/
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# Logs / temp
+*.tmp
+*.temp
+*.log
+
+# Runtime generated data
+crypto_keys/
+
+# Project-specific ignored files
+**/httplib.h

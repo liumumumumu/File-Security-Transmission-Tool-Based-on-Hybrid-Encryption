@@ -1,0 +1,33 @@
+spring:
+  config:
+    activate:
+      on-profile: server
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:db_FileSecurityTransmission}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456zxc@}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+      timeout: 5s
+
+app:
+  redis-state:
+    challenge-ttl-seconds: 300
+    online-session-ttl-seconds: 120
+    transfer-route-ttl-seconds: 86400
+
+node:
+  device-id: ${NODE_DEVICE_ID:server-node}
+  auto-connect: false
+
+server:
+  address: ${SERVER_HTTP_ADDRESS:0.0.0.0}
+  port: ${SERVER_HTTP_PORT:8080}
+  tcp:
+    enabled: ${SERVER_TCP_ENABLED:true}
+    bind-host: ${SERVER_TCP_BIND_HOST:0.0.0.0}
+    bind-port: ${SERVER_TCP_BIND_PORT:9000}
