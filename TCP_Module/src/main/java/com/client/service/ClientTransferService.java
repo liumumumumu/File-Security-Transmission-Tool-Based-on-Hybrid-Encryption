@@ -318,8 +318,206 @@ public class ClientTransferService
     }
 
     //真正执行发送文件的函数
-    //目前是发送一块等待一块的ACK结果---2026-04-27；可以改成发送窗口的模式
+    //使用固定发送窗口：最多同时发送 sendWindowSize 个未确认的数据块
     private void executeSend(TransferTask task, Path filePath, String targetAccountId)
+    {
+        OutboundTransferContext context = null;
+        try
+        {
+            //等待服务端返回目标账号下的具体接收设备
+            CompletableFuture<SelectedReceiverDevice> recipientFuture=new CompletableFuture<>();
+            deviceSelectionFutures.put(task.getTransferId(), recipientFuture);
+
+            //告诉服务端，文件的信息
+            clientConnectionManager.send(new TransferRequestPacket(
+                    task.getTransferId(),
+                    targetAccountId,
+                    task.getFileName(),
+                    task.getTotalBytes(),
+                    task.getTotalBlocks()
+                    )
+            );
+
+            //等待服务端的设备选择结果
+            SelectedReceiverDevice selectedReceiverDevice=recipientFuture.get(clientProperties.getAckTimeoutSeconds(), TimeUnit.SECONDS);
+            task.updatePeerDeviceId(selectedReceiverDevice.getDeviceId());
+            persistTask(task);
+
+            String recipientPublicKey=selectedReceiverDevice.getPublicKey();//获取接收方公钥
+            SecretKey secretKey=cryptoSupport.generateAESKey();//生成AES会话密钥（本次传输文件专用的AES密钥）
+            String encryptedSessionKey=cryptoSupport.encryptAESKeyForReceiver(secretKey, recipientPublicKey);//加密AES会话密钥（接收方的公钥加密该AES密钥，待接收方收到后用接收方自己的私钥解开AES密钥，再配合nonce解密文件块）
+
+            //本次发送任务的上下文环境
+            context=new OutboundTransferContext(secretKey, task,recipientPublicKey);//AES密钥，TransferTask, acceptFuture, ackFuture
+            outboundTransferContexts.put(task.getTransferId(),context);//添加文件信息的数据包
+
+            task.updateStatus(TransferStatus.WAITING_FOR_ACCEPT, "Waiting for receiver acceptance");
+            persistTask(task);
+
+            //发送文件信息的数据包
+            clientConnectionManager.send(
+                    new FileOfferPacket(
+                            encryptedSessionKey,
+                            task.getFileName(),
+                            task.getTotalBytes(),
+                            recipientPublicKey,
+                            clientConnectionManager.getLocalPublicKey(),
+                            task.getTotalBlocks(),
+                            task.getTransferId()
+                    )
+            );
+
+            //等待接收方接收
+            FileAcceptPacket fileAcceptPacket=context.acceptFuture.get(clientProperties.getAckTimeoutSeconds(), TimeUnit.SECONDS);
+            if(!fileAcceptPacket.isAccept())//接收方拒绝接收
+            {
+                task.updateStatus(TransferStatus.REJECTED, fileAcceptPacket.getMessage());
+                persistTask(task);
+                pushNotificationService.publish("transfer-rejected", task);
+                outboundTransferContexts.remove(task.getTransferId());
+                return;
+            }
+
+            //确认接收
+            task.updateStatus(TransferStatus.TRANSFERRING, "Sending blocks");
+            persistTask(task);
+
+            try(InputStream inputStream=Files.newInputStream(filePath))
+            {
+                byte[] buffer=new byte[transferProperties.getChunkSizeBytes()];
+                Map<Integer, CompletableFuture<Boolean>> pendingAckFutures=new HashMap<>();//blockId->该block对应的ACK Future
+                Map<Integer, Integer> pendingAckBlockSizes=new HashMap<>();//blockId->该block的原始字节长度
+                int blockId=0;
+                int length;
+                long acknowledgedBytes=0;
+                int acknowledgedBlocks=0;
+
+                while((length=inputStream.read(buffer))!=-1)//分块读取，每次读取一块
+                {
+                    byte[] plain=new byte[length];
+                    System.arraycopy(buffer,0,plain,0,length);
+                    AesGcmChunk encryptedChunk=cryptoSupport.encryptChunk(plain,secretKey);//加密该数据块()tag,nonce, ciphertext
+                    CompletableFuture<Boolean> ackFuture=new CompletableFuture<>();//给当前块创建ACK Future
+                    context.ackFutures.put(blockId, ackFuture);//保存ACK Future，Netty回调线程使用，收到ACKPacket后，handleAck会根据transferId+blockId找到它并complete
+                    pendingAckFutures.put(blockId, ackFuture);//给发送线程使用，判断哪些块是已经确认了的
+                    pendingAckBlockSizes.put(blockId, length);
+
+                    //发送FileBlockPacket
+                    clientConnectionManager.send(
+                            new FileBlockPacket(
+                                    blockId,
+                                    encryptedChunk.ciphertext(),
+                                    encryptedChunk.nonce(),
+                                    encryptedChunk.tag(),
+                                    task.getTransferId()
+                            )
+                    );
+
+                    blockId++;//准备下一块
+
+                    if(pendingAckFutures.size() >= transferProperties.getSendWindowSize())//未确认的块的数量达到20后，就不再继续无限制发送，等待任意一个Ack回来，窗口释放一个位置，继续发送。和课本上的发送窗口不一样
+                    {
+                        int ackedBlockId=waitForAnyAck(pendingAckFutures);//等待任意一个ACK，会阻塞线程
+                        acknowledgedBytes+=pendingAckBlockSizes.remove(ackedBlockId);//确认字节长度增加
+                        acknowledgedBlocks++;
+                        updateSendProgress(task, acknowledgedBytes, acknowledgedBlocks);//更新进度
+                    }
+                }
+
+                //等待剩余Ack都回来
+                while(!pendingAckFutures.isEmpty())
+                {
+                    int ackedBlockId=waitForAnyAck(pendingAckFutures);
+                    acknowledgedBytes+=pendingAckBlockSizes.remove(ackedBlockId);
+                    acknowledgedBlocks++;
+                    updateSendProgress(task, acknowledgedBytes, acknowledgedBlocks);
+                }
+            }
+
+            task.updateStatus(TransferStatus.COMPLETED, "File sent");//所有块都Ack成功再更新任务信息
+            persistTask(task);//保存任务信息
+            pushNotificationService.publish("transfer-complete", task);//通知任务完成
+        }
+        catch(Exception e)
+        {
+            log.info("TransferStatus: FAILED, "+e.getMessage());
+            Throwable cause=e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
+            if(cause instanceof TransferCanceledException)
+            {
+                task.updatePeerDeviceId(((TransferCanceledException)cause).getDeviceId());
+                task.updateStatus(TransferStatus.CANCELED, cause.getMessage());
+                persistTask(task);
+                pushNotificationService.publish("transfer-cancelled", task);
+            }
+            else
+            {
+                task.updateStatus(TransferStatus.FAILED, e.getMessage());
+                persistTask(task);
+                pushNotificationService.publish("transfer-failed", task);
+            }
+        }
+        finally
+        {
+            outboundTransferContexts.remove(task.getTransferId());
+            deviceSelectionFutures.remove(task.getTransferId());
+            if(context!=null)
+            {
+                context.ackFutures.clear();
+            }
+        }
+
+    }
+
+    private int waitForAnyAck(Map<Integer, CompletableFuture<Boolean>> pendingAckFutures) throws Exception
+    {
+        Integer completedBlockId=findCompletedAckBlockId(pendingAckFutures);//检查是否有已经完成的Ack
+        if(completedBlockId==null)//没有以及完成的ACK，就等到任意一个Future完成
+        {
+            //如果没有在规定时间内返回任何一个ACK,就认为是传输异常
+            CompletableFuture.anyOf(pendingAckFutures.values().toArray(new CompletableFuture[0]))
+                    .get(clientProperties.getAckTimeoutSeconds(), TimeUnit.SECONDS);
+            completedBlockId=findCompletedAckBlockId(pendingAckFutures);
+        }
+
+        if(completedBlockId==null)
+        {
+            throw new IllegalStateException("ACK completed but block id was not found");
+        }
+
+        //找到完成的blockId后，从pending map中移出并判断是否成功
+        CompletableFuture<Boolean> ackFuture=pendingAckFutures.remove(completedBlockId);
+        Boolean success=ackFuture.get(clientProperties.getAckTimeoutSeconds(), TimeUnit.SECONDS);
+        if(!Boolean.TRUE.equals(success))//Ack返回失败，发送任务进入catch最终状态变成Failed
+        {
+            throw new IllegalStateException("ACK failed for block "+completedBlockId);
+        }
+        return completedBlockId;
+    }
+
+    //扫描当前发送窗口是否有已经完成的Future,找到就返回它的块号
+    private Integer findCompletedAckBlockId(Map<Integer, CompletableFuture<Boolean>> pendingAckFutures)
+    {
+        for(Map.Entry<Integer, CompletableFuture<Boolean>> entry:pendingAckFutures.entrySet())
+        {
+            if(entry.getValue().isDone())
+            {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
+    //更新发送进度
+    private void updateSendProgress(TransferTask task, long sentBytes, int sentBlocks)
+    {
+        task.updateProgress(sentBytes, sentBlocks);
+        persistTask(task);
+        pushNotificationService.publish("transfer-progress", task);
+    }
+
+    //原始备份版本：发送一块等待一块的ACK结果(第一版)
+    @SuppressWarnings("unused")
+    private void executeSendBlockingAckBackup(TransferTask task, Path filePath, String targetAccountId)
     {
         OutboundTransferContext context = null;
         try
