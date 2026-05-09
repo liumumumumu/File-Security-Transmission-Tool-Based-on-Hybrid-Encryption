@@ -142,7 +142,7 @@ public class ConsoleCommandRunner
                 case "tasks" -> printTasks();                   //列出所有传输任务
                 case "task" -> printTask(args);                 //查看单个任务详情， task <taskId|transferId>    //参数可以是任务Id, 也可以是传输Id
                 case "public-key" -> printPublicKey();          //查看和导入密钥,打印当前客户端的本地公钥
-                case "public-key-fingerprint" -> printPublicKeyFingerprint(args);  //计算指定公钥或本地公钥的指纹
+                case "public-key-fingerprint", "accountId" -> printPublicKeyFingerprint(args);  //计算指定公钥或本地公钥的指纹;因为公钥指纹就是本系统的accountId,故也兼容accountId指令
                 case "key-info" -> printKeyInfo();              //打印Python加密服务管理的密钥状态
                 case "generate-key" -> generateKey();           //请求Python加密服务生成密钥
                 case "delete-key" -> deleteKey();               //请求Python加密服务删除密钥
@@ -352,7 +352,9 @@ public class ConsoleCommandRunner
         }
     }
 
-    private void addContact(List<String> args)
+    //用户手动添加联系人时，系统尽量帮用户从服务器补全 publicKey。
+    //如果补不到，也允许保存联系人，只是 publicKey 为空。
+    private void addContact(List<String> args)//指令格式contact-add <accountId> [alias]
     {
         if (args.size() < 2) {
             System.out.println("Usage: contact-add <accountId> [alias]");
@@ -360,13 +362,31 @@ public class ConsoleCommandRunner
         }
 
         String alias = args.size() >= 3 ? joinArguments(args, 2) : null;
-        ContactRecord contact = localContactBookService.addContact(args.get(1), null, alias);
+        String publicKey = searchPublicKeyForContact(args.get(1));
+        ContactRecord contact = localContactBookService.addContact(args.get(1), publicKey, alias);
         System.out.printf(
-                "Contact saved: contact-%d | %s | %s%n",
+                "Contact saved: contact-%d | %s | %s | %s%n",
                 contact.getContactIndex(),
                 displayNullable(contact.getAlias()),
-                contact.getAccountId()
+                contact.getAccountId(),
+                abbreviate(contact.getPublicKey(), 32)
         );
+    }
+
+    //根据 accountId 去服务器查 publicKey。
+    private String searchPublicKeyForContact(String accountId)
+    {
+        try {
+            OnlineUserSearchResultPacket result = clientTransferService.searchOnlineUser(accountId);//向服务器发起搜索请求，查该accountId当前是否在线，是否有可用的publicKey
+            if(result.isSearchResult() && result.getPublicKey()!=null && !result.getPublicKey().isBlank())
+            {
+                return result.getPublicKey();
+            }
+            System.out.println("Online user not found. Contact publicKey will be empty.");
+        } catch (Exception ex) {
+            System.out.println("Unable to search publicKey from server. Contact publicKey will be empty: " + ex.getMessage());
+        }
+        return null;
     }
 
     private void removeContact(List<String> args)
