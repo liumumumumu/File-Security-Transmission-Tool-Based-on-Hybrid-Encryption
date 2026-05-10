@@ -96,6 +96,9 @@ public class PacketByteBufEncoder extends MessageToMessageEncoder<Packet>
         if (packet instanceof OnlineUserSearchResultPacket) {
             return new OnlineUserSearchResultEncoder();
         }
+        if (packet instanceof TransferCancelPacket) {
+            return new TransferCancelEncoder();
+        }
         //心跳
         else if(packet instanceof PingPacket)
         {

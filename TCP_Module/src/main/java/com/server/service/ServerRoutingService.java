@@ -148,6 +148,11 @@ public class ServerRoutingService
                 forwardToSender(deviceId, ackPacket.getTransferId(), ackPacket);
                 return;
             }
+            if(packet instanceof TransferCancelPacket transferCancelPacket)
+            {
+                handleTransferCancel(deviceId, transferCancelPacket);
+                return;
+            }
         }
         catch(Exception e)
         {
@@ -703,6 +708,58 @@ public class ServerRoutingService
             throw new IllegalStateException("Sender is offline="+route.getSenderDeviceId());
         }
         sender.getChannel().writeAndFlush(packet);
+    }
+
+    private void handleTransferCancel(String deviceId, TransferCancelPacket packet)
+    {
+        TransferRoute route = redisStateService.findTransferRoute(packet.getTransferId()).orElse(null);
+        if (route != null) {
+            if (route.getSenderDeviceId().equals(deviceId)) {
+                ServerClientSession receiver = sessionsByDeviceId.get(route.getReceiverDeviceId());
+                if (receiver != null) {
+                    receiver.getChannel().writeAndFlush(packet);
+                }
+                redisStateService.removeTransferRoute(packet.getTransferId());
+                logTransferCancel(deviceId, packet, "sender");
+                return;
+            }
+            if (route.getReceiverDeviceId().equals(deviceId)) {
+                ServerClientSession sender = sessionsByDeviceId.get(route.getSenderDeviceId());
+                if (sender != null) {
+                    sender.getChannel().writeAndFlush(packet);
+                }
+                redisStateService.removeTransferRoute(packet.getTransferId());
+                logTransferCancel(deviceId, packet, "receiver");
+                return;
+            }
+        }
+
+        PendingTransferRequest pending = pendingTransferRequests.remove(packet.getTransferId());
+        if (pending != null && pending.getSenderDeviceId().equals(deviceId)) {
+            notifyReceiverDevices(
+                    pending.getTargetAccountId(),
+                    pending.getTransferId(),
+                    false,
+                    packet.getReason() == null || packet.getReason().isBlank() ? "Transfer canceled by sender" : packet.getReason()
+            );
+            logTransferCancel(deviceId, packet, "pending-sender");
+        }
+    }
+
+    private void logTransferCancel(String deviceId, TransferCancelPacket packet, String cancelRole)
+    {
+        logServerEvent(
+                "transfer-cancel",
+                sourcePublicKey(deviceId),
+                "CANCELED",
+                null,
+                eventDetails(
+                        "deviceId", deviceId,
+                        "transferId", packet.getTransferId(),
+                        "cancelRole", cancelRole,
+                        "reason", safeValue(packet.getReason())
+                )
+        );
     }
 
     private String authenticaedDeviceId(Channel channel)

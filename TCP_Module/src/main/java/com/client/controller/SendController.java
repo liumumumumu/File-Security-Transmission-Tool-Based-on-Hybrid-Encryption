@@ -86,6 +86,18 @@ public class SendController
         return ResponseEntity.ok(taskDetailPayload(task));
     }
 
+    @PostMapping("/tasks/{taskIdOrTransferId}/cancel")
+    public ResponseEntity<Map<String, Object>> cancelTask(@PathVariable String taskIdOrTransferId)
+    {
+        clientTransferService.cancelTransfer(taskIdOrTransferId);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("success", true);
+        payload.put("taskIdOrTransferId", taskIdOrTransferId);
+        payload.put("message", "Transfer canceled");
+        return ResponseEntity.ok(payload);
+    }
+
     @GetMapping(path = "/tasks/{taskIdOrTransferId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<SseEmitter> streamTask(@PathVariable String taskIdOrTransferId)
     {

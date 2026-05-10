@@ -187,6 +187,7 @@ public class SystemController
                 "POST /api/send", "Send a file (body: {filePath, targetAccountId})",
                 "GET /api/send/tasks", "List all transfer tasks",
                 "GET /api/send/tasks/{taskIdOrTransferId}", "Get a specific task details",
+                "POST /api/send/tasks/{taskIdOrTransferId}/cancel", "Cancel an active transfer task",
                 "GET /api/send/tasks/{taskIdOrTransferId}/events", "Watch a task progress stream with Server-Sent Events"
         ));
         payload.put("receive", Map.of(

@@ -134,6 +134,7 @@ public class ConsoleCommandRunner
                 case "incoming" -> printIncomingRequests();     //列出当前待处理的文件接收请求
                 case "accept" -> acceptIncomingRequest(args);   //接收指定的incoming transfer任务， accept <transferId>
                 case "reject" -> rejectIncomingRequest(args);   //拒绝指定的incoming transfer任务， reject <transferId>
+                case "cancel" -> cancelTransfer(args);          //取消正在进行的传输任务， cancel <taskId|transferId>
                 case "contacts" -> printContacts();             //列出联系人
                 case "contact-add" -> addContact(args);         //添加联系人，contact-add <accountId> [alias]
                 case "contact-remove" -> removeContact(args);   //删除联系人，contact-remove <contact-数字|数字>
@@ -180,6 +181,7 @@ public class ConsoleCommandRunner
         System.out.println("  incoming                          List incoming transfer requests");
         System.out.println("  accept <transferId>               Accept an incoming transfer on this device");
         System.out.println("  reject <transferId>               Reject and cancel an incoming transfer");
+        System.out.println("  cancel <taskId|transferId>        Cancel an active transfer task");
         System.out.println("  contacts                          List local contacts");
         System.out.println("  contact-add <accountId> [alias] Add or update a local contact");
         System.out.println("  contact-remove <contact-N|N>      Remove a local contact");
@@ -337,6 +339,16 @@ public class ConsoleCommandRunner
         }
         clientTransferService.rejectIncomingTransfer(args.get(1));//参数是任务Id
         System.out.println("Rejected incoming transfer request: " + args.get(1));
+    }
+
+    private void cancelTransfer(List<String> args)
+    {
+        if (args.size() < 2) {
+            System.out.println("Usage: cancel <taskId|transferId>");
+            return;
+        }
+        clientTransferService.cancelTransfer(args.get(1));
+        System.out.println("Transfer canceled: " + args.get(1));
     }
 
     private void printContacts()

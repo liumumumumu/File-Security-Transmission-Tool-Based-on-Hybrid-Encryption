@@ -70,6 +70,7 @@ public class ClientTransferService
     private final Map<String, InboundTransferContext> inboundTransferContexts = new ConcurrentHashMap<>();//保存正在接收的任务上下文，AES密钥，输出文件流，已收到但暂时不能写入的块
     private final Map<String, IncomingTransferRequestPacket> pendingIncomingTransferRequests = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<OnlineUserSearchResultPacket>> onlineUserSearchFutures = new ConcurrentHashMap<>();
+    private final Set<String> canceledTransferIds = ConcurrentHashMap.newKeySet();
 
 
     public ClientTransferService(ClientConnectionManager clientConnectionManager, ClientProperties clientProperties, CryptoSupport cryptoSupport, NodeProperties nodeProperties, PushNotificationService pushNotificationService, TransferProperties transferProperties, TransferTaskRegistry transferTaskRegistry) {
@@ -225,6 +226,64 @@ public class ClientTransferService
         }
     }
 
+    public void cancelTransfer(String taskIdOrTransferId)
+    {
+        if(taskIdOrTransferId==null || taskIdOrTransferId.isBlank())
+        {
+            throw new IllegalArgumentException("taskIdOrTransferId is required");
+        }
+
+        TransferTask task = transferTaskRegistry.findByTaskId(taskIdOrTransferId)
+                .or(() -> transferTaskRegistry.findByTransferId(taskIdOrTransferId))
+                .orElse(null);
+        if(task==null)
+        {
+            IncomingTransferRequestPacket request = pendingIncomingTransferRequests.remove(taskIdOrTransferId);
+            if(request==null)
+            {
+                throw new IllegalArgumentException("Transfer task not found: "+taskIdOrTransferId);
+            }
+            clientConnectionManager.send(new ReceiverDeviceSelectionPacket(
+                    request.getTransferId(),
+                    false,
+                    "Transfer canceled before accept"
+            ));
+            return;
+        }
+
+        if(task.getStatus()!=null && task.getStatus().isTerminal())
+        {
+            return;
+        }
+
+        String reason = "Transfer canceled locally";
+        cancelLocalTransfer(task.getTransferId(), reason);
+        task.updateStatus(TransferStatus.CANCELED, reason);
+        persistTask(task);
+        pushNotificationService.publish("transfer-cancelled", task);
+
+        if(clientConnectionManager.isAuthenticated())
+        {
+            clientConnectionManager.send(new TransferCancelPacket(task.getTransferId(), reason));
+        }
+    }
+
+    public void handleTransferCancel(TransferCancelPacket packet)
+    {
+        String reason = packet.getReason()==null || packet.getReason().isBlank()
+                ? "Transfer canceled by peer"
+                : packet.getReason();
+        cancelLocalTransfer(packet.getTransferId(), reason);
+        transferTaskRegistry.findByTransferId(packet.getTransferId()).ifPresent(task -> {
+            if(task.getStatus()==null || !task.getStatus().isTerminal())
+            {
+                task.updateStatus(TransferStatus.CANCELED, reason);
+                persistTask(task);
+                pushNotificationService.publish("transfer-cancelled", task);
+            }
+        });
+    }
+
     //接收端收到文件发送请求时的处理函数
     public void handleIncomingOffer(FileOfferPacket packet) throws GeneralSecurityException, IOException
     {
@@ -283,6 +342,11 @@ public class ClientTransferService
     //处理接收到的文件数据块
     public void handleIncommingBlock(FileBlockPacket packet) throws GeneralSecurityException, IOException
     {
+        if(isTransferCanceled(packet.getTransferId()))
+        {
+            clientConnectionManager.send(new AckPacket(packet.getBlockId(),false,packet.getTransferId()));
+            return;
+        }
         InboundTransferContext context = inboundTransferContexts.get(packet.getTransferId());//根据transferId找到上下文
         if(context==null)//接收方并不知道本次传输
         {
@@ -394,6 +458,7 @@ public class ClientTransferService
 
                 while((length=inputStream.read(buffer))!=-1)//分块读取，每次读取一块
                 {
+                    throwIfCanceled(task);
                     byte[] plain=new byte[length];
                     System.arraycopy(buffer,0,plain,0,length);
                     AesGcmChunk encryptedChunk=cryptoSupport.encryptChunk(plain,secretKey);//加密该数据块()tag,nonce, ciphertext
@@ -427,6 +492,7 @@ public class ClientTransferService
                 //等待剩余Ack都回来
                 while(!pendingAckFutures.isEmpty())
                 {
+                    throwIfCanceled(task);
                     int ackedBlockId=waitForAnyAck(pendingAckFutures);
                     acknowledgedBytes+=pendingAckBlockSizes.remove(ackedBlockId);
                     acknowledgedBlocks++;
@@ -434,6 +500,7 @@ public class ClientTransferService
                 }
             }
 
+            throwIfCanceled(task);
             task.updateStatus(TransferStatus.COMPLETED, "File sent");//所有块都Ack成功再更新任务信息
             persistTask(task);//保存任务信息
             pushNotificationService.publish("transfer-complete", task);//通知任务完成
@@ -442,10 +509,13 @@ public class ClientTransferService
         {
             log.info("TransferStatus: FAILED, "+e.getMessage());
             Throwable cause=e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
-            if(cause instanceof TransferCanceledException)
+            if(cause instanceof TransferCanceledException || isTransferCanceled(task.getTransferId()))
             {
-                task.updatePeerDeviceId(((TransferCanceledException)cause).getDeviceId());
-                task.updateStatus(TransferStatus.CANCELED, cause.getMessage());
+                if(cause instanceof TransferCanceledException transferCanceledException)
+                {
+                    task.updatePeerDeviceId(transferCanceledException.getDeviceId());
+                }
+                task.updateStatus(TransferStatus.CANCELED, canceledMessage(cause));
                 persistTask(task);
                 pushNotificationService.publish("transfer-cancelled", task);
             }
@@ -513,6 +583,53 @@ public class ClientTransferService
         task.updateProgress(sentBytes, sentBlocks);
         persistTask(task);
         pushNotificationService.publish("transfer-progress", task);
+    }
+
+    private void cancelLocalTransfer(String transferId, String reason)
+    {
+        canceledTransferIds.add(transferId);
+
+        CompletableFuture<SelectedReceiverDevice> deviceSelectionFuture = deviceSelectionFutures.remove(transferId);
+        if(deviceSelectionFuture!=null)
+        {
+            deviceSelectionFuture.completeExceptionally(new TransferCanceledException(reason, null));
+        }
+
+        OutboundTransferContext outboundContext = outboundTransferContexts.remove(transferId);
+        if(outboundContext!=null)
+        {
+            outboundContext.acceptFuture.completeExceptionally(new TransferCanceledException(reason, null));
+            for(CompletableFuture<Boolean> ackFuture : outboundContext.ackFutures.values())
+            {
+                ackFuture.complete(false);
+            }
+            outboundContext.ackFutures.clear();
+        }
+
+        InboundTransferContext inboundContext = inboundTransferContexts.remove(transferId);
+        if(inboundContext!=null)
+        {
+            inboundContext.closeQuietly();
+        }
+    }
+
+    private boolean isTransferCanceled(String transferId)
+    {
+        return canceledTransferIds.contains(transferId);
+    }
+
+    private void throwIfCanceled(TransferTask task)
+    {
+        if(isTransferCanceled(task.getTransferId()))
+        {
+            throw new TransferCanceledException("Transfer canceled locally", task.getPeerDeviceId());
+        }
+    }
+
+    private String canceledMessage(Throwable cause)
+    {
+        String message = cause == null ? null : cause.getMessage();
+        return message == null || message.isBlank() ? "Transfer canceled" : message;
     }
 
     //原始备份版本：发送一块等待一块的ACK结果(第一版)
@@ -837,6 +954,17 @@ public class ClientTransferService
         {
             //收到块数>=文件总块数说明取完了
             return receivedBlocks >= transferTask.getTotalBlocks();
+        }
+
+        private void closeQuietly()
+        {
+            try
+            {
+                outputStream.close();
+            }
+            catch(IOException ignored)
+            {
+            }
         }
 
     }
