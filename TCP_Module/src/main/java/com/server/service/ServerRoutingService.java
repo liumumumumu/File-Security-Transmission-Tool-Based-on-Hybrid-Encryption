@@ -19,6 +19,7 @@ import com.server.PendingTransferRequest;
 import com.server.ServerClientSession;
 import com.server.TransferRoute;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -62,6 +63,8 @@ public class ServerRoutingService
     private final Map<Channel, String> deviceIdByChannel=new ConcurrentHashMap<>();//根据当前TCP连接反查这个连接属于那个设备
     private final Map<String, Set<String>> deviceIdsByAccountId=new ConcurrentHashMap<>();
     private final Map<String, PendingTransferRequest> pendingTransferRequests = new ConcurrentHashMap<>();
+    private final Set<String> forwardedCancelTransferIds = ConcurrentHashMap.newKeySet();
+    private final Set<String> forwardedCancelAckTransferIds = ConcurrentHashMap.newKeySet();
 
 
     public ServerRoutingService(AuthenticationResultProperties authenticationResultProperties, CryptoSupport cryptoSupport, PushNotificationService pushNotificationService, RedisStateService redisStateService, MyBatisPersistenceService myBatisPersistenceService) {
@@ -153,6 +156,11 @@ public class ServerRoutingService
                 handleTransferCancel(deviceId, transferCancelPacket);
                 return;
             }
+            if(packet instanceof TransferCancelAckPacket transferCancelAckPacket)
+            {
+                handleTransferCancelAck(deviceId, transferCancelAckPacket);
+                return;
+            }
         }
         catch(Exception e)
         {
@@ -187,6 +195,12 @@ public class ServerRoutingService
         redisStateService.removeOnlineSession(deviceId);//删除Redis里面的在线状态
         redisStateService.removeRoutesForDevice(deviceId);//删除和该设备有关的传输路由
         pendingTransferRequests.entrySet().removeIf(entry -> entry.getValue().getSenderDeviceId().equals(deviceId));
+        forwardedCancelTransferIds.removeIf(transferId -> redisStateService.findTransferRoute(transferId)
+                .map(route -> route.getSenderDeviceId().equals(deviceId) || route.getReceiverDeviceId().equals(deviceId))
+                .orElse(false));
+        forwardedCancelAckTransferIds.removeIf(transferId -> redisStateService.findTransferRoute(transferId)
+                .map(route -> route.getSenderDeviceId().equals(deviceId) || route.getReceiverDeviceId().equals(deviceId))
+                .orElse(false));
         myBatisPersistenceService.markDeviceOfflineQuietly(deviceId);//在MySQL里面标记为离线
         pushNotificationService.publish("server-device-offline", Map.of("deviceId", deviceId));//推送设备离线事件
     }
@@ -714,24 +728,57 @@ public class ServerRoutingService
     {
         TransferRoute route = redisStateService.findTransferRoute(packet.getTransferId()).orElse(null);
         if (route != null) {
+            boolean firstCancelForward = forwardedCancelTransferIds.add(packet.getTransferId());
             if (route.getSenderDeviceId().equals(deviceId)) {
                 ServerClientSession receiver = sessionsByDeviceId.get(route.getReceiverDeviceId());
                 if (receiver != null) {
-                    receiver.getChannel().writeAndFlush(packet);
+                    writeAndFlushWithListener(
+                            receiver,
+                            packet,
+                            "transfer-cancel-forward",
+                            sourcePublicKey(deviceId),
+                            eventDetails(
+                                    "transferId", packet.getTransferId(),
+                                    "fromDeviceId", deviceId,
+                                    "toDeviceId", route.getReceiverDeviceId(),
+                                    "cancelRole", "sender"
+                            ),
+                            () -> {
+                                redisStateService.removeTransferRoute(packet.getTransferId());
+                                logTransferCancel(deviceId, packet, firstCancelForward ? "sender" : "duplicate-sender");
+                            },
+                            () -> forwardedCancelTransferIds.remove(packet.getTransferId())
+                    );
+                    return;
                 }
-                redisStateService.removeTransferRoute(packet.getTransferId());
-                logTransferCancel(deviceId, packet, "sender");
+                forwardedCancelTransferIds.remove(packet.getTransferId());
+                logTransferCancelFailure(deviceId, packet.getTransferId(), "Receiver is offline="+route.getReceiverDeviceId(), "sender");
                 return;
             }
             if (route.getReceiverDeviceId().equals(deviceId)) {
                 ServerClientSession sender = sessionsByDeviceId.get(route.getSenderDeviceId());
                 if (sender != null) {
-                    sender.getChannel().writeAndFlush(packet);
+                    writeAndFlushWithListener(
+                            sender,
+                            packet,
+                            "transfer-cancel-forward",
+                            sourcePublicKey(deviceId),
+                            eventDetails(
+                                    "transferId", packet.getTransferId(),
+                                    "fromDeviceId", deviceId,
+                                    "toDeviceId", route.getSenderDeviceId(),
+                                    "cancelRole", "receiver"
+                            ),
+                            () -> logTransferCancel(deviceId, packet, firstCancelForward ? "receiver" : "duplicate-receiver"),
+                            () -> forwardedCancelTransferIds.remove(packet.getTransferId())
+                    );
+                    return;
                 }
-                redisStateService.removeTransferRoute(packet.getTransferId());
-                logTransferCancel(deviceId, packet, "receiver");
+                forwardedCancelTransferIds.remove(packet.getTransferId());
+                logTransferCancelFailure(deviceId, packet.getTransferId(), "Sender is offline="+route.getSenderDeviceId(), "receiver");
                 return;
             }
+            forwardedCancelTransferIds.remove(packet.getTransferId());
         }
 
         PendingTransferRequest pending = pendingTransferRequests.remove(packet.getTransferId());
@@ -744,6 +791,50 @@ public class ServerRoutingService
             );
             logTransferCancel(deviceId, packet, "pending-sender");
         }
+    }
+
+    private void handleTransferCancelAck(String deviceId, TransferCancelAckPacket packet)
+    {
+        TransferRoute route = redisStateService.findTransferRoute(packet.getTransferId()).orElse(null);
+        if(route == null)
+        {
+            logTransferCancelAck(deviceId, packet, "duplicate-or-missing-route");
+            return;
+        }
+        if(!route.getSenderDeviceId().equals(deviceId))
+        {
+            logTransferCancelAckFailure(deviceId, packet.getTransferId(), "Cancel ACK must be sent by sender device");
+            return;
+        }
+        boolean firstAckForward = forwardedCancelAckTransferIds.add(packet.getTransferId());
+
+        ServerClientSession receiver = sessionsByDeviceId.get(route.getReceiverDeviceId());
+        if(receiver == null)
+        {
+            forwardedCancelAckTransferIds.remove(packet.getTransferId());
+            logTransferCancelAckFailure(deviceId, packet.getTransferId(), "Receiver is offline="+route.getReceiverDeviceId());
+            return;
+        }
+
+        writeAndFlushWithListener(
+                receiver,
+                packet,
+                "transfer-cancel-ack-forward",
+                sourcePublicKey(deviceId),
+                eventDetails(
+                        "transferId", packet.getTransferId(),
+                        "fromDeviceId", deviceId,
+                        "toDeviceId", route.getReceiverDeviceId(),
+                        "ackByDeviceId", packet.getAckByDeviceId(),
+                        "status", safeValue(packet.getStatus())
+                ),
+                () -> {
+                    redisStateService.removeTransferRoute(packet.getTransferId());
+                    forwardedCancelTransferIds.remove(packet.getTransferId());
+                    logTransferCancelAck(deviceId, packet, firstAckForward ? "forwarded" : "duplicate-forwarded");
+                },
+                () -> forwardedCancelAckTransferIds.remove(packet.getTransferId())
+        );
     }
 
     private void logTransferCancel(String deviceId, TransferCancelPacket packet, String cancelRole)
@@ -760,6 +851,82 @@ public class ServerRoutingService
                         "reason", safeValue(packet.getReason())
                 )
         );
+    }
+
+    private void logTransferCancelFailure(String deviceId, String transferId, String reason, String cancelRole)
+    {
+        logServerEvent(
+                "transfer-cancel",
+                sourcePublicKey(deviceId),
+                "FAILED",
+                reason,
+                eventDetails(
+                        "deviceId", deviceId,
+                        "transferId", transferId,
+                        "cancelRole", cancelRole
+                )
+        );
+    }
+
+    private void logTransferCancelAck(String deviceId, TransferCancelAckPacket packet, String result)
+    {
+        logServerEvent(
+                "transfer-cancel-ack",
+                sourcePublicKey(deviceId),
+                result,
+                null,
+                eventDetails(
+                        "deviceId", deviceId,
+                        "transferId", packet.getTransferId(),
+                        "ackByDeviceId", packet.getAckByDeviceId(),
+                        "status", safeValue(packet.getStatus()),
+                        "message", safeValue(packet.getMessage())
+                )
+        );
+    }
+
+    private void logTransferCancelAckFailure(String deviceId, String transferId, String reason)
+    {
+        logServerEvent(
+                "transfer-cancel-ack",
+                sourcePublicKey(deviceId),
+                "FAILED",
+                reason,
+                eventDetails(
+                        "deviceId", deviceId,
+                        "transferId", transferId
+                )
+        );
+    }
+
+    private void writeAndFlushWithListener(
+            ServerClientSession session,
+            Packet packet,
+            String event,
+            String sourcePublicKey,
+            Map<String, ?> details,
+            Runnable onSuccess,
+            Runnable onFailure
+    )
+    {
+        ChannelFuture future = session.getChannel().writeAndFlush(packet);
+        future.addListener(writeFuture -> {
+            if(writeFuture.isSuccess())
+            {
+                if(onSuccess != null)
+                {
+                    onSuccess.run();
+                }
+                return;
+            }
+            String message = writeFuture.cause() == null ? "writeAndFlush failed" : writeFuture.cause().getMessage();
+            logServerEvent(event, sourcePublicKey, "FAILED", message, details);
+            pushNotificationService.publish("server-error", Map.of("message", message));
+            if(onFailure != null)
+            {
+                onFailure.run();
+            }
+        });
     }
 
     private String authenticaedDeviceId(Channel channel)

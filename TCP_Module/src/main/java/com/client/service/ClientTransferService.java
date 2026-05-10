@@ -71,6 +71,7 @@ public class ClientTransferService
     private final Map<String, IncomingTransferRequestPacket> pendingIncomingTransferRequests = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<OnlineUserSearchResultPacket>> onlineUserSearchFutures = new ConcurrentHashMap<>();
     private final Set<String> canceledTransferIds = ConcurrentHashMap.newKeySet();
+    private final Set<String> acknowledgedCancelTransferIds = ConcurrentHashMap.newKeySet();
 
 
     public ClientTransferService(ClientConnectionManager clientConnectionManager, ClientProperties clientProperties, CryptoSupport cryptoSupport, NodeProperties nodeProperties, PushNotificationService pushNotificationService, TransferProperties transferProperties, TransferTaskRegistry transferTaskRegistry) {
@@ -273,6 +274,13 @@ public class ClientTransferService
         String reason = packet.getReason()==null || packet.getReason().isBlank()
                 ? "Transfer canceled by peer"
                 : packet.getReason();
+        boolean firstCancel = canceledTransferIds.add(packet.getTransferId());
+        if(!firstCancel)
+        {
+            sendCancelAckIfSender(packet.getTransferId(), reason);
+            return;
+        }
+
         cancelLocalTransfer(packet.getTransferId(), reason);
         transferTaskRegistry.findByTransferId(packet.getTransferId()).ifPresent(task -> {
             if(task.getStatus()==null || !task.getStatus().isTerminal())
@@ -281,6 +289,30 @@ public class ClientTransferService
                 persistTask(task);
                 pushNotificationService.publish("transfer-cancelled", task);
             }
+        });
+        sendCancelAckIfSender(packet.getTransferId(), reason);
+    }
+
+    public void handleTransferCancelAck(TransferCancelAckPacket packet)
+    {
+        if(!acknowledgedCancelTransferIds.add(packet.getTransferId()))
+        {
+            return;
+        }
+
+        transferTaskRegistry.findByTransferId(packet.getTransferId()).ifPresent(task -> {
+            String message = "Cancel acknowledged by peer";
+            if(packet.getAckByDeviceId()!=null && !packet.getAckByDeviceId().isBlank())
+            {
+                message = "Cancel acknowledged by peer device: "+packet.getAckByDeviceId();
+            }
+            if(packet.getMessage()!=null && !packet.getMessage().isBlank())
+            {
+                message = message + " (" + packet.getMessage() + ")";
+            }
+            task.updateStatus(task.getStatus(), message);
+            persistTask(task);
+            pushNotificationService.publish("transfer-cancel-acknowledged", task);
         });
     }
 
@@ -630,6 +662,21 @@ public class ClientTransferService
     {
         String message = cause == null ? null : cause.getMessage();
         return message == null || message.isBlank() ? "Transfer canceled" : message;
+    }
+
+    private void sendCancelAckIfSender(String transferId, String reason)
+    {
+        TransferTask task = transferTaskRegistry.findByTransferId(transferId).orElse(null);
+        if(task == null || task.getDirection() != TransferDirection.SEND || !clientConnectionManager.isAuthenticated())
+        {
+            return;
+        }
+        clientConnectionManager.send(new TransferCancelAckPacket(
+                transferId,
+                nodeProperties.getDeviceId(),
+                TransferStatus.CANCELED.name(),
+                reason == null || reason.isBlank() ? "Transfer cancel acknowledged" : "Transfer cancel acknowledged: "+reason
+        ));
     }
 
     //原始备份版本：发送一块等待一块的ACK结果(第一版)

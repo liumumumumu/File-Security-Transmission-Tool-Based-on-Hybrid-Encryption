@@ -2,6 +2,7 @@ package com.client.controller;
 
 import com.client.controller.dto.SendFileRequest;
 import com.client.service.ClientTransferService;
+import com.client.service.LocalContactBookService;
 import com.client.service.TransferTaskRegistry;
 import com.common.util.PathInputNormalizer;
 import com.session.TransferStatus;
@@ -26,15 +27,18 @@ public class SendController
     private static final long TASK_STREAM_INTERVAL_MILLIS = 1000L;
 
     private final ClientTransferService clientTransferService;
+    private final LocalContactBookService localContactBookService;
     private final TransferTaskRegistry transferTaskRegistry;
     private final ExecutorService taskStreamExecutor = Executors.newCachedThreadPool();
 
     public SendController(
             ClientTransferService clientTransferService,
+            LocalContactBookService localContactBookService,
             TransferTaskRegistry transferTaskRegistry
     )
     {
         this.clientTransferService = clientTransferService;
+        this.localContactBookService = localContactBookService;
         this.transferTaskRegistry = transferTaskRegistry;
     }
 
@@ -54,11 +58,13 @@ public class SendController
             throw new IllegalArgumentException("targetAccountId is required");
         }
 
-        String taskId = clientTransferService.sendFile(PathInputNormalizer.toPath(request.getFilePath()), request.getTargetAccountId());
+        String targetAccountId = localContactBookService.resolveAccountId(request.getTargetAccountId());
+        String taskId = clientTransferService.sendFile(PathInputNormalizer.toPath(request.getFilePath()), targetAccountId);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("success", true);
         payload.put("taskId", taskId);
+        payload.put("targetAccountId", targetAccountId);
         payload.put("message", "Send task created");
         return ResponseEntity.ok(payload);
     }

@@ -275,7 +275,7 @@ public class ConsoleCommandRunner
         }
         //最后一个参数是目标账户的公钥指纹，中间参数拼回文件路径，兼容未加引号但包含空格的路径
         String filePath = joinArguments(args, 1, args.size() - 1);
-        String targetAccountId = args.get(args.size() - 1);
+        String targetAccountId = localContactBookService.resolveAccountId(args.get(args.size() - 1));
         String taskId = clientTransferService.sendFile(PathInputNormalizer.toPath(filePath), targetAccountId);//处理发送文件的函数，对于文件路径进行规格化操作
         System.out.println("Send task created: " + taskId);
     }

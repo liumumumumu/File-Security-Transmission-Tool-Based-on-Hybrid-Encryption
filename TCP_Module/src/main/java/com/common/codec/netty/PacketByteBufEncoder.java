@@ -99,6 +99,9 @@ public class PacketByteBufEncoder extends MessageToMessageEncoder<Packet>
         if (packet instanceof TransferCancelPacket) {
             return new TransferCancelEncoder();
         }
+        if (packet instanceof TransferCancelAckPacket) {
+            return new TransferCancelAckEncoder();
+        }
         //心跳
         else if(packet instanceof PingPacket)
         {

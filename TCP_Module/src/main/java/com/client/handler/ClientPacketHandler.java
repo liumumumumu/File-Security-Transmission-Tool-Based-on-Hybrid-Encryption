@@ -94,6 +94,11 @@ public class ClientPacketHandler extends SimpleChannelInboundHandler<Packet>
             clientTransferService.handleTransferCancel(transferCancelPacket);
             return;
         }
+        if(msg instanceof TransferCancelAckPacket transferCancelAckPacket)
+        {
+            clientTransferService.handleTransferCancelAck(transferCancelAckPacket);
+            return;
+        }
         if(msg instanceof PingPacket pingPacket)
         {
             ctx.writeAndFlush(new PongPacket());
