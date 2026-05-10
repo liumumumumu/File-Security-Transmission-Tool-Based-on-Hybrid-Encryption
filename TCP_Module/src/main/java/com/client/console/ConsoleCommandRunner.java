@@ -8,9 +8,11 @@ import com.crypto.CryptoSupport;
 import com.client.service.ClientTransferService;
 import com.client.service.LocalContactBookService;
 import com.common.service.PushNotificationService;
+import com.common.util.PathInputNormalizer;
 import com.client.service.TransferTaskRegistry;
 import com.persistence.local.model.contactsRecord.BlacklistRecord;
 import com.persistence.local.model.contactsRecord.ContactRecord;
+import com.session.TransferStatus;
 import com.session.TransferTask;
 import jakarta.annotation.PreDestroy;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -38,6 +40,9 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class ConsoleCommandRunner
 {
+    private static final int PROGRESS_BAR_WIDTH = 30;
+    private static final long TASK_WATCH_INTERVAL_MILLIS = 1000L;
+
     private final ClientConnectionManager clientConnectionManager;//负责客户端连接服务器，认证，断开连接
     private final ClientTransferService clientTransferService;//负责收发文件，处理传输请求
     private final ClientProperties clientProperties;//负责读取客户端配置
@@ -140,7 +145,7 @@ public class ConsoleCommandRunner
                 case "search-user" -> searchUser(args);         //搜索在线用户，search-user <accountId>
                 case "search-user-add" -> searchUserAndAddContact(args); //搜索在线用户并加入联系人
                 case "tasks" -> printTasks();                   //列出所有传输任务
-                case "task" -> printTask(args);                 //查看单个任务详情， task <taskId|transferId>    //参数可以是任务Id, 也可以是传输Id
+                case "task" -> printTask(reader, args);         //动态查看单个任务详情， task <taskId|transferId> [--once]    //参数可以是任务Id, 也可以是传输Id, once表示只看看一眼，不动态的显示传输进度。退出动态查看传输进度的方式，1.直接按Enter,2.输入Q再按Enter就是退出动态查看传输进度了。
                 case "public-key" -> printPublicKey();          //查看和导入密钥,打印当前客户端的本地公钥
                 case "public-key-fingerprint", "accountId" -> printPublicKeyFingerprint(args);  //计算指定公钥或本地公钥的指纹;因为公钥指纹就是本系统的accountId,故也兼容accountId指令
                 case "key-info" -> printKeyInfo();              //打印Python加密服务管理的密钥状态
@@ -186,7 +191,7 @@ public class ConsoleCommandRunner
         System.out.println("  search-user <accountId>           Search whether an account is online");
         System.out.println("  search-user-add <accountId> [alias] Search online user and add to contacts");
         System.out.println("  tasks                             List transfer tasks");
-        System.out.println("  task <taskId|transferId>          Show one transfer task");
+        System.out.println("  task <taskId|transferId> [--once] Watch one transfer task progress. Press Enter or q then Enter to stop watching.");
         System.out.println("  public-key                        Print local public key");
         System.out.println("  public-key-fingerprint [publicKey] Print fingerprint for the given public key, or local public key when omitted");
         System.out.println("  key-info                          Show crypto service key status");
@@ -266,8 +271,10 @@ public class ConsoleCommandRunner
             System.out.println("Usage: send <filePath> <targetAccountId>");
             return;
         }
-        //第一个参数是文件路径(支持绝对路径和相对路径(相对可执行程序的路径))，第二个参数是目标账户的公钥指纹
-        String taskId = clientTransferService.sendFile(Path.of(args.get(1)), args.get(2));//处理发送文件的函数
+        //最后一个参数是目标账户的公钥指纹，中间参数拼回文件路径，兼容未加引号但包含空格的路径
+        String filePath = joinArguments(args, 1, args.size() - 1);
+        String targetAccountId = args.get(args.size() - 1);
+        String taskId = clientTransferService.sendFile(PathInputNormalizer.toPath(filePath), targetAccountId);//处理发送文件的函数，对于文件路径进行规格化操作
         System.out.println("Send task created: " + taskId);
     }
 
@@ -526,22 +533,105 @@ public class ConsoleCommandRunner
         System.out.println("publicKey: " + result.getPublicKey());
     }
 
-    private void printTask(List<String> args)
+    //查看传输进度的时候，可以动态的显示传输进度，也可以仅是一次传输任务进度的快照
+    private void printTask(BufferedReader reader, List<String> args) throws IOException
     {
-        if (args.size() < 2) {
-            System.out.println("Usage: task <taskId|transferId>");
+        if (args.size() < 2) {      //校验参数数量
+            System.out.println("Usage: task <taskId|transferId> [--once]");
             return;
         }
 
-        String id = args.get(1);
-        TransferTask task = transferTaskRegistry.findByTaskId(id)
-                .or(() -> transferTaskRegistry.findByTransferId(id))
+        String id = args.get(1);    //根据用户输入的id查任务
+        TransferTask task = transferTaskRegistry.findByTaskId(id)//根据taskId查
+                .or(() -> transferTaskRegistry.findByTransferId(id))//根据transferId查
                 .orElse(null);
         if (task == null) {
             System.out.println("Task not found: " + id);
             return;
         }
 
+        //判断是不是仅查看一次传输任务进度快照
+        boolean printOnce = args.stream().anyMatch("--once"::equalsIgnoreCase);
+        if (!printOnce && !isTerminal(task.getStatus())) {
+            watchTaskProgress(reader, task);//动态查看传输任务的进度
+            return;
+        }
+
+        printTaskDetails(task);
+    }
+
+    //动态查看传输任务的进度的函数
+    private void watchTaskProgress(BufferedReader reader, TransferTask task) throws IOException
+    {
+        System.out.println("Watching task progress. Press 'Enter' or 'q then Enter' to stop watching.");
+        while (applicationContext.isActive()) {     //外层循环
+            synchronized (System.out) {
+                System.out.print("\r" + clearToLineEnd(formatProgressLine(task)));// \r把光标，移回到当前行的开头， clearToLineEnd()清空当前行再打印新内容
+            }
+
+            //任务进入终态就停止动态查看
+            if (isTerminal(task.getStatus())) {
+                break;
+            }
+            if (reader.ready()) {   //如果用户中途退出查看进度
+                String line = reader.readLine();
+                if (line == null || line.isBlank() || "q".equalsIgnoreCase(line.trim())) {
+                    synchronized (System.out) {
+                        System.out.println();
+                        System.out.println("Stopped watching. Transfer continues in background.");
+                    }
+                    return;
+                }
+            }
+
+            try {
+                Thread.sleep(TASK_WATCH_INTERVAL_MILLIS);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
+        synchronized (System.out) {
+            System.out.println();
+        }
+        printTaskDetails(task);
+    }
+
+    //格式化输出传输任务的进度
+    private String formatProgressLine(TransferTask task)
+    {
+        double progressPercent = task.getProgress() * 100D;
+        int filledWidth = (int) Math.round(Math.min(100D, Math.max(0D, progressPercent)) / 100D * PROGRESS_BAR_WIDTH);
+        String bar = "#".repeat(filledWidth) + "-".repeat(PROGRESS_BAR_WIDTH - filledWidth);
+        return String.format(
+                "[%s] %.2f%% | %s | bytes %d/%d | blocks %d/%d | %s",
+                bar,
+                progressPercent,
+                task.getStatus(),
+                task.getTransferredBytes(),
+                task.getTotalBytes(),
+                task.getTransferredBlocks(),
+                task.getTotalBlocks(),
+                task.getMessage()
+        );
+    }
+
+    //清空当前行
+    private String clearToLineEnd(String value)
+    {
+        return "\033[2K" + value;   // \033[2k是ANSI控制码，用来清空当前行
+    }
+
+    //判断传输任务是否完成
+    private boolean isTerminal(TransferStatus status)
+    {
+        return status != null && status.isTerminal();
+    }
+
+    //打印任务详情
+    private void printTaskDetails(TransferTask task)
+    {
         System.out.println("taskId: " + task.getTaskId());
         System.out.println("transferId: " + task.getTransferId());
         System.out.println("direction: " + task.getDirection());
@@ -611,7 +701,7 @@ public class ConsoleCommandRunner
             System.out.println("Usage: import-private-key-file <path>");
             return;
         }
-        cryptoSupport.importPrivateKeyFile(Path.of(args.get(1)));
+        cryptoSupport.importPrivateKeyFile(PathInputNormalizer.toPath(args.get(1)));//对于导入私钥文件的路径进行规格化操作
         System.out.println("Private key imported. Public key fingerprint: " + cryptoSupport.publicKeyFingerprint());
         System.out.println("Reconnect to register/update this public key on the server.");
     }
@@ -720,8 +810,13 @@ public class ConsoleCommandRunner
 
     private String joinArguments(List<String> args, int startIndex)
     {
+        return joinArguments(args, startIndex, args.size());
+    }
+
+    private String joinArguments(List<String> args, int startIndex, int endExclusive)
+    {
         StringBuilder builder = new StringBuilder();
-        for (int i = startIndex; i < args.size(); i++) {
+        for (int i = startIndex; i < endExclusive; i++) {
             if (!builder.isEmpty()) {
                 builder.append(' ');
             }
@@ -760,22 +855,39 @@ public class ConsoleCommandRunner
         List<String> args = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean quoted = false;
-        boolean escaping = false;
+        char quoteChar = 0;
 
         //将用户输入的命令解析成为String数组
         for (int i = 0; i < line.length(); i++) {
             char ch = line.charAt(i);
-            if (escaping) {
+
+            if (quoted) {
+                if (ch == quoteChar) {
+                    quoted = false;
+                    quoteChar = 0;
+                    continue;
+                }
+                if (ch == '\\' && i + 1 < line.length() && line.charAt(i + 1) == quoteChar) {
+                    current.append(line.charAt(++i));
+                    continue;
+                }
                 current.append(ch);
-                escaping = false;
                 continue;
             }
-            if (ch == '\\') {
-                escaping = true;
+
+            if (ch == '"' || ch == '\'') {
+                quoted = true;
+                quoteChar = ch;
                 continue;
             }
-            if (ch == '"') {
-                quoted = !quoted;
+            if (ch == '\\' && i + 1 < line.length()) {
+                char next = line.charAt(i + 1);
+                if (Character.isWhitespace(next) || next == '"' || next == '\'') {
+                    current.append(next);
+                    i++;
+                    continue;
+                }
+                current.append(ch);
                 continue;
             }
             if (Character.isWhitespace(ch) && !quoted) {
@@ -785,9 +897,6 @@ public class ConsoleCommandRunner
             current.append(ch);
         }
 
-        if (escaping) {
-            current.append('\\');
-        }
         addArgument(args, current);
         return args;
     }

@@ -8,13 +8,13 @@ import com.common.config.NodeProperties;
 import com.common.config.ServerProperties;
 import com.client.controller.dto.ImportPrivateKeyRequest;
 import com.client.controller.dto.PublicKeyFingerprintRequest;
+import com.common.util.PathInputNormalizer;
 import com.crypto.CryptoSupport;
 import com.client.service.LocalTransferHistoryService;
 import com.client.service.TransferTaskRegistry;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -100,7 +100,7 @@ public class SystemController
         if (request.getPrivateKey() != null && !request.getPrivateKey().isBlank()) {
             cryptoSupport.importPrivateKeyText(request.getPrivateKey());
         } else if (request.getPrivateKeyPath() != null && !request.getPrivateKeyPath().isBlank()) {
-            cryptoSupport.importPrivateKeyFile(Path.of(request.getPrivateKeyPath()));
+            cryptoSupport.importPrivateKeyFile(PathInputNormalizer.toPath(request.getPrivateKeyPath()));
         } else {
             throw new IllegalArgumentException("privateKey or privateKeyPath is required");
         }
@@ -186,7 +186,8 @@ public class SystemController
         payload.put("send", Map.of(
                 "POST /api/send", "Send a file (body: {filePath, targetAccountId})",
                 "GET /api/send/tasks", "List all transfer tasks",
-                "GET /api/send/tasks/{taskIdOrTransferId}", "Get a specific task details"
+                "GET /api/send/tasks/{taskIdOrTransferId}", "Get a specific task details",
+                "GET /api/send/tasks/{taskIdOrTransferId}/events", "Watch a task progress stream with Server-Sent Events"
         ));
         payload.put("receive", Map.of(
                 "GET /incoming", "List incoming transfer requests",
