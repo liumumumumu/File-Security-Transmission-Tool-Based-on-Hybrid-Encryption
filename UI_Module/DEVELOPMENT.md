@@ -1,104 +1,172 @@
-# UI 开发文档
+# UI Vue 开发文档
 
-## 1. 总体框架分析
+## 1. 当前方案
 
-本项目的核心不是普通网盘，而是“文件传输 + 混合加密 + 可靠 TCP 协议”的可视化客户端。因此 UI 需要同时服务两个目标：
+当前界面使用 Vue 3 CDN 静态版：
 
-- 对用户：快速选择文件，看到传输是否成功、速度如何、还要多久。
-- 对课程验收：清楚展示 RSA/ECC 密钥协商、AES-256-GCM 分块加密、GCM Tag、ACK、断点续传等关键点。
+- 优点：不需要 Node.js，不需要构建工具，双击 `index.html` 就能预览。
+- 缺点：Vue 和 Lucide 图标来自 CDN，浏览器需要能访问互联网；代码暂时没有 `.vue` 单文件组件。
+- 后续升级：安装 Node.js 后，可以迁移到 Vite + Vue，拆成组件和模块。
 
-建议前端先采用三层结构：
+新版 UI 的设计目标是“更像应用，而不是网页宣传页”：
 
-| 层级 | 作用 | 当前模板对应位置 |
+- 固定左侧导航：对应真实 App 常见的信息架构。
+- 顶部状态栏：显示当前工作区和连接状态。
+- 中央工作区：把发送/接收、进度、任务队列、安全流程放进仪表盘。
+- 浅色高级配色：白色面板、冷灰背景、墨绿主色、深海蓝/琥珀/柔红辅助色。
+
+当前文件分工：
+
+| 文件 | 你主要看什么 |
+| --- | --- |
+| `index.html` | Vue 模板、指令、表单结构 |
+| `app.js` | Vue 状态、计算属性、事件方法、后端调用 |
+| `styles.css` | CSS 布局、颜色、响应式 |
+
+## 2. Vue 代码怎么读
+
+### data
+
+`data()` 里放页面状态。例如：
+
+```js
+data() {
+  return {
+    mode: "send",
+    files: [],
+    progress: 0,
+    status: "idle"
+  };
+}
+```
+
+你可以把它理解成“页面记忆”。用户选了文件、点击按钮、进度变化，都会改这里的数据。
+
+### computed
+
+`computed` 是从已有状态计算出来的展示值。例如：
+
+```js
+totalBytes() {
+  return this.files.reduce((sum, file) => sum + file.size, 0);
+}
+```
+
+它不直接保存新数据，而是根据 `files` 自动算总大小。`files` 一变，`totalBytes` 会自动变。
+
+### methods
+
+`methods` 放用户操作和业务逻辑。例如：
+
+```js
+startTransfer() {
+  this.status = "connecting";
+}
+```
+
+按钮点击、文件选择、拖拽上传、调用后端接口都写在这里。
+
+## 3. 常用 Vue 指令
+
+| 写法 | 作用 | 本项目例子 |
 | --- | --- | --- |
-| 表现层 | HTML/CSS 页面、响应式布局、按钮、表单、进度条 | `index.html`, `styles.css` |
-| 交互层 | 文件选择、拖拽、状态切换、调用 API、更新 DOM | `app.js` |
-| 后端适配层 | 把 UI 操作转成后端命令，把后端状态转成 UI 状态 | 后续从 `app.js` 中拆出 `api.js` |
+| `{{ text }}` | 显示变量 | `{{ progress }}%` |
+| `v-if` | 条件渲染 | 没有文件时显示空状态 |
+| `v-for` | 列表渲染 | 遍历文件列表和安全流程 |
+| `v-model` | 表单双向绑定 | 服务器地址、端口、分块大小 |
+| `:class` | 动态 class | 根据状态切换在线/失败样式 |
+| `:style` | 动态样式 | 进度条宽度 |
+| `@click` | 点击事件 | 暂停、恢复、清空 |
+| `@submit.prevent` | 阻止表单刷新并执行方法 | 开始传输 |
 
-当前模板故意不用 Vue/React，是为了降低第一阶段学习成本。等你熟悉 HTML/CSS/JS 和真实接口后，如果老师或团队需要更规范的组件化，再迁移到 Vue、React 或 PySide6。
+新版还使用了 `data-lucide` 图标：
 
-## 2. 推荐界面结构
+```html
+<i data-lucide="send"></i>
+```
 
-第一屏保持“能立刻发送文件”的结构：
+`app.js` 中的 `refreshIcons()` 会在 Vue 渲染后调用 Lucide，把这些占位标签替换成 SVG 图标。
 
-- 顶部导航：项目名、连接状态、开发模式入口。
-- 左侧说明：一句话告诉用户这是安全文件传输工具。
-- 右侧主操作区：发送/接收切换、拖拽上传、服务器地址、端口、加密选项。
-- 下方状态区：进度条、速度、ETA、已确认块、会话密钥状态。
-- 安全流程区：连接服务器、协商密钥、分块加密、ACK/断点续传。
+## 4. 当前状态流
 
-这样既借鉴了文件分享网站“上传入口优先”的体验，也符合本课题需要展示底层技术流程的要求。
+UI 使用这些状态表示传输过程：
 
-## 3. 参考网站的可借鉴点
-
-| 网站 | 可以借鉴 | 本项目采用方式 |
+| 状态 | 含义 | UI 展示 |
 | --- | --- | --- |
-| SendFiles.online | 上传入口直接、流程轻量 | 首屏放大拖拽上传区 |
-| Wormhole | 强调安全分享和临时链接 | 展示会话密钥、加密流程、接收码 |
-| FILE.CM / Send.now | 上传后生成分享信息 | 后续可生成 task_id 或 receive_code |
-| Send Anywhere | 使用 6 位码/链接连接收发双方 | 接收区保留“接收码”输入 |
-| Simple.Savr | 局域网内快速共享的轻量感 | 支持服务器地址和端口配置 |
-| note.ms | 极简房间/短路径协作 | 只借鉴短路径/会话码思路 |
+| `idle` | 初始状态 | 未连接、等待任务 |
+| `connecting` | 正在连接后端/TCP 服务 | 连接中 |
+| `key_exchange` | 正在协商会话密钥 | 协商密钥 |
+| `encrypting_chunks` | 正在分块加密和发送 | 传输中 |
+| `waiting_ack` | 等待接收端 ACK | 等待 ACK |
+| `paused` | 暂停 | 已暂停 |
+| `resuming` | 从断点恢复 | 恢复中 |
+| `completed` | 完成 | 已完成 |
+| `failed` | 失败 | 失败 |
 
-注意：这些站点主要是产品体验参考，不能直接复制样式、文案或业务规则。本项目应突出“安全传输工具”的课程特色。
+这些状态后续应该和后端返回的状态保持一致。
 
-## 4. 前端需要的知识储备
+## 5. 后端接口契约建议
 
-### HTML
+根据目前分工，前端只对接 LQH 的 Java Spring Boot 后端：
 
-- 常用标签：`header`, `main`, `section`, `form`, `label`, `input`, `select`, `button`。
-- 文件输入：`<input type="file" multiple>`。
-- 可访问性基础：`aria-label`, `aria-live`, 表单标签和按钮语义。
+```text
+UI_Module(Vue)
+  -> TCP_Module(Java Spring Boot REST API, HTTP 8081)
+  -> TCP_Module(Netty TCP, TCP 9000)
+  -> Crypto Service(Qt/C++ + OpenSSL, HTTP 9081)
+```
 
-### CSS
+Crypto service 负责 RSA、签名、AES 密钥包裹、AES-256-GCM 数据块加解密。`TCP_Module` 负责调用这些能力，Vue 不直接调用加密函数。
 
-- 盒模型：`box-sizing`, `padding`, `border`, `margin`。
-- 布局：Flexbox、CSS Grid、`minmax()`, `clamp()`, 媒体查询。
-- 视觉系统：颜色变量、间距、边框、阴影、按钮状态。
-- 响应式：手机端单列布局，桌面端双列布局。
+LQH 分支目前已有：
 
-### JavaScript
+```http
+GET  /api/system/status
+GET  /api/system/key
+POST /api/system/key/generate
+POST /api/system/key/delete
+POST /api/system/key/import-private
+```
 
-- DOM 查询和事件监听：`querySelector`, `addEventListener`。
-- 文件对象：`File`, `FileList`, `file.name`, `file.size`。
-- 拖拽事件：`dragenter`, `dragover`, `dragleave`, `drop`。
-- 状态更新：用变量保存文件列表、进度、定时器。
-- 后续接口请求：`fetch()` 或 WebSocket。
+这些接口已经接入 UI 的“系统状态 / 密钥状态”面板。页面默认 Java API 为：
 
-### 项目相关知识
+```text
+http://127.0.0.1:8081
+```
 
-- TCP 客户端/服务端基本流程：连接、发送、接收、关闭。
-- 混合加密：非对称算法保护会话密钥，对称算法加密大文件数据。
-- AES-256-GCM：密文 + Tag，能同时提供保密性和完整性校验。
-- 文件分块：大文件按固定大小拆分，每块包含序号、长度、密文、Tag。
-- ACK：接收端确认块序号，发送端据此更新进度。
-- 断点续传：保存已确认块，重连后从缺失块继续。
-
-## 5. 建议的前后端接口契约
-
-真实后端尚未接入前，可以先约定接口形状。前端以后把 `app.js` 中的模拟进度替换成这些 API。
+还需要补给 UI 使用的传输接口，建议如下。
 
 ### 创建传输任务
 
 ```http
 POST /api/transfers
-Content-Type: application/json
+Content-Type: multipart/form-data
 ```
 
-请求示例：
+字段：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `metadata` | JSON 字符串 | 传输模式、服务器、端口、算法、分块大小 |
+| `files` | 文件 | 一个或多个上传文件 |
+
+`metadata` 示例：
 
 ```json
 {
   "mode": "send",
   "server_host": "127.0.0.1",
-  "server_port": 1749,
+  "server_port": 9000,
   "key_exchange": "RSA-2048",
   "cipher": "AES-256-GCM",
   "chunk_size_mb": 1,
+  "resume_enabled": true,
+  "receive_code": "",
   "files": [
     {
       "name": "demo.zip",
-      "size": 10485760
+      "chunks": 10,
+      "sizeText": "10 MB"
     }
   ]
 }
@@ -108,9 +176,8 @@ Content-Type: application/json
 
 ```json
 {
-  "task_id": "task_1749_001",
-  "receive_code": "SH-1749-ABCD",
-  "status": "created"
+  "task_id": "task_001",
+  "status": "key_exchange"
 }
 ```
 
@@ -124,63 +191,99 @@ GET /api/transfers/{task_id}
 
 ```json
 {
-  "task_id": "task_1749_001",
-  "status": "transferring",
+  "task_id": "task_001",
+  "status": "encrypting_chunks",
   "progress": 62,
   "speed_mbps": 11.8,
   "eta_seconds": 14,
-  "acked_chunks": 620,
-  "total_chunks": 1000,
-  "current_stage": "encrypting_chunks"
+  "acked_chunks": 620
 }
 ```
 
-### 暂停、恢复、取消
+### CORS 注意
 
-```http
-POST /api/transfers/{task_id}/pause
-POST /api/transfers/{task_id}/resume
-POST /api/transfers/{task_id}/cancel
+如果页面通过双击打开，浏览器地址是 `file://.../index.html`。Spring Boot 后端需要允许来自本地页面的跨域请求。开发阶段可以先允许所有来源，答辩前再收紧。
+
+## 6. 后端方法如何体现在前端
+
+前端不能直接调用 Java 方法或加密函数，必须通过 HTTP 接口间接调用。
+
+错误理解：
+
+```js
+// 浏览器里不能直接这样调用 Java/Qt/C++ 函数
+start_transfer(file_path, host, port);
 ```
 
-## 6. UI 状态设计
+正确结构：
 
-| 状态 | 展示文案 | 触发条件 |
-| --- | --- | --- |
-| idle | 等待任务 | 初始页面或清空后 |
-| connecting | 正在连接服务器 | 点击开始传输 |
-| key_exchange | 正在协商密钥 | TCP 连接成功后 |
-| encrypting_chunks | 正在加密并发送分块 | 后端开始读取文件 |
-| waiting_ack | 等待接收端确认 | 已发送块但 ACK 未返回 |
-| paused | 已暂停 | 用户暂停或连接断开 |
-| resuming | 正在恢复传输 | 根据断点状态继续 |
-| completed | 传输完成 | 所有块确认完成 |
-| failed | 传输失败 | 网络、加密或校验失败 |
+```text
+Vue 页面 -> fetch/FormData -> Java Spring Boot 接口 -> Java 调用 TCP/加密模块
+```
 
-## 7. 当前模板怎么继续改
+本项目中的 `createBackendTransfer()` 就是这个入口。后端同学只要实现 `POST /api/transfers`，你就可以关闭演示模式试着联调。
 
-建议你按这个顺序学习和修改：
+## 7. 你需要补的知识
 
-1. 先读 `index.html`，弄清每个区域对应页面上的哪一块。
-2. 改 `styles.css` 中的颜色变量和间距，观察界面变化。
-3. 在 `app.js` 中给按钮添加新状态，例如暂停、恢复、取消。
-4. 把模拟进度抽成函数：`startTransfer()`, `pauseTransfer()`, `resumeTransfer()`。
-5. 等后端同学提供接口后，把 `setInterval()` 模拟替换成 `fetch()` 或 WebSocket。
+### 第一阶段：能改界面
 
-## 8. Git 协作建议
+- HTML：`form`、`input type="file"`、`button`、`section`。
+- CSS：盒模型、颜色变量、Grid、Flex、媒体查询、`position: sticky`。
+- Vue 模板：`v-if`、`v-for`、`v-model`、事件绑定。
+- 图标库：理解 `data-lucide` 如何变成按钮里的图标。
 
-- 你的 UI 分支只改 `UI_Module/`，减少和密码模块、TCP 模块冲突。
-- 每次提交前运行一次页面预览，确认选择文件、拖拽、进度模拟没有坏。
-- 提交信息建议写清楚范围，例如 `ui: add transfer dashboard prototype`。
-- 合并前在 README 中同步说明新增文件和运行方法。
+### 第二阶段：能看懂交互
 
-## 9. 答辩展示建议
+- JavaScript 变量、数组、对象、函数。
+- `File` 对象：`file.name`、`file.size`、`file.lastModified`。
+- 定时器：`setInterval`、`clearInterval`。
+- Promise 和 `async/await`。
 
-演示顺序可以这样安排：
+### 第三阶段：能接后端
 
-1. 打开 UI，选择一个大文件。
-2. 展示密钥协商算法选择和 AES-256-GCM 选项。
-3. 点击开始传输，说明每块 1 MB、每块独立 Tag。
-4. 展示进度、速度、ETA、ACK 数量。
-5. 模拟断线后恢复，说明根据已确认块继续。
-6. 最后展示性能测试结果和安全分析。
+- `fetch()` 请求。
+- `FormData` 上传文件。
+- JSON 解析。
+- HTTP 状态码。
+- CORS。
+- 轮询和 WebSocket 的区别。
+
+### 第四阶段：项目相关理解
+
+- RSA/ECC 只负责密钥协商，不直接加密大文件。
+- 签名/验签用于身份认证，例如 challenge 由私钥签名、公钥验证。
+- AES 密钥包裹是指用接收方 RSA 公钥加密 AES 会话密钥，接收方再用私钥解开。
+- AES-256-GCM 负责文件块加密和完整性校验。
+- 分块传输需要块序号、块长度、nonce、tag、ciphertext。
+- ACK 用来确认接收端已经成功收到并校验某个块。
+- 断点续传依赖“最后确认块”或“已确认块集合”。
+
+## 8. 推荐学习顺序
+
+1. 先打开页面，点一遍发送、暂停、恢复、清空。
+2. 看 `index.html`，先理解 `sidebar / topbar / workspace / panel` 这些区域。
+3. 找按钮上的 `@click` 或 `@submit.prevent`，再到 `app.js` 里看对应方法。
+4. 改一个字段，比如默认端口或默认分块大小，刷新页面看变化。
+5. 改一处样式，比如 `--primary`、`--blue`、`--gold`，观察整体配色变化。
+6. 和后端同学约定接口字段，然后关闭演示模式联调。
+
+## 9. 后续迁移到 Vite 的方向
+
+等你安装 Node.js 后，可以把当前结构升级成：
+
+```text
+UI_Module/
+  package.json
+  index.html
+  src/
+    main.js
+    App.vue
+    components/
+      TransferPanel.vue
+      StatusPanel.vue
+      PipelinePanel.vue
+    api/
+      transfers.js
+```
+
+当前这版 Vue CDN 模板就是为了让你先理解 Vue 思维，之后迁移时不会突然面对一堆工具链。
