@@ -32,6 +32,7 @@ RSA-2048 密钥协商模块
   - RSA 一次只能加密少量数据（2048 位 RSA 最多加密 245 字节）
   - 所以用 RSA 只加密 32 字节的 AES 密钥，再用 AES 加密大文件，这就是"混合加密"
 """
+import hashlib
 import os
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import hashes, serialization
@@ -137,6 +138,27 @@ def load_public_key(pem_data: bytes) -> rsa.RSAPublicKey:
         RSAPublicKey 对象
     """
     return serialization.load_pem_public_key(pem_data)
+
+
+# ── 公钥指纹 ──────────────────────────────────────────────
+
+def public_key_fingerprint(public_key: rsa.RSAPublicKey) -> str:
+    """
+    计算公钥的 SHA-256 指纹，用作账号 ID
+
+    TCP 模块的 Java 端用这个指纹来标识用户身份：
+      accountId = CryptoSupport.publicKeyFingerprint(publicKey)
+
+    参数:
+        public_key: RSA 公钥对象
+    返回:
+        64 字符的十六进制字符串（SHA-256 摘要）
+    """
+    der_bytes = public_key.public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    return hashlib.sha256(der_bytes).hexdigest()
 
 
 # ── 数字签名 / 验签 ──────────────────────────────────────
