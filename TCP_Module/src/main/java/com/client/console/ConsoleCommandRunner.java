@@ -135,6 +135,9 @@ public class ConsoleCommandRunner
                 case "accept" -> acceptIncomingRequest(args);   //接收指定的incoming transfer任务， accept <transferId>
                 case "reject" -> rejectIncomingRequest(args);   //拒绝指定的incoming transfer任务， reject <transferId>
                 case "cancel" -> cancelTransfer(args);          //取消正在进行的传输任务， cancel <taskId|transferId>
+                case "retransmit" -> requestRetransmission(args);//接收方请求发送方从断点续传， retransmit <taskId|transferId>
+                case "retransmit-accept" -> acceptRetransmission(args); //发送方同意接收方的重传请求
+                case "retransmit-reject" -> rejectRetransmission(args); //发送方拒绝接收方的重传请求
                 case "contacts" -> printContacts();             //列出联系人
                 case "contact-add" -> addContact(args);         //添加联系人，contact-add <accountId> [alias]
                 case "contact-remove" -> removeContact(args);   //删除联系人，contact-remove <contact-数字|数字>
@@ -182,6 +185,9 @@ public class ConsoleCommandRunner
         System.out.println("  accept <transferId>               Accept an incoming transfer on this device");
         System.out.println("  reject <transferId>               Reject and cancel an incoming transfer");
         System.out.println("  cancel <taskId|transferId>        Cancel an active transfer task");
+        System.out.println("  retransmit <taskId|transferId>    Request retransmission from the receiver progress");
+        System.out.println("  retransmit-accept <transferId>    Accept a receiver retransmission request");
+        System.out.println("  retransmit-reject <transferId>    Reject a receiver retransmission request");
         System.out.println("  contacts                          List local contacts");
         System.out.println("  contact-add <accountId> [alias] Add or update a local contact");
         System.out.println("  contact-remove <contact-N|N>      Remove a local contact");
@@ -211,11 +217,14 @@ public class ConsoleCommandRunner
         if ("incoming-transfer-request".equals(type)) {
             printIncomingTransferNotification(payload);
         }
+        if ("transfer-retransmit-request-received".equals(type)) {
+            printRetransmitRequestNotification(payload);
+        }
     }
 
     private void printIncomingTransferNotification(Object payload)
     {
-        if (!(payload instanceof Map<?, ?> values)) {
+        if (!(notificationPayload(payload) instanceof Map<?, ?> values)) {
             printConsoleNotice("New incoming transfer request. Run 'incoming' to list requests.");
             return;
         }
@@ -230,6 +239,33 @@ public class ConsoleCommandRunner
                 values.get("transferId"),
                 values.get("transferId")
         ));
+    }
+
+    private void printRetransmitRequestNotification(Object payload)
+    {
+        if (!(notificationPayload(payload) instanceof Map<?, ?> values)) {
+            printConsoleNotice("Retransmission request received. Use 'retransmit-accept <transferId>' or 'retransmit-reject <transferId>'.");
+            return;
+        }
+
+        printConsoleNotice(String.format(
+                "Retransmission request received: %s | file=%s | from block=%s | reason=%s%nUse 'retransmit-accept %s' to continue, or 'retransmit-reject %s' to refuse.",
+                values.get("transferId"),
+                values.get("fileName"),
+                values.get("startBlockId"),
+                values.get("reason"),
+                values.get("transferId"),
+                values.get("transferId")
+        ));
+    }
+
+    private Object notificationPayload(Object payload)
+    {
+        if(payload instanceof Map<?, ?> body && body.containsKey("payload"))
+        {
+            return body.get("payload");
+        }
+        return payload;
     }
 
     private void printConsoleNotice(String message)
@@ -349,6 +385,36 @@ public class ConsoleCommandRunner
         }
         clientTransferService.cancelTransfer(args.get(1));
         System.out.println("Transfer canceled: " + args.get(1));
+    }
+
+    private void requestRetransmission(List<String> args)
+    {
+        if (args.size() < 2) {
+            System.out.println("Usage: retransmit <taskId|transferId>");
+            return;
+        }
+        clientTransferService.requestRetransmission(args.get(1));
+        System.out.println("Retransmission requested: " + args.get(1));
+    }
+
+    private void acceptRetransmission(List<String> args)
+    {
+        if (args.size() < 2) {
+            System.out.println("Usage: retransmit-accept <transferId>");
+            return;
+        }
+        clientTransferService.acceptRetransmission(args.get(1));
+        System.out.println("Retransmission accepted: " + args.get(1));
+    }
+
+    private void rejectRetransmission(List<String> args)
+    {
+        if (args.size() < 2) {
+            System.out.println("Usage: retransmit-reject <transferId>");
+            return;
+        }
+        clientTransferService.rejectRetransmission(args.get(1));
+        System.out.println("Retransmission rejected: " + args.get(1));
     }
 
     private void printContacts()
@@ -576,9 +642,22 @@ public class ConsoleCommandRunner
     private void watchTaskProgress(BufferedReader reader, TransferTask task) throws IOException
     {
         System.out.println("Watching task progress. Press 'Enter' or 'q then Enter' to stop watching.");
+        long lastBytes = task.getTransferredBytes();
+        long lastNanos = System.nanoTime();
+        double speedMegabytesPerSecond = 0D;
         while (applicationContext.isActive()) {     //外层循环
+            long currentBytes = task.getTransferredBytes();
+            long currentNanos = System.nanoTime();
+            double elapsedSeconds = (currentNanos - lastNanos) / 1_000_000_000D;
+            if(elapsedSeconds > 0D)
+            {
+                speedMegabytesPerSecond = Math.max(0D, (currentBytes - lastBytes) / elapsedSeconds / 1024D / 1024D);
+            }
+            lastBytes = currentBytes;
+            lastNanos = currentNanos;
+
             synchronized (System.out) {
-                System.out.print("\r" + clearToLineEnd(formatProgressLine(task)));// \r把光标，移回到当前行的开头， clearToLineEnd()清空当前行再打印新内容
+                System.out.print("\r" + clearToLineEnd(formatProgressLine(task, speedMegabytesPerSecond)));// \r把光标，移回到当前行的开头， clearToLineEnd()清空当前行再打印新内容
             }
 
             //任务进入终态就停止动态查看
@@ -611,16 +690,17 @@ public class ConsoleCommandRunner
     }
 
     //格式化输出传输任务的进度
-    private String formatProgressLine(TransferTask task)
+    private String formatProgressLine(TransferTask task, double speedMegabytesPerSecond)
     {
         double progressPercent = task.getProgress() * 100D;
         int filledWidth = (int) Math.round(Math.min(100D, Math.max(0D, progressPercent)) / 100D * PROGRESS_BAR_WIDTH);
         String bar = "#".repeat(filledWidth) + "-".repeat(PROGRESS_BAR_WIDTH - filledWidth);
         return String.format(
-                "[%s] %.2f%% | %s | bytes %d/%d | blocks %d/%d | %s",
+                "[%s] %.2f%% | %s | %.2f MB/s | bytes %d/%d | blocks %d/%d | %s",
                 bar,
                 progressPercent,
                 task.getStatus(),
+                speedMegabytesPerSecond,
                 task.getTransferredBytes(),
                 task.getTotalBytes(),
                 task.getTransferredBlocks(),

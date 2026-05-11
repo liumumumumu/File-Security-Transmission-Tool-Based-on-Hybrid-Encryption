@@ -79,4 +79,24 @@ public class ReceiveController
         payload.put("message", "Rejected incoming transfer request");
         return ResponseEntity.ok(payload);
     }
+
+    @PostMapping("/retransmit")
+    public ResponseEntity<Map<String, Object>> requestRetransmission(@RequestBody Map<String, String> request)
+    {
+        String taskIdOrTransferId = request.get("taskIdOrTransferId");
+        if (taskIdOrTransferId == null || taskIdOrTransferId.isBlank()) {
+            taskIdOrTransferId = request.get("transferId");
+        }
+        if (taskIdOrTransferId == null || taskIdOrTransferId.isBlank()) {
+            throw new IllegalArgumentException("taskIdOrTransferId or transferId is required");
+        }
+
+        clientTransferService.requestRetransmission(taskIdOrTransferId);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("success", true);
+        payload.put("taskIdOrTransferId", taskIdOrTransferId);
+        payload.put("message", "Retransmission requested");
+        return ResponseEntity.ok(payload);
+    }
 }

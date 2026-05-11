@@ -19,6 +19,8 @@ public final class MessageType
     public static final byte Onlie_User_Search_Result=19;
     public static final byte Transfer_Cancel=20;
     public static final byte Transfer_Cancel_Ack=21;
+    public static final byte Retransmit_Request=22;
+    public static final byte Retransmit_Ack=23;
 
     public static final byte Ping=80;
     public static final byte Pong=81;

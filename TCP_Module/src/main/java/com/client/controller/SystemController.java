@@ -193,7 +193,8 @@ public class SystemController
         payload.put("receive", Map.of(
                 "GET /incoming", "List incoming transfer requests",
                 "POST /accept", "Accept an incoming transfer (body: {transferId})",
-                "POST /reject", "Reject an incoming transfer (body: {transferId})"
+                "POST /reject", "Reject an incoming transfer (body: {transferId})",
+                "POST /retransmit", "Request retransmission for a receive task (body: {taskIdOrTransferId} or {transferId})"
         ));
         return ResponseEntity.ok(payload);
     }

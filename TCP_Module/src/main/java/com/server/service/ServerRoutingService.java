@@ -161,6 +161,16 @@ public class ServerRoutingService
                 handleTransferCancelAck(deviceId, transferCancelAckPacket);
                 return;
             }
+            if(packet instanceof RetransmitRequestPacket retransmitRequestPacket)
+            {
+                forwardToSender(deviceId, retransmitRequestPacket.getTransferId(), retransmitRequestPacket);
+                return;
+            }
+            if(packet instanceof RetransmitAckPacket retransmitAckPacket)
+            {
+                forwardToReceiver(deviceId, retransmitAckPacket.getTransferId(), retransmitAckPacket);
+                return;
+            }
         }
         catch(Exception e)
         {
@@ -193,7 +203,8 @@ public class ServerRoutingService
         }
         sessionsByDeviceId.remove(deviceId);//清理服务端状态
         redisStateService.removeOnlineSession(deviceId);//删除Redis里面的在线状态
-        redisStateService.removeRoutesForDevice(deviceId);//删除和该设备有关的传输路由
+        // 断线不立即删除传输路由。发送/接收端重连后，接收方还需要用原 transferId 发起续传请求。
+        // 路由由 Redis TTL、取消确认或后续清理流程回收。
         pendingTransferRequests.entrySet().removeIf(entry -> entry.getValue().getSenderDeviceId().equals(deviceId));
         forwardedCancelTransferIds.removeIf(transferId -> redisStateService.findTransferRoute(transferId)
                 .map(route -> route.getSenderDeviceId().equals(deviceId) || route.getReceiverDeviceId().equals(deviceId))
