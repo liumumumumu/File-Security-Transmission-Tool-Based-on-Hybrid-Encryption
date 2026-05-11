@@ -7,7 +7,13 @@ test_output.bin
 venv/
 .idea/
 .vscode/
+.claude/
 *.log
+tmp*/
+
+# 队友/外部项目副本，不提交到 LLY 分支
+LZY/
+Version0003/
 
 # 资料文件，不入库
 *.pdf
