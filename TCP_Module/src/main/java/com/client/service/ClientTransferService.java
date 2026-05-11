@@ -35,16 +35,18 @@ import java.util.concurrent.*;
  * Date: 2026-04-26
  * Purpose: 客户端文件传输业务类，收发文件流程的调度中心
  * 负责：
- * 1.连接服务器并认证
- * 2.发起文件发送任务
- * 3.处理目标设备选择结果
- * 4.发送文件offer
- * 5.等待接收方接收
- * 6.分块加密发送文件
- * 7.等待每个文件块的ACK
- * 8.接收发来的文件
- * 9.解密并按顺序写入本地文件
- * 10.更新传输任务状态，并推送通知
+ * 1. 自动连接服务器，并配合 ClientConnectionManager 完成认证
+ * 2. 发起文件发送任务，向服务端请求目标账号下的接收设备
+ * 3. 处理目标设备选择结果，生成本次传输的 AES 会话密钥，并用接收方公钥加密
+ * 4. 发送文件 offer，等待接收方接受或拒绝
+ * 5. 分块读取、AES-GCM 加密并发送文件内容
+ * 6. 维护发送窗口，等待并处理每个文件块的 ACK
+ * 7. 接收文件 offer，解密会话密钥，创建接收任务和接收上下文
+ * 8. 接收、解密文件块，并按块号顺序写入本地文件
+ * 9. 支持接收请求的接受/拒绝、传输取消、取消确认和本地资源清理
+ * 10. 支持断点重传请求、发送方确认/拒绝重传，以及从指定块重新发送
+ * 11. 支持在线用户查询，用于联系人和目标账号公钥获取
+ * 12. 更新传输任务状态、持久化任务，并推送控制台/UI 通知
  *
  * */
 
@@ -69,7 +71,7 @@ public class ClientTransferService
     private final Map<String, OutboundTransferContext>  outboundTransferContexts = new ConcurrentHashMap<>();//保存正在发送的任务的上下文，AES密钥，等待接收方接收的Future，每个块的ACK Future
     private final Map<String, InboundTransferContext> inboundTransferContexts = new ConcurrentHashMap<>();//保存正在接收的任务上下文，AES密钥，输出文件流，已收到但暂时不能写入的块
     private final Map<String, IncomingTransferRequestPacket> pendingIncomingTransferRequests = new ConcurrentHashMap<>();
-    private final Map<String, PendingRetransmitRequest> pendingRetransmitRequests = new ConcurrentHashMap<>();
+    private final Map<String, PendingRetransmitRequest> pendingRetransmitRequests = new ConcurrentHashMap<>();//保存发送方收到但尚未由用户确认的重传请求
     private final Map<String, CompletableFuture<OnlineUserSearchResultPacket>> onlineUserSearchFutures = new ConcurrentHashMap<>();
     private final Set<String> canceledTransferIds = ConcurrentHashMap.newKeySet();//用来记录已经取消的transferId
     private final Set<String> acknowledgedCancelTransferIds = ConcurrentHashMap.newKeySet();
@@ -228,7 +230,7 @@ public class ClientTransferService
         }
     }
 
-    public void requestRetransmission(String taskIdOrTransferId)
+    public void requestRetransmission(String taskIdOrTransferId)//接收方主动发起的重传请求
     {
         if(taskIdOrTransferId==null || taskIdOrTransferId.isBlank())
         {
@@ -270,44 +272,45 @@ public class ClientTransferService
         ));
     }
 
-    public void handleRetransmitRequest(RetransmitRequestPacket packet)
+    public void handleRetransmitRequest(RetransmitRequestPacket packet)//发送方处理接收方的重传请求
     {
-        TransferTask task = transferTaskRegistry.findByTransferId(packet.getTransferId()).orElse(null);
+        TransferTask task = transferTaskRegistry.findByTransferId(packet.getTransferId()).orElse(null);//查找本地任务和发送上下文；task:本地传输记录，2.content:发送端运行中的传输上下文
         OutboundTransferContext context = outboundTransferContexts.get(packet.getTransferId());
-        if(task==null || task.getDirection()!=TransferDirection.SEND || context==null)
+        if(task==null || task.getDirection()!=TransferDirection.SEND || context==null)//找不到任务，或者这个任务不是发送任务，或者发送上下文不存在就发一个拒绝请求的ACK包
         {
             sendRetransmitAck(packet.getTransferId(), false, packet.getStartBlockId(), "Sender cannot resume this transfer");
             return;
         }
-        if(task.getStatus()==TransferStatus.COMPLETED)
+        if(task.getStatus()==TransferStatus.COMPLETED)//判断任务是否已经完成
         {
             sendRetransmitAck(packet.getTransferId(), false, packet.getStartBlockId(), "Transfer is already completed");
             return;
         }
-        if(task.getStatus()==TransferStatus.CANCELED || isTransferCanceled(task.getTransferId()))
+        if(task.getStatus()==TransferStatus.CANCELED || isTransferCanceled(task.getTransferId()))//判断任务是否已经取消
         {
             sendRetransmitAck(packet.getTransferId(), false, packet.getStartBlockId(), "Transfer was canceled");
             return;
         }
-        if(packet.getStartBlockId()<0 || packet.getStartBlockId()>task.getTotalBlocks())
+        if(packet.getStartBlockId()<0 || packet.getStartBlockId()>task.getTotalBlocks())//检验起始编号是否合法
         {
             sendRetransmitAck(packet.getTransferId(), false, packet.getStartBlockId(), "Invalid retransmit start block");
             return;
         }
 
-        Path filePath = Paths.get(task.getLocalPath());
-        if(!Files.isRegularFile(filePath))
+        Path filePath = Paths.get(task.getLocalPath());//确认原始文件还在发送方本地
+        if(!Files.isRegularFile(filePath))//如果这个文件被删除，移动或者路径不是普通文件，就拒绝
         {
             sendRetransmitAck(packet.getTransferId(), false, packet.getStartBlockId(), "Original file is not available on sender");
             return;
         }
 
-        int startBlockId = packet.getStartBlockId();
-        canceledTransferIds.remove(task.getTransferId());
-        pendingRetransmitRequests.put(packet.getTransferId(), new PendingRetransmitRequest(packet, context, filePath));
-        task.updateStatus(TransferStatus.WAITING_FOR_ACCEPT, "Waiting for sender confirmation to retransmit from block "+startBlockId);
+        //校验通过，保存重传请求
+        int startBlockId = packet.getStartBlockId();//重新读取传输起点
+        canceledTransferIds.remove(task.getTransferId());//移除取消标记
+        pendingRetransmitRequests.put(packet.getTransferId(), new PendingRetransmitRequest(packet, context, filePath));//保存pending重传请求
+        task.updateStatus(TransferStatus.WAITING_FOR_ACCEPT, "Waiting for sender confirmation to retransmit from block "+startBlockId);//更新任务状态
         persistTask(task);
-        pushNotificationService.publish("transfer-retransmit-request-received", Map.of(
+        pushNotificationService.publish("transfer-retransmit-request-received", Map.of(     //发起通知推送
                 "transferId", packet.getTransferId(),
                 "fileName", task.getFileName(),
                 "startBlockId", startBlockId,
@@ -325,25 +328,29 @@ public class ClientTransferService
         return Map.copyOf(result);
     }
 
-    public void acceptRetransmission(String transferId)
+    public void acceptRetransmission(String transferId) //处理发送方确认接收重传请求的函数
     {
-        PendingRetransmitRequest pending = takePendingRetransmitRequest(transferId);
-        RetransmitRequestPacket packet = pending.packet();
-        sendRetransmitAck(packet.getTransferId(), true, packet.getStartBlockId(), "Retransmission accepted by sender");
-        executorService.submit(() -> executeRetransmit(pending.context(), pending.filePath(), packet.getStartBlockId()));
+        PendingRetransmitRequest pending = takePendingRetransmitRequest(transferId);//根据transferId取除之前暂存的重传请求
+        RetransmitRequestPacket packet = pending.packet();//从pending里拿到原始的重传请求包(程序目前不支持程序退出后的重传请求)
+        sendRetransmitAck(packet.getTransferId(), true, packet.getStartBlockId(), "Retransmission accepted by sender");//发送方给接收方回一个重传确认包(同意)
+        executorService.submit(() -> executeRetransmit(pending.context(), pending.filePath(), packet.getStartBlockId()));//重传任务提交到线程池异步执行
     }
 
-    public void rejectRetransmission(String transferId)
+    public void rejectRetransmission(String transferId)//处理发送方拒绝重传的请求
     {
-        PendingRetransmitRequest pending = takePendingRetransmitRequest(transferId);
-        RetransmitRequestPacket packet = pending.packet();
-        sendRetransmitAck(packet.getTransferId(), false, packet.getStartBlockId(), "Retransmission rejected by sender");
-        TransferTask task = pending.context().transferTask;
-        task.updateStatus(TransferStatus.FAILED, "Retransmission rejected by sender");
+        PendingRetransmitRequest pending = takePendingRetransmitRequest(transferId);//还是根据transferId取除之前暂存的重传请求
+        RetransmitRequestPacket packet = pending.packet();//还是从pending里拿到原始的重传请求包
+        sendRetransmitAck(packet.getTransferId(), false, packet.getStartBlockId(), "Retransmission rejected by sender");//发送方给接收方回一个重传确认包(拒绝)
+        TransferTask task = pending.context().transferTask;//从发送上下文处拿到对应的发送任务
+        task.updateStatus(TransferStatus.FAILED, "Retransmission rejected by sender");//更新任务状态
         persistTask(task);
-        outboundTransferContexts.remove(packet.getTransferId());
+        outboundTransferContexts.remove(packet.getTransferId());//从传输上下文表里移除这个传输上下文
+        for(CompletableFuture<Boolean> ackFuture : pending.context().ackFutures.values())//一些block正在等待ACK时，会立即得false
+        {
+            ackFuture.complete(false);
+        }
         pending.context().ackFutures.clear();
-        pushNotificationService.publish("transfer-retransmit-rejected", task);
+        pushNotificationService.publish("transfer-retransmit-rejected", task);//通知
     }
 
     private PendingRetransmitRequest takePendingRetransmitRequest(String transferId)
@@ -360,14 +367,14 @@ public class ClientTransferService
         return pending;
     }
 
-    public void handleRetransmitAck(RetransmitAckPacket packet)
+    public void handleRetransmitAck(RetransmitAckPacket packet)//接收方处理发送方的重传请求结果
     {
         transferTaskRegistry.findByTransferId(packet.getTransferId()).ifPresent(task -> {
             if(packet.isAccepted())
             {
-                canceledTransferIds.remove(packet.getTransferId());
-                task.updateStatus(TransferStatus.TRANSFERRING, "Retransmission accepted from block "+packet.getStartBlockId());
-                pushNotificationService.publish("transfer-retransmit-accepted", task);
+                canceledTransferIds.remove(packet.getTransferId());//移除取消标记
+                task.updateStatus(TransferStatus.TRANSFERRING, "Retransmission accepted from block "+packet.getStartBlockId());//更新任务状态为正在传输
+                pushNotificationService.publish("transfer-retransmit-accepted", task);//通知
             }
             else
             {
@@ -378,23 +385,25 @@ public class ClientTransferService
         });
     }
 
-    public void cancelTransfer(String taskIdOrTransferId)
+    public void cancelTransfer(String taskIdOrTransferId)//处理中断传输的函数；支持taskId和transferId
     {
-        if(taskIdOrTransferId==null || taskIdOrTransferId.isBlank())
+        if(taskIdOrTransferId==null || taskIdOrTransferId.isBlank())//校验参数
         {
             throw new IllegalArgumentException("taskIdOrTransferId is required");
         }
 
-        TransferTask task = transferTaskRegistry.findByTaskId(taskIdOrTransferId)
-                .or(() -> transferTaskRegistry.findByTransferId(taskIdOrTransferId))
+        TransferTask task = transferTaskRegistry.findByTaskId(taskIdOrTransferId)       //按taskId查找任务
+                .or(() -> transferTaskRegistry.findByTransferId(taskIdOrTransferId))    //按transferId查找任务
                 .orElse(null);
         if(task==null)
         {
             IncomingTransferRequestPacket request = pendingIncomingTransferRequests.remove(taskIdOrTransferId);
-            if(request==null)
+            if(request==null)   //任务不存在的情况
             {
                 throw new IllegalArgumentException("Transfer task not found: "+taskIdOrTransferId);
             }
+
+            //告诉发送方这次传输请求被取消了
             clientConnectionManager.send(new ReceiverDeviceSelectionPacket(
                     request.getTransferId(),
                     false,
@@ -403,16 +412,16 @@ public class ClientTransferService
             return;
         }
 
-        if(task.getStatus()!=null && task.getStatus().isTerminal())
+        if(task.getStatus()!=null && task.getStatus().isTerminal())     //如果任务已经完成了，就直接返回
         {
             return;
         }
 
-        String reason = "Transfer canceled locally";
+        String reason = "Transfer canceled locally";    //取消原因
         cancelLocalTransfer(task.getTransferId(), reason);
         task.updateStatus(TransferStatus.CANCELED, reason);
-        persistTask(task);
-        pushNotificationService.publish("transfer-cancelled", task);
+        persistTask(task);  //保存状态
+        pushNotificationService.publish("transfer-cancelled", task);    //通知其他模块任务已经取消
 
         if(clientConnectionManager.isAuthenticated())
         {
@@ -420,11 +429,11 @@ public class ClientTransferService
         }
     }
 
-    public void handleTransferCancel(TransferCancelPacket packet)
+    public void handleTransferCancel(TransferCancelPacket packet)   //取消传输任务后，执行本地清理
     {
         String reason = packet.getReason()==null || packet.getReason().isBlank()
                 ? "Transfer canceled by peer"
-                : packet.getReason();
+                : packet.getReason();//确定传输任务取消的原因
         boolean firstCancel = canceledTransferIds.add(packet.getTransferId());
         if(!firstCancel)
         {
@@ -432,8 +441,8 @@ public class ClientTransferService
             return;
         }
 
-        cancelLocalTransfer(packet.getTransferId(), reason);
-        transferTaskRegistry.findByTransferId(packet.getTransferId()).ifPresent(task -> {
+        cancelLocalTransfer(packet.getTransferId(), reason);//执行本地取消逻辑，停止正在发送或接收的数据流，关闭文件句柄，释放缓存区，移除传输上下文
+        transferTaskRegistry.findByTransferId(packet.getTransferId()).ifPresent(task -> {   //根据transferId查找本地任务
             if(task.getStatus()==null || !task.getStatus().isTerminal())
             {
                 task.updateStatus(TransferStatus.CANCELED, reason);
@@ -441,7 +450,7 @@ public class ClientTransferService
                 pushNotificationService.publish("transfer-cancelled", task);
             }
         });
-        sendCancelAckIfSender(packet.getTransferId(), reason);
+        sendCancelAckIfSender(packet.getTransferId(), reason);//发送传输取消ACK数据包
     }
 
     public void handleTransferCancelAck(TransferCancelAckPacket packet)
@@ -672,23 +681,23 @@ public class ClientTransferService
 
     }
 
-    private void executeRetransmit(OutboundTransferContext context, Path filePath, int startBlockId)
+    private void executeRetransmit(OutboundTransferContext context, Path filePath, int startBlockId)//正在执行断点重传的函数
     {
         synchronized (context)
         {
-            TransferTask task = context.transferTask;
+            TransferTask task = context.transferTask;//取出任务
             try
             {
-                context.ackFutures.clear();
-                task.updateStatus(TransferStatus.TRANSFERRING, "Retransmitting from block "+startBlockId);
+                context.ackFutures.clear();//清空旧的ACK等待记录
+                task.updateStatus(TransferStatus.TRANSFERRING, "Retransmitting from block "+startBlockId);//更新任务状态
                 persistTask(task);
                 pushNotificationService.publish("transfer-retransmit-started", task);
-                sendBlocksFrom(task, filePath, context.secretKey, context, startBlockId);
-                throwIfCanceled(task);
+                sendBlocksFrom(task, filePath, context.secretKey, context, startBlockId);//读取原文件，按块加密，然后发送给接收方
+                throwIfCanceled(task);//检查任务是否在过程中被取消
                 task.updateStatus(TransferStatus.COMPLETED, "File sent");
                 persistTask(task);
-                pushNotificationService.publish("transfer-complete", task);
-                outboundTransferContexts.remove(task.getTransferId());
+                pushNotificationService.publish("transfer-complete", task);//更新任务状态为完成
+                outboundTransferContexts.remove(task.getTransferId());//清理发送端上下文
                 context.ackFutures.clear();
             }
             catch(Exception e)
@@ -827,24 +836,24 @@ public class ClientTransferService
         pushNotificationService.publish("transfer-progress", task);
     }
 
-    private void cancelLocalTransfer(String transferId, String reason)
+    private void cancelLocalTransfer(String transferId, String reason)  //处理本地内存状态，等待中的异步任务，传输上下文和资源关闭
     {
-        canceledTransferIds.add(transferId);
+        canceledTransferIds.add(transferId);//记录到取消集合
         pendingRetransmitRequests.remove(transferId);
 
         CompletableFuture<SelectedReceiverDevice> deviceSelectionFuture = deviceSelectionFutures.remove(transferId);
         if(deviceSelectionFuture!=null)
         {
             deviceSelectionFuture.completeExceptionally(new TransferCanceledException(reason, null));
-        }
+        }//清理接收设备选择的等待任务
 
-        OutboundTransferContext outboundContext = outboundTransferContexts.remove(transferId);
+        OutboundTransferContext outboundContext = outboundTransferContexts.remove(transferId);//清理发送端上下文
         if(outboundContext!=null)
         {
-            outboundContext.acceptFuture.completeExceptionally(new TransferCanceledException(reason, null));
+            outboundContext.acceptFuture.completeExceptionally(new TransferCanceledException(reason, null));    //如果发送端还在等待接收方传输，就让这个等待异常结束
             for(CompletableFuture<Boolean> ackFuture : outboundContext.ackFutures.values())
             {
-                ackFuture.complete(false);
+                ackFuture.complete(false);//处理等待ACK的future对象
             }
             outboundContext.ackFutures.clear();
         }
@@ -852,7 +861,7 @@ public class ClientTransferService
         InboundTransferContext inboundContext = inboundTransferContexts.remove(transferId);
         if(inboundContext!=null)
         {
-            inboundContext.closeQuietly();
+            inboundContext.closeQuietly();//清理接收端上下文，标记transferId已经取消，2.删除待重传请求，3.取消等待选择接收设备的future,4.清理发送端上下文，5.让等待接收和等待ACK的异步流程结束，6.关闭资源
         }
     }
 
@@ -1222,7 +1231,7 @@ public class ClientTransferService
             return receivedBlocks >= transferTask.getTotalBlocks();
         }
 
-        private void closeQuietly()
+        private void closeQuietly()//取消接收任务时需要关闭输出流。
         {
             try
             {

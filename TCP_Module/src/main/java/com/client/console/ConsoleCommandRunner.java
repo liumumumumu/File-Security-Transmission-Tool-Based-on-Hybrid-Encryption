@@ -34,6 +34,22 @@ import java.util.concurrent.TimeUnit;
  * Author: LQH
  * Date: 2026-05-04
  * Purpose: 在客户端程序启动后开启一个命令行交互控制台
+ * 实现的指令：
+ * 1. help：打印控制台帮助信息
+ * 2. status：查看当前客户端连接状态
+ * 3. connect / disconnect：连接服务器并认证，或断开连接
+ * 4. send：向目标 accountId 发送文件
+ * 5. incoming / accept / reject：查看、接受或拒绝待处理的接收请求
+ * 6. cancel：取消正在进行或待接受的传输任务
+ * 7. retransmit / retransmit-accept / retransmit-reject：请求断点重传，以及发送方接受或拒绝重传
+ * 8. contacts / contact-add / contact-remove / contact-show：管理本地联系人
+ * 9. blacklist / blacklist-add / blacklist-add-contact / blacklist-remove：管理本地黑名单
+ * 10. search-user / search-user-add：搜索在线账号，并可加入联系人
+ * 11. tasks / task：查看传输任务列表或动态查看单个任务进度
+ * 12. public-key / public-key-fingerprint / account-id：查看本地公钥或计算公钥指纹(accountId)
+ * 13. key-info / generate-key / delete-key：查看、生成或删除本地密钥
+ * 14. import-private-key / import-private-key-file / import-private-key-paste：导入私钥
+ * 15. exit / quit：退出客户端程序
  *
  * */
 
@@ -151,7 +167,7 @@ public class ConsoleCommandRunner
                 case "tasks" -> printTasks();                   //列出所有传输任务
                 case "task" -> printTask(reader, args);         //动态查看单个任务详情， task <taskId|transferId> [--once]    //参数可以是任务Id, 也可以是传输Id, once表示只看看一眼，不动态的显示传输进度。退出动态查看传输进度的方式，1.直接按Enter,2.输入Q再按Enter就是退出动态查看传输进度了。
                 case "public-key" -> printPublicKey();          //查看和导入密钥,打印当前客户端的本地公钥
-                case "public-key-fingerprint", "accountId" -> printPublicKeyFingerprint(args);  //计算指定公钥或本地公钥的指纹;因为公钥指纹就是本系统的accountId,故也兼容accountId指令
+                case "public-key-fingerprint", "accountid", "account-id" -> printPublicKeyFingerprint(args);  //计算指定公钥或本地公钥的指纹;因为公钥指纹就是本系统的accountId,故也兼容accountId指令
                 case "key-info" -> printKeyInfo();              //打印Python加密服务管理的密钥状态
                 case "generate-key" -> generateKey();           //请求Python加密服务生成密钥
                 case "delete-key" -> deleteKey();               //请求Python加密服务删除密钥
@@ -202,6 +218,7 @@ public class ConsoleCommandRunner
         System.out.println("  task <taskId|transferId> [--once] Watch one transfer task progress. Press Enter or q then Enter to stop watching.");
         System.out.println("  public-key                        Print local public key");
         System.out.println("  public-key-fingerprint [publicKey] Print fingerprint for the given public key, or local public key when omitted");
+        System.out.println("  account-id [publicKey]             Alias of public-key-fingerprint");//alias别名
         System.out.println("  key-info                          Show crypto service key status");
         System.out.println("  generate-key                      Generate key pair in the crypto service");
         System.out.println("  delete-key                        Delete key pair from the crypto service");
@@ -377,6 +394,7 @@ public class ConsoleCommandRunner
         System.out.println("Rejected incoming transfer request: " + args.get(1));
     }
 
+    //处理取消传输任务
     private void cancelTransfer(List<String> args)
     {
         if (args.size() < 2) {

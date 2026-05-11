@@ -3,7 +3,7 @@ package com.common.protocol.file;
 import com.common.protocol.MessageType;
 import com.common.protocol.Packet;
 
-public class TransferCancelAckPacket extends Packet
+public class TransferCancelAckPacket extends Packet     //确认取消传输的数据包
 {
     private String transferId;
     private String ackByDeviceId;

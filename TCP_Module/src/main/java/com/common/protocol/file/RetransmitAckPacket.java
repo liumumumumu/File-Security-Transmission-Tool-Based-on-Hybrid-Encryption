@@ -3,7 +3,7 @@ package com.common.protocol.file;
 import com.common.protocol.MessageType;
 import com.common.protocol.Packet;
 
-public class RetransmitAckPacket extends Packet
+public class RetransmitAckPacket extends Packet     //重传确认数据包
 {
     private String transferId;
     private boolean accepted;

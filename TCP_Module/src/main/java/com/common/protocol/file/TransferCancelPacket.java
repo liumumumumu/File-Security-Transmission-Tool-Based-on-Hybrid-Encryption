@@ -3,7 +3,7 @@ package com.common.protocol.file;
 import com.common.protocol.MessageType;
 import com.common.protocol.Packet;
 
-public class TransferCancelPacket extends Packet
+public class TransferCancelPacket extends Packet    //取消传输数据包
 {
     private String transferId;
     private String reason;

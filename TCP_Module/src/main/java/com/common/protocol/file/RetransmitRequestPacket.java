@@ -3,7 +3,7 @@ package com.common.protocol.file;
 import com.common.protocol.MessageType;
 import com.common.protocol.Packet;
 
-public class RetransmitRequestPacket extends Packet
+public class RetransmitRequestPacket extends Packet     //重传请求数据包
 {
     private String transferId;
     private int startBlockId;
