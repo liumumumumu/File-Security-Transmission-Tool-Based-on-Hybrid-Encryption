@@ -171,6 +171,9 @@ public class SendController
         payload.put("transferredBlocks", task.getTransferredBlocks());
         payload.put("totalBlocks", task.getTotalBlocks());
         payload.put("createdAt", task.getCreatedAt());
+        payload.put("transferStartedAt", task.getTransferStartedAt());
+        payload.put("speedMegabytesPerSecond", task.getAverageSpeedMegabytesPerSecond());
+        payload.put("speedText", String.format("%.2f mb/s", task.getAverageSpeedMegabytesPerSecond()));
         return payload;
     }
 

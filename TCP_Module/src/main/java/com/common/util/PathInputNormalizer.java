@@ -18,7 +18,7 @@ public final class PathInputNormalizer
     {
         String normalized = normalize(input);//通过normalize来规格化字符串
         if (normalized.startsWith("file:/")) {
-            return Path.of(URI.create(normalized));
+            return Path.of(URI.create(escapeFileUri(normalized)));
         }
         return Path.of(normalized);//再把规格化后的字符串转成Path
     }
@@ -34,6 +34,11 @@ public final class PathInputNormalizer
             normalized = normalized.substring(1, normalized.length() - 1).trim();
         }
         return normalized;
+    }
+
+    private static String escapeFileUri(String value)//给file:/...形式的路径做一个很小的URI容错处理
+    {
+        return value.replace(" ", "%20");
     }
 
     //判断字符串是不是被引号完整的包住

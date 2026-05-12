@@ -23,6 +23,7 @@ import org.springframework.stereotype.Component;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -114,7 +115,7 @@ public class ConsoleCommandRunner
     {
         printWelcome();//打印欢迎消息
         remindIfKeyMissing();//检查当前是否有密钥
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, commandInputCharset()))) {
             while (applicationContext.isActive()) {//进入大循环
                 System.out.print("fst> ");
                 String line = reader.readLine();
@@ -126,6 +127,12 @@ public class ConsoleCommandRunner
         } catch (IOException ex) {
             System.out.println("Console stopped: " + ex.getMessage());
         }
+    }
+
+    private Charset commandInputCharset()//按照统一的字符集解码
+    {
+        java.io.Console console = System.console();
+        return console == null ? Charset.defaultCharset() : console.charset();
     }
 
     private void handleCommand(BufferedReader reader, String line)//命令分发
@@ -660,22 +667,9 @@ public class ConsoleCommandRunner
     private void watchTaskProgress(BufferedReader reader, TransferTask task) throws IOException
     {
         System.out.println("Watching task progress. Press 'Enter' or 'q then Enter' to stop watching.");
-        long lastBytes = task.getTransferredBytes();
-        long lastNanos = System.nanoTime();
-        double speedMegabytesPerSecond = 0D;
         while (applicationContext.isActive()) {     //外层循环
-            long currentBytes = task.getTransferredBytes();
-            long currentNanos = System.nanoTime();
-            double elapsedSeconds = (currentNanos - lastNanos) / 1_000_000_000D;
-            if(elapsedSeconds > 0D)
-            {
-                speedMegabytesPerSecond = Math.max(0D, (currentBytes - lastBytes) / elapsedSeconds / 1024D / 1024D);
-            }
-            lastBytes = currentBytes;
-            lastNanos = currentNanos;
-
             synchronized (System.out) {
-                System.out.print("\r" + clearToLineEnd(formatProgressLine(task, speedMegabytesPerSecond)));// \r把光标，移回到当前行的开头， clearToLineEnd()清空当前行再打印新内容
+                System.out.print("\r" + clearToLineEnd(formatProgressLine(task)));// \r把光标，移回到当前行的开头， clearToLineEnd()清空当前行再打印新内容
             }
 
             //任务进入终态就停止动态查看
@@ -708,17 +702,17 @@ public class ConsoleCommandRunner
     }
 
     //格式化输出传输任务的进度
-    private String formatProgressLine(TransferTask task, double speedMegabytesPerSecond)
+    private String formatProgressLine(TransferTask task)
     {
         double progressPercent = task.getProgress() * 100D;
         int filledWidth = (int) Math.round(Math.min(100D, Math.max(0D, progressPercent)) / 100D * PROGRESS_BAR_WIDTH);
         String bar = "#".repeat(filledWidth) + "-".repeat(PROGRESS_BAR_WIDTH - filledWidth);
         return String.format(
-                "[%s] %.2f%% | %s | %.2f MB/s | bytes %d/%d | blocks %d/%d | %s",
+                "[%s] %.2f%% | %s | %.2f mb/s | bytes %d/%d | blocks %d/%d | %s",
                 bar,
                 progressPercent,
                 task.getStatus(),
-                speedMegabytesPerSecond,
+                task.getAverageSpeedMegabytesPerSecond(),
                 task.getTransferredBytes(),
                 task.getTotalBytes(),
                 task.getTransferredBlocks(),
@@ -752,7 +746,9 @@ public class ConsoleCommandRunner
         System.out.println("bytes: " + task.getTransferredBytes() + "/" + task.getTotalBytes());
         System.out.println("blocks: " + task.getTransferredBlocks() + "/" + task.getTotalBlocks());
         System.out.printf("progress: %.2f%%%n", task.getProgress() * 100D);
+        System.out.printf("speed: %.2f mb/s%n", task.getAverageSpeedMegabytesPerSecond());
         System.out.println("createdAt: " + task.getCreatedAt());
+        System.out.println("transferStartedAt: " + task.getTransferStartedAt());
         System.out.println("message: " + task.getMessage());
     }
 
