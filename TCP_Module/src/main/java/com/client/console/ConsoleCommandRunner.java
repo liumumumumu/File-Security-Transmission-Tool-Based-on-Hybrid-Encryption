@@ -12,6 +12,7 @@ import com.common.util.PathInputNormalizer;
 import com.client.service.TransferTaskRegistry;
 import com.persistence.local.model.contactsRecord.BlacklistRecord;
 import com.persistence.local.model.contactsRecord.ContactRecord;
+import com.session.TransferDirection;
 import com.session.TransferStatus;
 import com.session.TransferTask;
 import jakarta.annotation.PreDestroy;
@@ -24,6 +25,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,6 +60,8 @@ import java.util.concurrent.TimeUnit;
 public class ConsoleCommandRunner
 {
     private static final int PROGRESS_BAR_WIDTH = 30;
+    private static final int WINDOWS_DEFAULT_TERMINAL_COLUMNS = 80;
+    private static final int DEFAULT_TERMINAL_COLUMNS = 120;
     private static final long TASK_WATCH_INTERVAL_MILLIS = 1000L;
 
     private final ClientConnectionManager clientConnectionManager;//负责客户端连接服务器，认证，断开连接
@@ -69,6 +73,7 @@ public class ConsoleCommandRunner
     private final PushNotificationService pushNotificationService;//监听本地通知
     private final LocalContactBookService localContactBookService;//负责本地联系人和黑名单
     private Runnable notificationSubscription;
+    private int lastProgressLineLength;
 
     public ConsoleCommandRunner(
             ClientConnectionManager clientConnectionManager,
@@ -173,6 +178,7 @@ public class ConsoleCommandRunner
                 case "search-user-add" -> searchUserAndAddContact(args); //搜索在线用户并加入联系人
                 case "tasks" -> printTasks();                   //列出所有传输任务
                 case "task" -> printTask(reader, args);         //动态查看单个任务详情， task <taskId|transferId> [--once]    //参数可以是任务Id, 也可以是传输Id, once表示只看看一眼，不动态的显示传输进度。退出动态查看传输进度的方式，1.直接按Enter,2.输入Q再按Enter就是退出动态查看传输进度了。
+                case "open-received", "open-file" -> openReceivedFile(args); //在系统文件管理器中打开接收到的文件，open-received <taskId|transferId|fileName>
                 case "public-key" -> printPublicKey();          //查看和导入密钥,打印当前客户端的本地公钥
                 case "public-key-fingerprint", "accountid", "account-id" -> printPublicKeyFingerprint(args);  //计算指定公钥或本地公钥的指纹;因为公钥指纹就是本系统的accountId,故也兼容accountId指令
                 case "key-info" -> printKeyInfo();              //打印Python加密服务管理的密钥状态
@@ -223,6 +229,7 @@ public class ConsoleCommandRunner
         System.out.println("  search-user-add <accountId> [alias] Search online user and add to contacts");
         System.out.println("  tasks                             List transfer tasks");
         System.out.println("  task <taskId|transferId> [--once] Watch one transfer task progress. Press Enter or q then Enter to stop watching.");
+        System.out.println("  open-received <taskId|transferId|fileName> Reveal a received file in Finder or Explorer");
         System.out.println("  public-key                        Print local public key");
         System.out.println("  public-key-fingerprint [publicKey] Print fingerprint for the given public key, or local public key when omitted");
         System.out.println("  account-id [publicKey]             Alias of public-key-fingerprint");//alias别名
@@ -667,9 +674,10 @@ public class ConsoleCommandRunner
     private void watchTaskProgress(BufferedReader reader, TransferTask task) throws IOException
     {
         System.out.println("Watching task progress. Press 'Enter' or 'q then Enter' to stop watching.");
+        lastProgressLineLength = 0;
         while (applicationContext.isActive()) {     //外层循环
             synchronized (System.out) {
-                System.out.print("\r" + clearToLineEnd(formatProgressLine(task)));// \r把光标，移回到当前行的开头， clearToLineEnd()清空当前行再打印新内容
+                printProgressLine(formatProgressLine(task));// \r把光标移回当前行开头，然后覆盖旧内容
             }
 
             //任务进入终态就停止动态查看
@@ -697,8 +705,94 @@ public class ConsoleCommandRunner
 
         synchronized (System.out) {
             System.out.println();
+            lastProgressLineLength = 0;
         }
         printTaskDetails(task);
+    }
+
+    //在同一控制台行刷新进度。Windows 控制台行宽较窄时，过长文本会自动换行，后续 \r 只能回到换行后的物理行行首。
+    //所以这里先按终端宽度截断，再用空格覆盖上一轮残留字符，避免动态进度不断追加到下一行。
+    private void printProgressLine(String line)
+    {
+        String printableLine = fitProgressLineToTerminal(line);
+        int printableWidth = displayWidth(printableLine);
+        int clearLength = Math.max(0, lastProgressLineLength - printableWidth);
+        System.out.print("\r" + printableLine + " ".repeat(clearLength) + "\r" + printableLine);
+        System.out.flush();
+        lastProgressLineLength = printableWidth;
+    }
+
+    private String fitProgressLineToTerminal(String line)
+    {
+        int maxColumns = Math.max(20, terminalColumns() - 1);
+        if (displayWidth(line) <= maxColumns) {
+            return line;
+        }
+        return truncateToDisplayWidth(line, maxColumns - 3) + "...";
+    }
+
+    private String truncateToDisplayWidth(String value, int maxWidth)
+    {
+        if (maxWidth <= 0) {
+            return "";
+        }
+        StringBuilder result = new StringBuilder();
+        int width = 0;
+        for (int offset = 0; offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            int charWidth = displayWidth(codePoint);
+            if (width + charWidth > maxWidth) {
+                break;
+            }
+            result.appendCodePoint(codePoint);
+            width += charWidth;
+            offset += Character.charCount(codePoint);
+        }
+        return result.toString();
+    }
+
+    private int displayWidth(String value)
+    {
+        int width = 0;
+        for (int offset = 0; offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            width += displayWidth(codePoint);
+            offset += Character.charCount(codePoint);
+        }
+        return width;
+    }
+
+    private int displayWidth(int codePoint)
+    {
+        if (Character.isISOControl(codePoint)) {
+            return 0;
+        }
+        Character.UnicodeScript script = Character.UnicodeScript.of(codePoint);
+        return script == Character.UnicodeScript.HAN
+                || script == Character.UnicodeScript.HIRAGANA
+                || script == Character.UnicodeScript.KATAKANA
+                || script == Character.UnicodeScript.HANGUL ? 2 : 1;
+    }
+
+    private int terminalColumns()
+    {
+        String columns = System.getenv("COLUMNS");
+        if (columns != null && !columns.isBlank()) {
+            try {
+                int parsedColumns = Integer.parseInt(columns.trim());
+                if (parsedColumns > 0) {
+                    return parsedColumns;
+                }
+            } catch (NumberFormatException ignored) {
+                //使用平台默认宽度
+            }
+        }
+        return isWindows() ? WINDOWS_DEFAULT_TERMINAL_COLUMNS : DEFAULT_TERMINAL_COLUMNS;
+    }
+
+    private boolean isWindows()
+    {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
 
     //格式化输出传输任务的进度
@@ -719,12 +813,6 @@ public class ConsoleCommandRunner
                 task.getTotalBlocks(),
                 task.getMessage()
         );
-    }
-
-    //清空当前行
-    private String clearToLineEnd(String value)
-    {
-        return "\033[2K" + value;   // \033[2k是ANSI控制码，用来清空当前行
     }
 
     //判断传输任务是否完成
@@ -750,6 +838,96 @@ public class ConsoleCommandRunner
         System.out.println("createdAt: " + task.getCreatedAt());
         System.out.println("transferStartedAt: " + task.getTransferStartedAt());
         System.out.println("message: " + task.getMessage());
+    }
+
+    private void openReceivedFile(List<String> args) throws IOException
+    {
+        if (args.size() < 2) {
+            System.out.println("Usage: open-received <taskId|transferId|fileName>");
+            return;
+        }
+
+        String target = args.get(1);
+        TransferTask task = resolveReceivedFileTask(target);
+        if (task == null) {
+            System.out.println("Received file not found by taskId, transferId, or fileName: " + target);
+            return;
+        }
+        if (task.getLocalPath() == null || task.getLocalPath().isBlank()) {
+            System.out.println("Received file path is empty for task: " + task.getTaskId());
+            return;
+        }
+
+        Path filePath = Path.of(task.getLocalPath()).toAbsolutePath().normalize();
+        if (!Files.exists(filePath)) {
+            System.out.println("Received file path no longer exists: " + filePath);
+            return;
+        }
+
+        revealInFileManager(filePath);
+        System.out.println("Opened file location: " + filePath);
+    }
+
+    private TransferTask resolveReceivedFileTask(String target)
+    {
+        TransferTask task = transferTaskRegistry.findByTaskId(target)
+                .or(() -> transferTaskRegistry.findByTransferId(target))
+                .orElse(null);
+        if (task != null) {
+            if (task.getDirection() != TransferDirection.RECEIVE) {
+                throw new IllegalArgumentException("Task is not a received file: " + target);
+            }
+            return task;
+        }
+
+        List<TransferTask> matches = transferTaskRegistry.allTasks().stream()
+                .filter(candidate -> candidate.getDirection() == TransferDirection.RECEIVE)
+                .filter(candidate -> fileNameMatches(candidate, target))
+                .toList();
+        if (matches.isEmpty()) {
+            return null;
+        }
+        if (matches.size() > 1) {
+            System.out.println("Multiple received files matched. Please use taskId or transferId:");
+            for (TransferTask match : matches) {
+                System.out.printf(
+                        "  taskId=%s | transferId=%s | fileName=%s | localPath=%s%n",
+                        match.getTaskId(),
+                        match.getTransferId(),
+                        match.getFileName(),
+                        match.getLocalPath()
+                );
+            }
+            return null;
+        }
+        return matches.get(0);
+    }
+
+    private boolean fileNameMatches(TransferTask task, String target)
+    {
+        if (task.getLocalPath() == null || task.getLocalPath().isBlank()) {
+            return target.equals(task.getFileName()) || target.equalsIgnoreCase(task.getFileName());
+        }
+        String localFileName = Path.of(task.getLocalPath()).getFileName().toString();
+        return target.equals(task.getFileName())
+                || target.equalsIgnoreCase(task.getFileName())
+                || target.equals(localFileName)
+                || target.equalsIgnoreCase(localFileName);
+    }
+
+    private void revealInFileManager(Path filePath) throws IOException
+    {
+        String osName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        ProcessBuilder processBuilder;
+        if (osName.contains("mac")) {
+            processBuilder = new ProcessBuilder("open", "-R", filePath.toString());
+        } else if (osName.contains("win")) {
+            processBuilder = new ProcessBuilder("explorer.exe", "/select," + filePath.toString());
+        } else {
+            Path parent = filePath.getParent();
+            processBuilder = new ProcessBuilder("xdg-open", parent == null ? filePath.toString() : parent.toString());
+        }
+        processBuilder.start();
     }
 
     private void printPublicKey()//打印当前的公钥

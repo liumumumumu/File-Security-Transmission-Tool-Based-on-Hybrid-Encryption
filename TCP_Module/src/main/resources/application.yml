@@ -11,7 +11,7 @@ authentication-result:
   failed: "Authentication Failed"
 
 client:
-  serverHost: 127.0.0.1
+  serverHost: 82.156.228.71
   serverPort: 9000
   connectionTimeout: 5000
   authTimeoutSeconds: 1000
@@ -25,12 +25,12 @@ app:
 
 node:
   device-id: ${NODE_DEVICE_ID:}
-  auto-connect: false
+  auto-connect: true
 
 
 server:
   address: 127.0.0.1
-  port: 20203
+  port: 20201
   tcp:
     enabled: false
     bind-host: 0.0.0.0
