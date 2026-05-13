@@ -1,6 +1,6 @@
 # Encryption Module
 
-本目录汇总本项目的 Python 加密相关代码，便于 TCP 模块和后续 UI 模块统一对接。
+本目录汇总本项目的 Python 加密相关代码，是仓库中保留的统一 Python 加密模块入口，便于 TCP 模块和后续 UI 模块统一对接。
 
 ## 目录结构
 

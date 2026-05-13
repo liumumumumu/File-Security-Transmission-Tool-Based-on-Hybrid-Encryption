@@ -11,7 +11,7 @@ venv/
 *.log
 tmp*/
 
-# 密钥/证书文件，禁止提交
+# Secret keys and certificates must not be committed.
 crypto_keys*/
 **/crypto_keys*/
 *.pem
@@ -23,17 +23,17 @@ id_ed25519.pub
 private_key.*
 public_key.*
 
-# 队友/外部项目副本，不提交到 LLY 分支
+# Local copies from teammates or external modules.
 LZY/
 LQH/
 Version0003/
 
-# 构建产物/临时包
+# Build artifacts and temporary archives.
 *.jar
 *.tmp
 *.zip
 
-# 资料文件，不入库
+# Local documents and screenshots.
 *.pdf
 *.png
 *.jpg
