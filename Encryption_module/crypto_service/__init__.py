@@ -1,1 +1,0 @@
-"""HTTP crypto service package."""

@@ -1,46 +1,70 @@
-__pycache__/
-*.pyc
-*.pyo
-test_input.bin
-test_output.bin
-.venv/
-venv/
+# OS
+**/.DS_Store
+
+# IDE
 .idea/
+*.iml
 .vscode/
-.claude/
-*.log
-tmp*/
 
-# Secret keys and certificates must not be committed.
-crypto_keys*/
-**/crypto_keys*/
-*.pem
-*.key
-id_rsa
-id_rsa.pub
-id_ed25519
-id_ed25519.pub
-private_key.*
-public_key.*
+# Java / other build outputs
+target/
+*.class
 
-# Local copies from teammates or external modules.
-LZY/
-LQH/
-Version0003/
+# Build directories
+Build/
+build/
+cmake-build-*/
+dist/
 
-# Build artifacts and temporary archives.
-*.jar
-*.tmp
+# CMake generated
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+CMakeLists.txt.user
+CMakeLists.txt.user.*
+
+# qmake / Qt Creator generated
+*.pro.user
+*.pro.user.*
+.qmake.stash
+Makefile
+Makefile.*
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.moc
+
+# Object / library / executable outputs
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.dSYM/
+
+# Archives
 *.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
 
-# Local documents and screenshots.
-*.pdf
-*.png
-*.jpg
-*.jpeg
-*.docx
-*.doc
-对话.docx
-题目.pdf
-题目.png
-加密模块需要的函数.md
+# Logs / temp
+*.tmp
+*.temp
+*.log
+
+# Runtime generated data
+crypto_keys/
+
+# Project-specific ignored files
+**/httplib.h
