@@ -178,7 +178,7 @@ public class ConsoleCommandRunner
                 case "search-user-add" -> searchUserAndAddContact(args); //搜索在线用户并加入联系人
                 case "tasks" -> printTasks();                   //列出所有传输任务
                 case "task" -> printTask(reader, args);         //动态查看单个任务详情， task <taskId|transferId> [--once]    //参数可以是任务Id, 也可以是传输Id, once表示只看看一眼，不动态的显示传输进度。退出动态查看传输进度的方式，1.直接按Enter,2.输入Q再按Enter就是退出动态查看传输进度了。
-                case "open-received", "open-file" -> openReceivedFile(args); //在系统文件管理器中打开接收到的文件，open-received <taskId|transferId|fileName>
+                case "open-received", "open-receive", "open-file" -> openReceivedFile(args); //在系统文件管理器中打开接收到的文件，open-received <taskId|transferId|fileName>
                 case "public-key" -> printPublicKey();          //查看和导入密钥,打印当前客户端的本地公钥
                 case "public-key-fingerprint", "accountid", "account-id" -> printPublicKeyFingerprint(args);  //计算指定公钥或本地公钥的指纹;因为公钥指纹就是本系统的accountId,故也兼容accountId指令
                 case "key-info" -> printKeyInfo();              //打印Python加密服务管理的密钥状态
@@ -230,6 +230,7 @@ public class ConsoleCommandRunner
         System.out.println("  tasks                             List transfer tasks");
         System.out.println("  task <taskId|transferId> [--once] Watch one transfer task progress. Press Enter or q then Enter to stop watching.");
         System.out.println("  open-received <taskId|transferId|fileName> Reveal a received file in Finder or Explorer");
+        System.out.println("                                    Wrap fileName with double or single quotes, for example: open-received \"report.zip\"");
         System.out.println("  public-key                        Print local public key");
         System.out.println("  public-key-fingerprint [publicKey] Print fingerprint for the given public key, or local public key when omitted");
         System.out.println("  account-id [publicKey]             Alias of public-key-fingerprint");//alias别名
@@ -843,7 +844,7 @@ public class ConsoleCommandRunner
     private void openReceivedFile(List<String> args) throws IOException
     {
         if (args.size() < 2) {
-            System.out.println("Usage: open-received <taskId|transferId|fileName>");
+            System.out.println("Usage: open-received <taskId|transferId|\"fileName\">");
             return;
         }
 

@@ -151,7 +151,7 @@ retransmit-accept <transferId>            接受重传请求
 retransmit-reject <transferId>            拒绝重传请求
 tasks                                     查看传输任务列表
 task <taskId|transferId> [--once]         动态查看任务进度
-open-received <taskId|transferId|fileName> 打开接收文件所在位置
+open-received <taskId|transferId|fileName> 打开接收文件所在位置；按文件名查找时请使用 "" 或 '' 包起来
 contacts                                  查看联系人
 contact-add <accountId> [alias]           添加或更新联系人
 contact-remove <contact-N|N>              删除联系人
@@ -248,7 +248,7 @@ curl -X POST http://127.0.0.1:20201/api/send \
 接收到的文件默认保存到 `downloads-client-1`。用户可以在控制台中使用：
 
 ```text
-open-received <taskId|transferId|fileName>
+open-received <taskId|transferId|"fileName">
 ```
 
 该命令会在系统文件管理器中定位接收文件：
@@ -256,6 +256,13 @@ open-received <taskId|transferId|fileName>
 - macOS: Finder
 - Windows: File Explorer
 - Linux: 默认文件管理器
+
+当参数是文件名时，请使用双引号或单引号包起来，例如：
+
+```text
+open-received "report.zip"
+open-received 'report.zip'
+```
 
 ## 启动方式
 
