@@ -52,7 +52,8 @@ import java.util.concurrent.TimeUnit;
  * 12. public-key / public-key-fingerprint / account-id：查看本地公钥或计算公钥指纹(accountId)
  * 13. key-info / generate-key / delete-key：查看、生成或删除本地密钥
  * 14. import-private-key / import-private-key-file / import-private-key-paste：导入私钥
- * 15. exit / quit：退出客户端程序
+ * 15. language：切换 help 说明界面的语言
+ * 16. exit / quit：退出客户端程序
  *
  * */
 
@@ -74,6 +75,7 @@ public class ConsoleCommandRunner
     private final LocalContactBookService localContactBookService;//负责本地联系人和黑名单
     private Runnable notificationSubscription;
     private int lastProgressLineLength;
+    private HelpLanguage helpLanguage = HelpLanguage.ENGLISH;
 
     public ConsoleCommandRunner(
             ClientConnectionManager clientConnectionManager,
@@ -155,6 +157,7 @@ public class ConsoleCommandRunner
         try {
             switch (command) {
                 case "help" -> printHelp();                     //打印所有可用命令
+                case "language" -> changeHelpLanguage(reader);  //切换help说明界面的语言
                 case "status" -> printStatus();                 //把当前客户端连接状态逐项打印出来
                 case "connect" -> connect(args);                //用于连接服务器并完成认证，connect [host] [port]
                 case "disconnect" -> disconnect();              //断开当前连接
@@ -204,8 +207,19 @@ public class ConsoleCommandRunner
 
     private void printHelp()//打印该控制台程序支持的所有命令
     {
+        if (helpLanguage == HelpLanguage.CHINESE) {
+            printHelpChinese();
+            return;
+        }
+        printHelpEnglish();
+    }
+
+    //英语版的指令说明
+    private void printHelpEnglish()
+    {
         System.out.println("Commands:");
         System.out.println("  help                              Show this help");
+        System.out.println("  language                          Change help language");
         System.out.println("  status                            Show client connection status");
         System.out.println("  connect [host] [port]             Connect and authenticate with server");
         System.out.println("  disconnect                        Disconnect from server");
@@ -244,6 +258,78 @@ public class ConsoleCommandRunner
         System.out.println("Paths with spaces can be wrapped in double quotes.");
     }
 
+    //中文版的指令说明
+    private void printHelpChinese()
+    {
+        System.out.println("命令:");
+        System.out.println("  help                              显示此帮助说明");
+        System.out.println("  language                          切换help说明界面的语言");
+        System.out.println("  status                            查看客户端连接状态");
+        System.out.println("  connect [host] [port]             连接服务器并完成认证");
+        System.out.println("  disconnect                        断开服务器连接");
+        System.out.println("  send <filePath> <targetAccountId> 向目标账号发送文件");
+        System.out.println("  incoming                          查看待接收的传输请求");
+        System.out.println("  accept <transferId>               在本设备接受一个传输请求");
+        System.out.println("  reject <transferId>               拒绝并取消一个传输请求");
+        System.out.println("  cancel <taskId|transferId>        取消正在进行的传输任务");
+        System.out.println("  retransmit <taskId|transferId>    按接收方进度请求断点重传");
+        System.out.println("  retransmit-accept <transferId>    接受接收方的重传请求");
+        System.out.println("  retransmit-reject <transferId>    拒绝接收方的重传请求");
+        System.out.println("  contacts                          查看本地联系人");
+        System.out.println("  contact-add <accountId> [alias]   新增或更新本地联系人");
+        System.out.println("  contact-remove <contact-N|N>      删除本地联系人");
+        System.out.println("  contact-show <contact-N|N>        查看一个本地联系人");
+        System.out.println("  blacklist                         查看黑名单记录");
+        System.out.println("  blacklist-add <accountId> [reason] 新增或更新黑名单记录");
+        System.out.println("  blacklist-add-contact <contact-N|N> [reason] 将联系人加入黑名单");
+        System.out.println("  blacklist-remove <accountId>      删除黑名单记录");
+        System.out.println("  search-user <accountId>           搜索账号是否在线");
+        System.out.println("  search-user-add <accountId> [alias] 搜索在线账号并加入联系人");
+        System.out.println("  tasks                             查看传输任务列表");
+        System.out.println("  task <taskId|transferId> [--once] 查看单个传输任务进度。按Enter或输入q后按Enter停止动态查看。");
+        System.out.println("  open-received <taskId|transferId|fileName> 在Finder或Explorer中定位接收到的文件");
+        System.out.println("                                    文件名包含空格时可用双引号或单引号包裹，例如: open-received \"report.zip\"");
+        System.out.println("  public-key                        打印本地公钥");
+        System.out.println("  public-key-fingerprint [publicKey] 打印指定公钥的指纹，未提供时打印本地公钥指纹");
+        System.out.println("  account-id [publicKey]             public-key-fingerprint的别名");
+        System.out.println("  key-info                          查看加密服务密钥状态");
+        System.out.println("  generate-key                      在加密服务中生成密钥对");
+        System.out.println("  delete-key                        从加密服务中删除密钥对");
+        System.out.println("  import-private-key <keyText>      从手动复制或二维码扫描文本导入私钥");
+        System.out.println("  import-private-key-file <path>    从文件导入私钥");
+        System.out.println("  import-private-key-paste          粘贴多行私钥，最后输入单独一行的点号结束");
+        System.out.println("  exit                              停止应用程序");
+        System.out.println("路径包含空格时可以用双引号包裹。");
+    }
+
+    //处理切换语言的函数
+    private void changeHelpLanguage(BufferedReader reader) throws IOException
+    {
+        System.out.println("Select help language:");//目前先只支持这两个语言
+        System.out.println("  1. English");
+        System.out.println("  2. Chinese");
+        System.out.print("language> ");
+
+        String selected = reader.readLine();
+        if (selected == null) {
+            return;
+        }
+
+        //切换语言
+        switch (selected.trim().toLowerCase(Locale.ROOT)) {
+            case "1", "english", "en" -> {
+                helpLanguage = HelpLanguage.ENGLISH;
+                System.out.println("Help language changed to English.");
+            }
+            case "2", "chinese", "zh", "cn" -> {
+                helpLanguage = HelpLanguage.CHINESE;
+                System.out.println("Help language changed to Chinese.");
+            }
+            default -> System.out.println("Invalid language. Please choose 1/English or 2/Chinese.");
+        }
+    }
+
+    //在控制它推送待处理的传输请求
     private void handleNotification(String type, Object payload)
     {
         if ("incoming-transfer-request".equals(type)) {
@@ -254,6 +340,7 @@ public class ConsoleCommandRunner
         }
     }
 
+    //打印待处理的传输请求的通知
     private void printIncomingTransferNotification(Object payload)
     {
         if (!(notificationPayload(payload) instanceof Map<?, ?> values)) {
@@ -273,6 +360,7 @@ public class ConsoleCommandRunner
         ));
     }
 
+    //打印重传请求的通知
     private void printRetransmitRequestNotification(Object payload)
     {
         if (!(notificationPayload(payload) instanceof Map<?, ?> values)) {
@@ -291,7 +379,7 @@ public class ConsoleCommandRunner
         ));
     }
 
-    private Object notificationPayload(Object payload)
+    private Object notificationPayload(Object payload)//统一提取通知消息里的真实业务数据
     {
         if(payload instanceof Map<?, ?> body && body.containsKey("payload"))
         {
@@ -841,6 +929,7 @@ public class ConsoleCommandRunner
         System.out.println("message: " + task.getMessage());
     }
 
+    //处理打开文件位置的函数
     private void openReceivedFile(List<String> args) throws IOException
     {
         if (args.size() < 2) {
@@ -1076,6 +1165,7 @@ public class ConsoleCommandRunner
         return "true".equalsIgnoreCase(String.valueOf(value));
     }
 
+    //解析Contact-1这个参数中的数字索引
     private int parseContactIndexArgument(String value)
     {
         if (value == null || value.isBlank()) {
@@ -1098,6 +1188,7 @@ public class ConsoleCommandRunner
         return joinArguments(args, startIndex, args.size());
     }
 
+    //将args里指定范围的参数，重新用空格拼成一个字符串
     private String joinArguments(List<String> args, int startIndex, int endExclusive)
     {
         StringBuilder builder = new StringBuilder();
@@ -1110,11 +1201,13 @@ public class ConsoleCommandRunner
         return builder.toString();
     }
 
+    //统一显示可能为空的字符串
     private String displayNullable(String value)
     {
         return value == null || value.isBlank() ? "-" : value;
     }
 
+    //将过长的字符串缩短后显示
     private String abbreviate(String value, int maxLength)
     {
         if (value == null || value.isBlank()) {
@@ -1129,6 +1222,7 @@ public class ConsoleCommandRunner
         return value.substring(0, maxLength - 3) + "...";
     }
 
+    //打印密钥缺失提醒
     private void printMissingKeyReminder()
     {
         System.out.println("No local key pair is available.");
@@ -1186,11 +1280,19 @@ public class ConsoleCommandRunner
         return args;
     }
 
+    //把当前正在拼接的一个命令参数，加入到参数列表args里，然后清空StringBuilder,准备解析下一个参数
     private void addArgument(List<String> args, StringBuilder current)
     {
         if (!current.isEmpty()) {
             args.add(current.toString());
             current.setLength(0);
         }
+    }
+
+    //语言枚举类
+    private enum HelpLanguage
+    {
+        ENGLISH,
+        CHINESE
     }
 }

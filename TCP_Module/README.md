@@ -1,5 +1,7 @@
 # File Security Transmission Tool - TCP Module
 
+[English README](README_EN.md)
+
 基于 Java / Spring Boot / Netty 的文件安全传输模块。该模块同时包含客户端和服务端入口，通过同一个可执行 jar 使用不同 role 启动。
 
 客户端提供两类入口：
@@ -138,6 +140,7 @@ MYSQL_PASSWORD          默认 123456zxc@
 
 ```text
 help                                      查看帮助
+language                                  切换 help 说明界面语言
 status                                    查看客户端连接状态
 connect [host] [port]                     连接并认证服务器
 disconnect                                断开服务器连接
@@ -173,6 +176,18 @@ import-private-key-file <path>            从文件导入私钥
 import-private-key-paste                  粘贴多行私钥
 exit                                      退出客户端
 ```
+
+### help 语言切换
+
+控制台默认使用英文显示 `help` 说明。输入 `language` 后，可以选择 `help` 说明界面的语言：
+
+```text
+language
+1. English
+2. Chinese
+```
+
+选择 `English` / `1` 后，后续 `help` 使用英文说明；选择 `Chinese` / `2` 后，后续 `help` 使用中文说明。该设置只影响 `help` 命令的说明界面，不会改变其他控制台命令的输出语言。
 
 ## 客户端 HTTP API
 
