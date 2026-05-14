@@ -112,6 +112,7 @@ public class LocalTransferHistoryService {
             long totalBytes,
             int totalBlocks,
             Instant createdAt,
+            Instant transferStartedAt,
             TransferStatus status,
             long transferredBytes,
             int transferredBlocks,
@@ -131,6 +132,7 @@ public class LocalTransferHistoryService {
                     task.getTotalBytes(),
                     task.getTotalBlocks(),
                     task.getCreatedAt(),
+                    task.getTransferStartedAt(),
                     task.getStatus(),
                     task.getTransferredBytes(),
                     task.getTransferredBlocks(),
@@ -152,7 +154,7 @@ public class LocalTransferHistoryService {
                     totalBlocks,
                     createdAt
             );
-            task.restoreState(status, transferredBytes, transferredBlocks, message);
+            task.restoreState(status, transferredBytes, transferredBlocks, message, transferStartedAt);
             return task;
         }
     }

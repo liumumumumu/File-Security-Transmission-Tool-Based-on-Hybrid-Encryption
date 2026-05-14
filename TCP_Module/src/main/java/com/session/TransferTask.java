@@ -1,5 +1,6 @@
 package com.session;
 
+import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -26,6 +27,7 @@ public class TransferTask
     private volatile long transferredBytes;//已经传输的字节数
     private volatile int transferredBlocks;//已经传输的块数
     private volatile String message="";
+    private volatile Instant transferStartedAt;//首次进入传输状态的时间
 
     public TransferTask(
             String taskId,
@@ -62,6 +64,10 @@ public class TransferTask
     {
         this.status = status;
         this.message = message == null ? "" : message;
+        if(status == TransferStatus.TRANSFERRING && this.transferStartedAt == null)
+        {
+            this.transferStartedAt = Instant.now();
+        }
     }
 
     //更新传输任务里对端的设备Id
@@ -73,14 +79,24 @@ public class TransferTask
     //恢复传输任务状态，用于程序启动后，从本地历史记录，数据库读取之前保存的传输任务，然后把之前的任务状态恢复回来
     public synchronized void restoreState(TransferStatus status, long transferredBytes, int transferredBlocks, String message)
     {
+        restoreState(status, transferredBytes, transferredBlocks, message, null);
+    }
+
+    public synchronized void restoreState(TransferStatus status, long transferredBytes, int transferredBlocks, String message, Instant transferStartedAt)
+    {
         this.status = status==null?TransferStatus.PENDING:status;
         this.transferredBytes = transferredBytes;
         this.transferredBlocks = transferredBlocks;
         this.message = message==null?"":message;
+        this.transferStartedAt = transferStartedAt;
     }
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Instant getTransferStartedAt() {
+        return transferStartedAt;
     }
 
     public TransferDirection getDirection() {
@@ -147,6 +163,27 @@ public class TransferTask
         this.transferredBytes = transferredBytes;
     }
 
+    //获取从传输开始到当前时刻的平均传输速度，单位为 MB/s
+    public double getAverageSpeedMegabytesPerSecond()
+    {
+        return getAverageSpeedMegabytesPerSecond(Instant.now());
+    }
+
+    //显示的传输速度是平均传输速度（已传输的Bytes的数/ 从传输任务开始至今的时间）
+    public double getAverageSpeedMegabytesPerSecond(Instant now)
+    {
+        if(transferStartedAt == null || now == null || transferredBytes <= 0)
+        {
+            return 0D;
+        }
+        double elapsedSeconds = Duration.between(transferStartedAt, now).toNanos() / 1_000_000_000D;
+        if(elapsedSeconds <= 0D)
+        {
+            return 0D;
+        }
+        return Math.max(0D, transferredBytes / elapsedSeconds / 1024D / 1024D);
+    }
+
     @Override
     public String toString() {
         return "TransferTask{" +
@@ -162,6 +199,7 @@ public class TransferTask
                 ", status=" + status +
                 ", transferredBytes=" + transferredBytes +
                 ", transferredBlocks=" + transferredBlocks +
+                ", transferStartedAt=" + transferStartedAt +
                 ", message='" + message + '\'' +
                 '}';
     }

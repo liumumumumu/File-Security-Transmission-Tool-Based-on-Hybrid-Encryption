@@ -22,9 +22,9 @@ ARGS=(
   "--spring.profiles.active=client"
   "--server.tcp.enabled=false"
   "--server.address=${CLIENT_HTTP_ADDRESS:-127.0.0.1}"
-  "--server.port=${CLIENT_HTTP_PORT:-8081}"
-  "--node.auto-connect=${NODE_AUTO_CONNECT:-false}"
-  "--client.serverHost=${CLIENT_SERVER_HOST:-127.0.0.1}"
+  "--server.port=${CLIENT_HTTP_PORT:-20201}"
+  "--node.auto-connect=${NODE_AUTO_CONNECT:-true}"
+  "--client.serverHost=${CLIENT_SERVER_HOST:-82.156.228.71}"
   "--client.serverPort=${CLIENT_SERVER_PORT:-9000}"
   "--transfer.receive-dir=${TRANSFER_RECEIVE_DIR:-downloads-client-1}"
 )

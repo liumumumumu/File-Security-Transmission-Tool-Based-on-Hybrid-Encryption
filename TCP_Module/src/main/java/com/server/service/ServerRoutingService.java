@@ -19,6 +19,7 @@ import com.server.PendingTransferRequest;
 import com.server.ServerClientSession;
 import com.server.TransferRoute;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -62,6 +63,8 @@ public class ServerRoutingService
     private final Map<Channel, String> deviceIdByChannel=new ConcurrentHashMap<>();//根据当前TCP连接反查这个连接属于那个设备
     private final Map<String, Set<String>> deviceIdsByAccountId=new ConcurrentHashMap<>();
     private final Map<String, PendingTransferRequest> pendingTransferRequests = new ConcurrentHashMap<>();
+    private final Set<String> forwardedCancelTransferIds = ConcurrentHashMap.newKeySet();
+    private final Set<String> forwardedCancelAckTransferIds = ConcurrentHashMap.newKeySet();
 
 
     public ServerRoutingService(AuthenticationResultProperties authenticationResultProperties, CryptoSupport cryptoSupport, PushNotificationService pushNotificationService, RedisStateService redisStateService, MyBatisPersistenceService myBatisPersistenceService) {
@@ -148,6 +151,26 @@ public class ServerRoutingService
                 forwardToSender(deviceId, ackPacket.getTransferId(), ackPacket);
                 return;
             }
+            if(packet instanceof TransferCancelPacket transferCancelPacket)
+            {
+                handleTransferCancel(deviceId, transferCancelPacket);
+                return;
+            }
+            if(packet instanceof TransferCancelAckPacket transferCancelAckPacket)
+            {
+                handleTransferCancelAck(deviceId, transferCancelAckPacket);
+                return;
+            }
+            if(packet instanceof RetransmitRequestPacket retransmitRequestPacket)
+            {
+                forwardToSender(deviceId, retransmitRequestPacket.getTransferId(), retransmitRequestPacket);
+                return;
+            }
+            if(packet instanceof RetransmitAckPacket retransmitAckPacket)
+            {
+                forwardToReceiver(deviceId, retransmitAckPacket.getTransferId(), retransmitAckPacket);
+                return;
+            }
         }
         catch(Exception e)
         {
@@ -180,8 +203,15 @@ public class ServerRoutingService
         }
         sessionsByDeviceId.remove(deviceId);//清理服务端状态
         redisStateService.removeOnlineSession(deviceId);//删除Redis里面的在线状态
-        redisStateService.removeRoutesForDevice(deviceId);//删除和该设备有关的传输路由
+        // 断线不立即删除传输路由。发送/接收端重连后，接收方还需要用原 transferId 发起续传请求。
+        // 路由由 Redis TTL、取消确认或后续清理流程回收。
         pendingTransferRequests.entrySet().removeIf(entry -> entry.getValue().getSenderDeviceId().equals(deviceId));
+        forwardedCancelTransferIds.removeIf(transferId -> redisStateService.findTransferRoute(transferId)
+                .map(route -> route.getSenderDeviceId().equals(deviceId) || route.getReceiverDeviceId().equals(deviceId))
+                .orElse(false));
+        forwardedCancelAckTransferIds.removeIf(transferId -> redisStateService.findTransferRoute(transferId)
+                .map(route -> route.getSenderDeviceId().equals(deviceId) || route.getReceiverDeviceId().equals(deviceId))
+                .orElse(false));
         myBatisPersistenceService.markDeviceOfflineQuietly(deviceId);//在MySQL里面标记为离线
         pushNotificationService.publish("server-device-offline", Map.of("deviceId", deviceId));//推送设备离线事件
     }
@@ -673,10 +703,11 @@ public class ServerRoutingService
         }
     }
 
+    //服务端把发送方发来的数据包，转发被对应的接收方
     private void forwardToReceiver(String deviceId, String transferId, Packet packet)
     {
-        TransferRoute route=redisStateService.findTransferRoute(transferId).orElse(null);
-        if(route==null || !route.getSenderDeviceId().equals(deviceId))
+        TransferRoute route=redisStateService.findTransferRoute(transferId).orElse(null);//根据transferId从Redis里查传输路由；senderDeviceId, receiverDeviceId
+        if(route==null || !route.getSenderDeviceId().equals(deviceId))//校验参数，同时也要防止其他设备伪造发送方
         {
             throw new IllegalStateException("Transfer route not find for sender and transferId="+transferId);
         }
@@ -689,20 +720,260 @@ public class ServerRoutingService
         receiver.getChannel().writeAndFlush(packet);
     }
 
+    //服务端转发函数，接收方发来某个和传输相关的包是，服务端根据transferId找到对应的发送方，然后把这个包转发给发送方
     private void forwardToSender(String receiverDeviceId, String transferId, Packet packet)
     {
-        TransferRoute route=redisStateService.findTransferRoute(transferId).orElse(null);
-        if(route==null || !route.getReceiverDeviceId().equals(receiverDeviceId))
+        TransferRoute route=redisStateService.findTransferRoute(transferId).orElse(null);//先从Redis里查这条传输路由的信息；transferId, senderDeviceId, receiverDeviceId
+        if(route==null || !route.getReceiverDeviceId().equals(receiverDeviceId))//校验参数
         {
-            throw new IllegalStateException("TransferRoute not found for receiver and transferId="+transferId);
+            throw new IllegalStateException("TransferRoute not found for receiver and transferId="+transferId);//找不到route就抛出异常
         }
 
-        ServerClientSession sender=sessionsByDeviceId.get(route.getSenderDeviceId());
+        ServerClientSession sender=sessionsByDeviceId.get(route.getSenderDeviceId());//通过senderDeviceId,从在线会话表里找发送方连接
         if(sender==null)
         {
-            throw new IllegalStateException("Sender is offline="+route.getSenderDeviceId());
+            throw new IllegalStateException("Sender is offline="+route.getSenderDeviceId());//发送方不在线，就抛出异常
         }
-        sender.getChannel().writeAndFlush(packet);
+        sender.getChannel().writeAndFlush(packet);//发送方在线，就通过它的Netty Channel把packet写进去
+    }
+
+    //服务端处理客户端发来的取消传输请求的函数；
+    private void handleTransferCancel(String deviceId, TransferCancelPacket packet)     //1.判断这个取消请求来自发送方还是接收方；2.将TransferCancelPacket转发给传输的另一端；3.并清理服务端保存的传输路由；4.传输还没正式建立，则取消待处理的传输请求；5.记录取消成功或失败日志
+    {
+        TransferRoute route = redisStateService.findTransferRoute(packet.getTransferId()).orElse(null);//检查传输路由
+        if (route != null) {
+            boolean firstCancelForward = forwardedCancelTransferIds.add(packet.getTransferId());
+            if (route.getSenderDeviceId().equals(deviceId)) {   //如果是发送方主动发起的取消
+                ServerClientSession receiver = sessionsByDeviceId.get(route.getReceiverDeviceId());//如果当前发包设备就是发送方，就找接收方连接
+                if (receiver != null) {
+                    writeAndFlushWithListener(      //服务端把取消包转发给接收方
+                            receiver,
+                            packet,
+                            "transfer-cancel-forward",
+                            sourcePublicKey(deviceId),
+                            eventDetails(       //时间信息
+                                    "transferId", packet.getTransferId(),
+                                    "fromDeviceId", deviceId,
+                                    "toDeviceId", route.getReceiverDeviceId(),
+                                    "cancelRole", "sender"
+                            ),
+                            () -> {     //如果发送方取消成功转发给接收方，服务端会删除这条传输路由
+                                redisStateService.removeTransferRoute(packet.getTransferId());
+                                logTransferCancel(deviceId, packet, firstCancelForward ? "sender" : "duplicate-sender");
+                            },
+                            () -> forwardedCancelTransferIds.remove(packet.getTransferId())
+                    );
+                    return;
+                }
+                forwardedCancelTransferIds.remove(packet.getTransferId());      //如果接收方不在线，服务端移除去重标记并记录失败日志
+                logTransferCancelFailure(deviceId, packet.getTransferId(), "Receiver is offline="+route.getReceiverDeviceId(), "sender");
+                return;
+            }
+
+            if (route.getReceiverDeviceId().equals(deviceId)) {     //如果是接收方发起的
+                ServerClientSession sender = sessionsByDeviceId.get(route.getSenderDeviceId()); //如果发送方在线，就把取消包转发给发送方
+                if (sender != null) {
+                    writeAndFlushWithListener(
+                            sender,
+                            packet,
+                            "transfer-cancel-forward",
+                            sourcePublicKey(deviceId),
+                            eventDetails(
+                                    "transferId", packet.getTransferId(),
+                                    "fromDeviceId", deviceId,
+                                    "toDeviceId", route.getSenderDeviceId(),
+                                    "cancelRole", "receiver"
+                            ),
+                            () -> logTransferCancel(deviceId, packet, firstCancelForward ? "receiver" : "duplicate-receiver"),      //记录日志
+                            () -> forwardedCancelTransferIds.remove(packet.getTransferId())
+                    );
+                    return;
+                }
+                forwardedCancelTransferIds.remove(packet.getTransferId());
+                logTransferCancelFailure(deviceId, packet.getTransferId(), "Sender is offline="+route.getSenderDeviceId(), "receiver");//发送方不在线就记录失败
+                return;
+            }
+            forwardedCancelTransferIds.remove(packet.getTransferId());//发起设备不是该传输的发送方或接收方，拒绝取消请求
+            String reason = "Cancel requester is not a participant of transferId="+packet.getTransferId();
+            logTransferCancelFailure(deviceId, packet.getTransferId(), reason, "unauthorized");
+            sendTransferCancelReject(deviceId, packet.getTransferId(), reason);
+            return;
+        }
+
+        PendingTransferRequest pending = pendingTransferRequests.remove(packet.getTransferId());
+        if (pending != null && pending.getSenderDeviceId().equals(deviceId)) {
+            notifyReceiverDevices(
+                    pending.getTargetAccountId(),
+                    pending.getTransferId(),
+                    false,
+                    packet.getReason() == null || packet.getReason().isBlank() ? "Transfer canceled by sender" : packet.getReason()
+            );
+            logTransferCancel(deviceId, packet, "pending-sender");
+        }
+    }
+
+    private void handleTransferCancelAck(String deviceId, TransferCancelAckPacket packet)       //服务端处理取消确认ACK数据包的函数，验证是否来自发送方，再转发给接收方，最后清理传输路由并记录日志
+    {
+        TransferRoute route = redisStateService.findTransferRoute(packet.getTransferId()).orElse(null);//根据transferId查传输路由
+        if(route == null)//route不存在
+        {
+            logTransferCancelAck(deviceId, packet, "duplicate-or-missing-route");//记录日志然后返回
+            return;
+        }
+        if(!route.getSenderDeviceId().equals(deviceId))
+        {
+            logTransferCancelAckFailure(deviceId, packet.getTransferId(), "Cancel ACK must be sent by sender device");
+            return;
+        }
+        boolean firstAckForward = forwardedCancelAckTransferIds.add(packet.getTransferId());//如果不是发送方发来的ACK就拒绝处理，并记录失败日志
+
+        ServerClientSession receiver = sessionsByDeviceId.get(route.getReceiverDeviceId());//找接收方连接
+        if(receiver == null)//接收方不在线就移除ACK转发去重标记，记录失败日志
+        {
+            forwardedCancelAckTransferIds.remove(packet.getTransferId());
+            logTransferCancelAckFailure(deviceId, packet.getTransferId(), "Receiver is offline="+route.getReceiverDeviceId());
+            return;
+        }
+
+        writeAndFlushWithListener(      //如果接收方在线，服务端就把TransferCancelAckPacket转发给接收方
+                receiver,
+                packet,
+                "transfer-cancel-ack-forward",
+                sourcePublicKey(deviceId),
+                eventDetails(   //事件详情
+                        "transferId", packet.getTransferId(),
+                        "fromDeviceId", deviceId,
+                        "toDeviceId", route.getReceiverDeviceId(),
+                        "ackByDeviceId", packet.getAckByDeviceId(),
+                        "status", safeValue(packet.getStatus())
+                ),
+                () -> {
+                    redisStateService.removeTransferRoute(packet.getTransferId());//删除Redis里的传输路由
+                    forwardedCancelTransferIds.remove(packet.getTransferId());//取消转发标记
+                    logTransferCancelAck(deviceId, packet, firstAckForward ? "forwarded" : "duplicate-forwarded");//记录ACK转发日志
+                },
+                () -> forwardedCancelAckTransferIds.remove(packet.getTransferId())
+        );
+    }
+
+    //服务端拒绝传输取消请求的辅助函数
+    private void sendTransferCancelReject(String deviceId, String transferId, String reason)//防止非法取消
+    {
+        ServerClientSession requester = sessionsByDeviceId.get(deviceId);//根据deviceId找到这个请求设备当前的在线会话
+        if(requester == null)   //设备不在线或者设备不存在
+        {
+            logTransferCancelFailure(deviceId, transferId, "Cancel requester is offline; reject response not sent", "unauthorized");//取消失败
+            return;
+        }
+
+        //如果请求设备在线且合法就发一个TransferCancelAckPacket回去
+        writeAndFlushWithListener(
+                requester,
+                new TransferCancelAckPacket(transferId, "server", "REJECTED", reason),
+                "transfer-cancel-reject",
+                sourcePublicKey(deviceId),
+                eventDetails(
+                        "deviceId", deviceId,
+                        "transferId", transferId,
+                        "status", "REJECTED",
+                        "message", reason
+                ),
+                null,
+                null
+        );
+    }
+
+    //记录取消事件
+    private void logTransferCancel(String deviceId, TransferCancelPacket packet, String cancelRole)
+    {
+        logServerEvent(
+                "transfer-cancel",
+                sourcePublicKey(deviceId),
+                "CANCELED",
+                null,
+                eventDetails(
+                        "deviceId", deviceId,
+                        "transferId", packet.getTransferId(),
+                        "cancelRole", cancelRole,
+                        "reason", safeValue(packet.getReason())
+                )
+        );
+    }
+
+    private void logTransferCancelFailure(String deviceId, String transferId, String reason, String cancelRole)
+    {
+        logServerEvent(
+                "transfer-cancel",
+                sourcePublicKey(deviceId),
+                "FAILED",
+                reason,
+                eventDetails(
+                        "deviceId", deviceId,
+                        "transferId", transferId,
+                        "cancelRole", cancelRole
+                )
+        );
+    }
+
+    private void logTransferCancelAck(String deviceId, TransferCancelAckPacket packet, String result)
+    {
+        logServerEvent(
+                "transfer-cancel-ack",
+                sourcePublicKey(deviceId),
+                result,
+                null,
+                eventDetails(
+                        "deviceId", deviceId,
+                        "transferId", packet.getTransferId(),
+                        "ackByDeviceId", packet.getAckByDeviceId(),
+                        "status", safeValue(packet.getStatus()),
+                        "message", safeValue(packet.getMessage())
+                )
+        );
+    }
+
+    private void logTransferCancelAckFailure(String deviceId, String transferId, String reason)
+    {
+        logServerEvent(
+                "transfer-cancel-ack",
+                sourcePublicKey(deviceId),
+                "FAILED",
+                reason,
+                eventDetails(
+                        "deviceId", deviceId,
+                        "transferId", transferId
+                )
+        );
+    }
+
+    private void writeAndFlushWithListener(
+            ServerClientSession session,
+            Packet packet,
+            String event,
+            String sourcePublicKey,
+            Map<String, ?> details,
+            Runnable onSuccess,
+            Runnable onFailure
+    )
+    {
+        ChannelFuture future = session.getChannel().writeAndFlush(packet);
+        future.addListener(writeFuture -> {
+            if(writeFuture.isSuccess())
+            {
+                if(onSuccess != null)
+                {
+                    onSuccess.run();
+                }
+                return;
+            }
+            String message = writeFuture.cause() == null ? "writeAndFlush failed" : writeFuture.cause().getMessage();
+            logServerEvent(event, sourcePublicKey, "FAILED", message, details);
+            pushNotificationService.publish("server-error", Map.of("message", message));
+            if(onFailure != null)
+            {
+                onFailure.run();
+            }
+        });
     }
 
     private String authenticaedDeviceId(Channel channel)
@@ -797,3 +1068,22 @@ public class ServerRoutingService
         }
     }
 }
+
+/*
+
+对于非法传输的防护措施
+
+
+1. 未认证连接不能发传输包
+2. 认证必须证明持有私钥
+3. accountId 由公钥指纹计算，绑定到会话
+4. 发送请求只能发给在线目标 accountId
+5. 接收选择必须来自目标 accountId 下的设备
+6. 服务端保存 transferId -> senderDeviceId + receiverDeviceId
+7. 后续每个传输包都按 route 校验发送角色
+8. 客户端只处理本地存在 transferId 上下文的文件块
+9. AES-GCM 校验密文完整性，篡改或伪造会解密失败
+
+
+
+ */

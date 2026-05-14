@@ -1,8 +1,10 @@
 @echo off
 setlocal
+chcp 65001 >nul
 
 set "SCRIPT_DIR=%~dp0"
 set "PROJECT_DIR=%SCRIPT_DIR%.."
+set "JAVA_OPTS=-Dfile.encoding=UTF-8 -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8 %JAVA_OPTS%"
 
 if "%JAR_NAME%"=="" set "JAR_NAME=FileSecurityTransmissionToolBasedonHybridEncryption_TCPModule-1.0-SNAPSHOT.jar"
 if "%JAR_PATH%"=="" set "JAR_PATH=%PROJECT_DIR%\target\%JAR_NAME%"
@@ -20,9 +22,9 @@ if not exist "%JAR_PATH%" (
 )
 
 if "%CLIENT_HTTP_ADDRESS%"=="" set "CLIENT_HTTP_ADDRESS=127.0.0.1"
-if "%CLIENT_HTTP_PORT%"=="" set "CLIENT_HTTP_PORT=8081"
-if "%NODE_AUTO_CONNECT%"=="" set "NODE_AUTO_CONNECT=false"
-if "%CLIENT_SERVER_HOST%"=="" set "CLIENT_SERVER_HOST=127.0.0.1"
+if "%CLIENT_HTTP_PORT%"=="" set "CLIENT_HTTP_PORT=20201"
+if "%NODE_AUTO_CONNECT%"=="" set "NODE_AUTO_CONNECT=true"
+if "%CLIENT_SERVER_HOST%"=="" set "CLIENT_SERVER_HOST=82.156.228.71"
 if "%CLIENT_SERVER_PORT%"=="" set "CLIENT_SERVER_PORT=9000"
 if "%TRANSFER_RECEIVE_DIR%"=="" set "TRANSFER_RECEIVE_DIR=downloads-client-1"
 

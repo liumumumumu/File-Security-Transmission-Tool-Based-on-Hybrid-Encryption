@@ -7,9 +7,18 @@ public class TransferProperties
 {
     private int chunkSizeBytes;
     private String receiveDir;
+    private int sendWindowSize;
 
     public int getChunkSizeBytes() {
         return chunkSizeBytes;
+    }
+
+    public int getSendWindowSize() {
+        return sendWindowSize;
+    }
+
+    public void setSendWindowSize(int sendWindowSize) {
+        this.sendWindowSize = sendWindowSize;
     }
 
     public void setChunkSizeBytes(int chunkSizeBytes) {
@@ -29,6 +38,7 @@ public class TransferProperties
         return "TransferProperties{" +
                 "chunkSizeBytes=" + chunkSizeBytes +
                 ", receiveDir='" + receiveDir + '\'' +
+                ", sendWindowSize=" + sendWindowSize +
                 '}';
     }
 }
