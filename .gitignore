@@ -20,3 +20,6 @@ venv/
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# Codex / Superpowers 本地脑暴和临时状态
+.superpowers/
