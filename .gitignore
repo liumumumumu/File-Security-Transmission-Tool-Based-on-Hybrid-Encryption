@@ -44,3 +44,11 @@ Version0003/
 题目.pdf
 题目.png
 加密模块需要的函数.md
+# Runtime generated data
+crypto_keys/
+
+# Project-specific ignored files
+**/httplib.h
+
+# Java
+*.class

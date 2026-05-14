@@ -4,6 +4,8 @@ public class AcceptTransferRequest
 {
     String transferId;
 
+    public AcceptTransferRequest(){}
+
     public AcceptTransferRequest(String transferId) {
         this.transferId = transferId;
     }

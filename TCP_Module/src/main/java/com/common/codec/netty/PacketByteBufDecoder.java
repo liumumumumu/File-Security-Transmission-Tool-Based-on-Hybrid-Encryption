@@ -70,6 +70,10 @@ public class PacketByteBufDecoder extends MessageToMessageDecoder<ByteBuf>
             case MessageType.Receiver_Device_Selection -> new ReceiverDeviceSelectionDecoder();
             case MessageType.Onlie_User_Search_Request -> new OnlineUserSearchRequestDecoder();
             case MessageType.Onlie_User_Search_Result -> new OnlineUserSearchResultDecoder();
+            case MessageType.Transfer_Cancel -> new TransferCancelDecoder();
+            case MessageType.Transfer_Cancel_Ack -> new TransferCancelAckDecoder();
+            case MessageType.Retransmit_Request -> new RetransmitRequestDecoder();
+            case MessageType.Retransmit_Ack -> new RetransmitAckDecoder();
 
             //心跳
             case MessageType.Ping ->    new PingDecoder();

@@ -8,13 +8,13 @@ import com.common.config.NodeProperties;
 import com.common.config.ServerProperties;
 import com.client.controller.dto.ImportPrivateKeyRequest;
 import com.client.controller.dto.PublicKeyFingerprintRequest;
+import com.common.util.PathInputNormalizer;
 import com.crypto.CryptoSupport;
 import com.client.service.LocalTransferHistoryService;
 import com.client.service.TransferTaskRegistry;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -100,7 +100,7 @@ public class SystemController
         if (request.getPrivateKey() != null && !request.getPrivateKey().isBlank()) {
             cryptoSupport.importPrivateKeyText(request.getPrivateKey());
         } else if (request.getPrivateKeyPath() != null && !request.getPrivateKeyPath().isBlank()) {
-            cryptoSupport.importPrivateKeyFile(Path.of(request.getPrivateKeyPath()));
+            cryptoSupport.importPrivateKeyFile(PathInputNormalizer.toPath(request.getPrivateKeyPath()));
         } else {
             throw new IllegalArgumentException("privateKey or privateKeyPath is required");
         }
@@ -108,14 +108,46 @@ public class SystemController
     }
 
     @PostMapping("/key/fingerprint")
-    public ResponseEntity<Map<String, String>> fingerprint(@RequestBody PublicKeyFingerprintRequest request) throws Exception
+    public ResponseEntity<Map<String, String>> fingerprint(@RequestBody(required = false) PublicKeyFingerprintRequest request) throws Exception
     {
-        if (request == null || request.getPublicKey() == null || request.getPublicKey().isBlank()) {
-            throw new IllegalArgumentException("publicKey is required");
-        }
+        String fingerprint = request == null || request.getPublicKey() == null || request.getPublicKey().isBlank()
+                ? cryptoSupport.publicKeyFingerprint()
+                : cryptoSupport.publicKeyFingerprint(request.getPublicKey());
         return ResponseEntity.ok(Map.of(
-                "fingerprint", cryptoSupport.publicKeyFingerprint(request.getPublicKey())
+                "fingerprint", fingerprint
         ));
+    }
+
+    @GetMapping({"/key/fingerprint", "/account-id"})
+    public ResponseEntity<Map<String, String>> localFingerprint() throws Exception
+    {
+        String accountId = cryptoSupport.publicKeyFingerprint();
+        return ResponseEntity.ok(Map.of(
+                "fingerprint", accountId,
+                "accountId", accountId
+        ));
+    }
+
+    @PostMapping("/account-id")
+    public ResponseEntity<Map<String, String>> accountId(@RequestBody(required = false) PublicKeyFingerprintRequest request) throws Exception
+    {
+        String accountId = request == null || request.getPublicKey() == null || request.getPublicKey().isBlank()
+                ? cryptoSupport.publicKeyFingerprint()
+                : cryptoSupport.publicKeyFingerprint(request.getPublicKey());
+        return ResponseEntity.ok(Map.of(
+                "fingerprint", accountId,
+                "accountId", accountId
+        ));
+    }
+
+    @PostMapping("/key/import-private-file")
+    public ResponseEntity<Map<String, Object>> importPrivateKeyFile(@RequestBody ImportPrivateKeyRequest request) throws Exception
+    {
+        if (request == null || request.getPrivateKeyPath() == null || request.getPrivateKeyPath().isBlank()) {
+            throw new IllegalArgumentException("privateKeyPath is required");
+        }
+        cryptoSupport.importPrivateKeyFile(PathInputNormalizer.toPath(request.getPrivateKeyPath()));
+        return ResponseEntity.ok(cryptoSupport.keyStatus());
     }
 
     @PostMapping("/connect")
@@ -175,7 +207,11 @@ public class SystemController
         system.put("POST /api/system/key/generate", "Generate key pair in crypto service");
         system.put("POST /api/system/key/delete", "Delete key pair from crypto service");
         system.put("POST /api/system/key/import-private", "Import private key (body: {privateKey} or {privateKeyPath})");
-        system.put("POST /api/system/key/fingerprint", "Calculate fingerprint for a public key (body: {publicKey})");
+        system.put("POST /api/system/key/import-private-file", "Import private key from file (body: {privateKeyPath})");
+        system.put("GET /api/system/key/fingerprint", "Calculate fingerprint/accountId for local public key");
+        system.put("POST /api/system/key/fingerprint", "Calculate fingerprint for a public key, or local public key when body is empty");
+        system.put("GET /api/system/account-id", "Show local accountId");
+        system.put("POST /api/system/account-id", "Calculate accountId for a public key, or local public key when body is empty");
         system.put("POST /api/system/connect", "Connect to server (optional body: {host, port})");
         system.put("POST /api/system/disconnect", "Disconnect from server");
         system.put("GET /api/system/connection-status", "Show detailed connection status");
@@ -186,12 +222,19 @@ public class SystemController
         payload.put("send", Map.of(
                 "POST /api/send", "Send a file (body: {filePath, targetAccountId})",
                 "GET /api/send/tasks", "List all transfer tasks",
-                "GET /api/send/tasks/{taskIdOrTransferId}", "Get a specific task details"
+                "GET /api/send/tasks/{taskIdOrTransferId}", "Get a specific task details",
+                "POST /api/send/tasks/{taskIdOrTransferId}/cancel", "Cancel an active transfer task",
+                "GET /api/send/tasks/{taskIdOrTransferId}/events", "Watch a task progress stream with Server-Sent Events"
         ));
         payload.put("receive", Map.of(
                 "GET /incoming", "List incoming transfer requests",
                 "POST /accept", "Accept an incoming transfer (body: {transferId})",
-                "POST /reject", "Reject an incoming transfer (body: {transferId})"
+                "POST /reject", "Reject an incoming transfer (body: {transferId})",
+                "POST /retransmit", "Request retransmission for a receive task (body: {taskIdOrTransferId} or {transferId})",
+                "GET /retransmit-requests", "List pending retransmission requests waiting for sender confirmation",
+                "POST /retransmit-accept", "Accept a pending retransmission request (body: {transferId})",
+                "POST /retransmit-reject", "Reject a pending retransmission request (body: {transferId})",
+                "POST /open-received", "Reveal a received file (body: {taskIdOrTransferId}, {transferId}, {taskId}, {target}, or {fileName})"
         ));
         return ResponseEntity.ok(payload);
     }

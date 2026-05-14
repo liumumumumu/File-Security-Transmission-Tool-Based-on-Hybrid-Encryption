@@ -9,5 +9,10 @@ public enum TransferStatus  //传输状态枚举类
     COMPLETED,
     CANCELED,
     FAILED,
-    REJECTED
+    REJECTED;
+
+    public boolean isTerminal()
+    {
+        return this == COMPLETED || this == CANCELED || this == FAILED || this == REJECTED;
+    }
 }
