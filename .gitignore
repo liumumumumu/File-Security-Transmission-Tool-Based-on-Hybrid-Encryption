@@ -68,3 +68,6 @@ crypto_keys/
 
 # Project-specific ignored files
 **/httplib.h
+
+# Java
+*.class

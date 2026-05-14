@@ -63,6 +63,12 @@ public class ContactController {
 
     @PostMapping
     public ResponseEntity<Map<String, Object>> addContact(@RequestBody Map<String, String> request) {
+        if (request == null) {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("success", false);
+            error.put("message", "accountId is required");
+            return ResponseEntity.badRequest().body(error);
+        }
         String accountId = request.get("accountId");
         String alias = request.get("alias");
         String publicKey = request.get("publicKey");
@@ -74,6 +80,10 @@ public class ContactController {
             return ResponseEntity.badRequest().body(error);
         }
 
+        if (publicKey == null || publicKey.isBlank()) {
+            publicKey = searchPublicKeyForContact(accountId);
+        }
+
         ContactRecord contact = localContactBookService.addContact(accountId, publicKey, alias);
 
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -81,6 +91,7 @@ public class ContactController {
         payload.put("contactIndex", contact.getContactIndex());
         payload.put("alias", contact.getAlias());
         payload.put("accountId", contact.getAccountId());
+        payload.put("publicKey", contact.getPublicKey());
         payload.put("message", "Contact added successfully");
         return ResponseEntity.ok(payload);
     }
@@ -166,6 +177,12 @@ public class ContactController {
 
     @PostMapping("/blacklist")
     public ResponseEntity<Map<String, Object>> addBlacklist(@RequestBody Map<String, String> request) {
+        if (request == null) {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("success", false);
+            error.put("message", "accountId is required");
+            return ResponseEntity.badRequest().body(error);
+        }
         String accountId = request.get("accountId");
         String reason = request.get("reason");
         String publicKey = request.get("publicKey");
@@ -253,6 +270,12 @@ public class ContactController {
 
     @PostMapping("/search-user-add")
     public ResponseEntity<Map<String, Object>> searchUserAndAddContact(@RequestBody Map<String, String> request) {
+        if (request == null) {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("success", false);
+            error.put("message", "accountId is required");
+            return ResponseEntity.badRequest().body(error);
+        }
         String accountId = request.get("accountId");
         String alias = request.get("alias");
 
@@ -280,5 +303,17 @@ public class ContactController {
         payload.put("accountId", contact.getAccountId());
         payload.put("message", "Contact added successfully");
         return ResponseEntity.ok(payload);
+    }
+
+    private String searchPublicKeyForContact(String accountId) {
+        try {
+            OnlineUserSearchResultPacket result = clientTransferService.searchOnlineUser(accountId);
+            if (result.isSearchResult() && result.getPublicKey() != null && !result.getPublicKey().isBlank()) {
+                return result.getPublicKey();
+            }
+        } catch (Exception ignored) {
+            // Keep console behavior: save the contact even when the server cannot provide a public key.
+        }
+        return null;
     }
 }
