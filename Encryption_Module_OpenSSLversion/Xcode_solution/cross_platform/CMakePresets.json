@@ -1,0 +1,35 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "vcpkg-debug",
+      "displayName": "vcpkg Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/vcpkg-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      }
+    },
+    {
+      "name": "vcpkg-release",
+      "displayName": "vcpkg Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/vcpkg-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "vcpkg-debug",
+      "configurePreset": "vcpkg-debug"
+    },
+    {
+      "name": "vcpkg-release",
+      "configurePreset": "vcpkg-release"
+    }
+  ]
+}

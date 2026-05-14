@@ -1,25 +1,64 @@
-# Python 编译文件
 __pycache__/
+*.pyc
+*.pyo
 *.py[cod]
 *$py.class
+test_input.bin
+test_output.bin
+.venv/
+venv/
+.idea/
+.vscode/
+.claude/
+*.log
+tmp*/
 
-# 密钥文件（不能传到 GitHub）
+# Secret keys and certificates must not be committed.
+crypto_keys*/
+**/crypto_keys*/
 *.pem
 *.key
 *.pub
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+private_key.*
+public_key.*
 
-# 测试生成的二进制大文件
+# Local copies from teammates or external modules.
+LZY/
+LQH/
+Version0003/
+
+# Build artifacts and temporary archives.
+*.jar
+*.tmp
+*.zip
 *.bin
 *.enc
 *.dec
 
-# 虚拟环境
-venv/
-.venv/
+# Local documents and screenshots.
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.docx
+*.doc
+对话.docx
+题目.pdf
+题目.png
+加密模块需要的函数.md
 
-# 系统文件
-.DS_Store
-Thumbs.db
+# Runtime generated data.
+crypto_keys/
 
-# Codex / Superpowers 本地脑暴和临时状态
+# Project-specific ignored files.
+**/httplib.h
+
+# Java
+*.class
+
+# Codex / Superpowers local brainstorming and temporary state.
 .superpowers/
