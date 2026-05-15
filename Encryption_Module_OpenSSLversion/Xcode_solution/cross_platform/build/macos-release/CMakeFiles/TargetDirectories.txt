@@ -1,7 +1,0 @@
-/Users/zero/Documents/c_xcode_code/FileSecurityTransferTool_CryptoTest/cross_platform/build/macos-release/CMakeFiles/FileSecurityTransferTool_CryptoTest.dir
-/Users/zero/Documents/c_xcode_code/FileSecurityTransferTool_CryptoTest/cross_platform/build/macos-release/CMakeFiles/edit_cache.dir
-/Users/zero/Documents/c_xcode_code/FileSecurityTransferTool_CryptoTest/cross_platform/build/macos-release/CMakeFiles/rebuild_cache.dir
-/Users/zero/Documents/c_xcode_code/FileSecurityTransferTool_CryptoTest/cross_platform/build/macos-release/CMakeFiles/list_install_components.dir
-/Users/zero/Documents/c_xcode_code/FileSecurityTransferTool_CryptoTest/cross_platform/build/macos-release/CMakeFiles/install.dir
-/Users/zero/Documents/c_xcode_code/FileSecurityTransferTool_CryptoTest/cross_platform/build/macos-release/CMakeFiles/install/local.dir
-/Users/zero/Documents/c_xcode_code/FileSecurityTransferTool_CryptoTest/cross_platform/build/macos-release/CMakeFiles/install/strip.dir

@@ -1,5 +1,0 @@
----
-triple:          'arm64-apple-darwin'
-binary-path:     '/Users/zero/Documents/c_xcode_code/FileSecurityTransferTool_CryptoTest/build/Release/FileSecurityTransferTool_CryptoTest'
-relocations:     []
-...
