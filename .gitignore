@@ -1,24 +1,52 @@
-__pycache__/
-*.pyc
-*.pyo
-*.py[cod]
-*$py.class
-test_input.bin
-test_output.bin
-.venv/
-venv/
+# OS files
+.DS_Store
+**/.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE and editor files
 .idea/
 .vscode/
 .claude/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+
+# Logs and temporary files
 *.log
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.rej
 tmp*/
+temp*/
+cache/
+**/cache/
+
+# Environment and local config
+.env
+.env.*
+!.env.example
+*.local
+local.properties
 
 # Secret keys and certificates must not be committed.
 crypto_keys*/
 **/crypto_keys*/
 *.pem
 *.key
-*.pub
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+*.keystore
 id_rsa
 id_rsa.pub
 id_ed25519
@@ -26,18 +54,104 @@ id_ed25519.pub
 private_key.*
 public_key.*
 
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+env/
+ENV/
+pip-wheel-metadata/
+*.egg-info/
+dist/
+build/
+
+# Java/Maven
+target/
+**/target/
+*.class
+*.jar
+*.war
+*.ear
+dependency-reduced-pom.xml
+.mvn/timing.properties
+
+# C/C++/CMake/Make
+CMakeFiles/
+**/CMakeFiles/
+CMakeCache.txt
+CMakeUserPresets.json
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+Makefile
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app/
+*.dSYM/
+
+# Qt
+*.qmake.stash
+*.pro.user
+*.pro.user.*
+*.autosave
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+.qtc_clangd/
+*.qmlc
+*.jsc
+
+# Xcode
+Build/
+**/Build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcscmblueprint
+
+# Packaged releases and archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.gz
+*.7z
+*.rar
+
+# Runtime and test artifacts
+test_input.bin
+test_output.bin
+*.db
+*.sqlite
+*.sqlite3
+*.pid
+
 # Local copies from teammates or external modules.
 LZY/
 LQH/
 Version0003/
-
-# Build artifacts and temporary archives.
-*.jar
-*.tmp
-*.zip
-*.bin
-*.enc
-*.dec
 
 # Local documents and screenshots.
 *.pdf
@@ -51,14 +165,5 @@ Version0003/
 题目.png
 加密模块需要的函数.md
 
-# Runtime generated data.
-crypto_keys/
-
 # Project-specific ignored files.
 **/httplib.h
-
-# Java
-*.class
-
-# Codex / Superpowers local brainstorming and temporary state.
-.superpowers/

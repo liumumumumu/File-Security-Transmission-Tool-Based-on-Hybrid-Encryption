@@ -109,6 +109,23 @@ def generate_and_persist_keypair():
         
     logger.info(f"generated RSA key pair private_key_file={PRIVATE_KEY_FILE} public_key_file={PUBLIC_KEY_FILE}")
 
+def derive_public_key_from_private_key(private_key: rsa.RSAPrivateKey) -> bytes:
+    return private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+
+def ensure_public_key_file() -> bytes:
+    if os.path.exists(PUBLIC_KEY_FILE):
+        with open(PUBLIC_KEY_FILE, "rb") as f:
+            return f.read()
+
+    private_key = load_private_key()
+    pub_pem = derive_public_key_from_private_key(private_key)
+    _write_key_file(PUBLIC_KEY_FILE, pub_pem, PUBLIC_KEY_MODE)
+    logger.info(f"repaired missing public key file from private key public_key_file={PUBLIC_KEY_FILE}")
+    return pub_pem
+
 def import_private_key_and_persist(private_pem: bytes) -> bytes:
     key = serialization.load_pem_private_key(private_pem, password=None)
     norm_priv = key.private_bytes(
@@ -116,10 +133,7 @@ def import_private_key_and_persist(private_pem: bytes) -> bytes:
         format=serialization.PrivateFormat.TraditionalOpenSSL,
         encryption_algorithm=serialization.NoEncryption()
     )
-    pub_pem = key.public_key().public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
+    pub_pem = derive_public_key_from_private_key(key)
     
     os.makedirs(KEY_DIR, exist_ok=True)
     _write_key_file(PRIVATE_KEY_FILE, norm_priv, PRIVATE_KEY_MODE)
@@ -187,8 +201,7 @@ def health():
 
 @app.get("/key/public")
 def get_public_key():
-    with open(PUBLIC_KEY_FILE, "r") as f:
-        return {"publicKey": f.read()}
+    return {"publicKey": ensure_public_key_file().decode("utf-8")}
 
 @app.get("/key/private")
 def get_private_key():
@@ -197,9 +210,10 @@ def get_private_key():
 
 @app.get("/key/status")
 def get_key_status():
+    has_private_key = os.path.exists(PRIVATE_KEY_FILE)
     return {
-        "hasPrivateKey": "true" if os.path.exists(PRIVATE_KEY_FILE) else "false",
-        "hasPublicKey": "true" if os.path.exists(PUBLIC_KEY_FILE) else "false"
+        "hasPrivateKey": "true" if has_private_key else "false",
+        "hasPublicKey": "true" if has_private_key or os.path.exists(PUBLIC_KEY_FILE) else "false"
     }
 
 @app.post("/key/generate")
@@ -315,10 +329,7 @@ def get_fingerprint(req: KeyDataRequest):
 @app.post("/key/derive-public")
 def derive_public(req: KeyDataRequest):
     key = serialization.load_pem_private_key(normalize_private_key_input(req.privateKey), password=None)
-    pub_pem = key.public_key().public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
+    pub_pem = derive_public_key_from_private_key(key)
     return {"publicKey": pub_pem.decode('utf-8')}
 
 @app.post("/key/import-text")

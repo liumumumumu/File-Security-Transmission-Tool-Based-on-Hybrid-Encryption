@@ -8,6 +8,7 @@ public class LocalStorageProperties
     private String transferHistoryPath;
     private String sqlitePath;
     private String deviceIdPath;
+    private String startupStatePath;
 
     public String getTransferHistoryPath() {
         return transferHistoryPath;
@@ -33,11 +34,20 @@ public class LocalStorageProperties
         this.deviceIdPath = deviceIdPath;
     }
 
+    public String getStartupStatePath() {
+        return startupStatePath;
+    }
+
+    public void setStartupStatePath(String startupStatePath) {
+        this.startupStatePath = startupStatePath;
+    }
+
     @Override
     public String toString() {
         return "LocalStorageProperties{" +
                 "sqlitePath='" + sqlitePath + '\'' +
                 ", deviceIdPath='" + deviceIdPath + '\'' +
+                ", startupStatePath='" + startupStatePath + '\'' +
                 ", transferHistoryPath='" + transferHistoryPath + '\'' +
                 '}';
     }
