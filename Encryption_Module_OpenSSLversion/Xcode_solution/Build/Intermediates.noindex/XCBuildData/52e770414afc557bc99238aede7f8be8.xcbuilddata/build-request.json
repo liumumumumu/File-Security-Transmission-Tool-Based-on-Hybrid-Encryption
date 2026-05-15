@@ -1,0 +1,58 @@
+{
+  "buildCommand" : {
+    "command" : "build",
+    "skipDependencies" : false,
+    "style" : "buildOnly"
+  },
+  "configuredTargets" : [
+    {
+      "guid" : "2536d08a9fbfcd1954a108f5a1a72b7e58549cce7ca07069eb25b37aaa0a5cdc"
+    }
+  ],
+  "containerPath" : "/Users/zero/Documents/c_xcode_code/FileSecurityTransferTool_CryptoTest/FileSecurityTransferTool_CryptoTest.xcodeproj",
+  "continueBuildingAfterErrors" : false,
+  "dependencyScope" : "workspace",
+  "enableIndexBuildArena" : false,
+  "hideShellScriptEnvironment" : false,
+  "parameters" : {
+    "action" : "build",
+    "activeArchitecture" : "arm64",
+    "activeRunDestination" : {
+      "disableOnlyActiveArch" : false,
+      "platform" : "macosx",
+      "sdk" : "macosx26.2",
+      "sdkVariant" : "macos",
+      "supportedArchitectures" : [
+        "arm64e",
+        "arm64",
+        "x86_64"
+      ],
+      "targetArchitecture" : "arm64"
+    },
+    "arenaInfo" : {
+      "buildIntermediatesPath" : "/Users/zero/Documents/c_xcode_code/FileSecurityTransferTool_CryptoTest/Build/Intermediates.noindex",
+      "buildProductsPath" : "/Users/zero/Documents/c_xcode_code/FileSecurityTransferTool_CryptoTest/Build/Products",
+      "derivedDataPath" : "/Users/zero/Library/Developer/Xcode/DerivedData",
+      "indexDataStoreFolderPath" : "/Users/zero/Library/Developer/Xcode/DerivedData/FileSecurityTransferTool_CryptoTest-cnewjkofqywpngdlilfnktduorlt/Index.noindex/DataStore",
+      "indexEnableDataStore" : true,
+      "indexPCHPath" : "/Users/zero/Library/Developer/Xcode/DerivedData/FileSecurityTransferTool_CryptoTest-cnewjkofqywpngdlilfnktduorlt/Index.noindex/PrecompiledHeaders",
+      "pchPath" : "/Users/zero/Documents/c_xcode_code/FileSecurityTransferTool_CryptoTest/Build/Intermediates.noindex/PrecompiledHeaders"
+    },
+    "configurationName" : "Debug",
+    "overrides" : {
+      "synthesized" : {
+        "table" : {
+          "ENABLE_PREVIEWS" : "NO",
+          "ENABLE_XOJIT_PREVIEWS" : "YES",
+          "ONLY_ACTIVE_ARCH" : "YES"
+        }
+      }
+    }
+  },
+  "schemeCommand" : "launch",
+  "showNonLoggedProgress" : true,
+  "useDryRun" : false,
+  "useImplicitDependencies" : true,
+  "useLegacyBuildLocations" : false,
+  "useParallelTargets" : true
+}

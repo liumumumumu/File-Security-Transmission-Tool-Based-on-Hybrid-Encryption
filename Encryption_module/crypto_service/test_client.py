@@ -47,6 +47,24 @@ def test_full_crypto_api():
     print(f"成功获取公钥，长度: {len(pub_resp.json()['publicKey'])}")
     print(f"成功获取私钥，长度: {len(priv_resp.json()['privateKey'])}")
 
+    # 5.1 模拟公钥文件丢失：只要私钥存在，服务必须自动推导并恢复公钥
+    print_separator("5.1 测试公钥文件丢失后的自动修复")
+    health_resp = requests.get(f"{BASE_URL}/health").json()
+    public_key_path = os.path.join(health_resp["keyDir"], "public_key.pem")
+    if os.path.exists(public_key_path):
+        os.remove(public_key_path)
+        print(f"已模拟删除公钥文件: {public_key_path}")
+    status_after_public_delete = requests.get(f"{BASE_URL}/key/status").json()
+    if status_after_public_delete.get("hasPrivateKey") == "true" and status_after_public_delete.get("hasPublicKey") == "true":
+        print("✅ 仅公钥文件缺失时，状态仍视为可用。")
+    else:
+        print(f"❌ 公钥缺失状态不符合预期: {status_after_public_delete}")
+    repaired_public_key = requests.get(f"{BASE_URL}/key/public").json()["publicKey"]
+    if repaired_public_key == public_key and os.path.exists(public_key_path):
+        print("✅ /key/public 已从私钥推导并重新持久化公钥文件。")
+    else:
+        print("❌ /key/public 未正确修复公钥文件。")
+
     time.sleep(1)
 
     # 6. 测试签名与验签 (RSA-PSS)
