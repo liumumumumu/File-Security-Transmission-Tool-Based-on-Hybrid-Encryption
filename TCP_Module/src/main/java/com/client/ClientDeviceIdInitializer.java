@@ -13,6 +13,13 @@ import java.nio.file.Path;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * Author: LQH
+ * Date: 2026-05-09
+ * Purpose: 客户端启动时用来初始化本机deviceId的类
+ *
+ **/
+
 @Component
 @Profile("client")
 public class ClientDeviceIdInitializer
@@ -20,8 +27,8 @@ public class ClientDeviceIdInitializer
     private static final Logger log = LoggerFactory.getLogger(ClientDeviceIdInitializer.class);
     private static final Set<String> PLACEHOLDER_DEVICE_IDS = Set.of("client-device-1", "device-default");
 
-    private final NodeProperties nodeProperties;
-    private final LocalStorageProperties localStorageProperties;
+    private final NodeProperties nodeProperties;//读取当前节点的设备ID
+    private final LocalStorageProperties localStorageProperties;//读取本地保存路径
 
     public ClientDeviceIdInitializer(NodeProperties nodeProperties, LocalStorageProperties localStorageProperties)
     {
