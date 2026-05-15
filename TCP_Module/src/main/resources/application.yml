@@ -22,6 +22,7 @@ app:
     transfer-history-path: ${TRANSFER_HISTORY_PATH:${user.home}/.file-security-transmission/transfer-history.json} #本机传输记录文件的保存路径
     sqlite-path: ${LOCAL_SQLITE_PATH:${user.home}/.file-security-transmission/local-data.db}
     device-id-path: ${DEVICE_ID_PATH:${user.home}/.file-security-transmission/device-id}
+    startup-state-path: ${STARTUP_STATE_PATH:${user.home}/.file-security-transmission/startup-state.json}
 
 node:
   device-id: ${NODE_DEVICE_ID:}

@@ -204,9 +204,11 @@ public class ClientConnectionManager
     public Map<String, Object> currentStatus()
     {
         try {
+            Map<String, Object> keyStatus = cryptoSupport.keyStatus();
+            String accountId = isTruthy(keyStatus.get("hasPrivateKey")) ? cryptoSupport.publicKeyFingerprint() : "";
             return Map.of(
                     "deviceId", nodeProperties.getDeviceId(),
-                    "accountId", cryptoSupport.publicKeyFingerprint(),
+                    "accountId", accountId,
                     "status", status.name(),
                     "connectedHost", connectedHost == null ? "" : connectedHost,
                     "connectedPort", connectedPort
@@ -214,6 +216,14 @@ public class ClientConnectionManager
         } catch (GeneralSecurityException ex) {
             throw new IllegalStateException("Unable to calculate accountId", ex);
         }
+    }
+
+    private boolean isTruthy(Object value)
+    {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        return "true".equalsIgnoreCase(String.valueOf(value));
     }
 
     //获取本地的公钥

@@ -1,6 +1,7 @@
 package com.client.controller;
 
 import com.client.ClientConnectionManager;
+import com.client.ClientStartupCoordinator;
 import com.client.controller.dto.ConnectRequest;
 import com.common.config.ClientProperties;
 import com.common.config.CryptoServiceProperties;
@@ -28,6 +29,7 @@ public class SystemController
     private final CryptoServiceProperties cryptoServiceProperties;
     private final NodeProperties nodeProperties;
     private final CryptoSupport cryptoSupport;
+    private final ClientStartupCoordinator clientStartupCoordinator;
     private final TransferTaskRegistry transferTaskRegistry;
     private final LocalTransferHistoryService localTransferHistoryService;
     private final ClientConnectionManager clientConnectionManager;
@@ -38,6 +40,7 @@ public class SystemController
             CryptoServiceProperties cryptoServiceProperties,
             NodeProperties nodeProperties,
             CryptoSupport cryptoSupport,
+            ClientStartupCoordinator clientStartupCoordinator,
             TransferTaskRegistry transferTaskRegistry,
             LocalTransferHistoryService localTransferHistoryService,
             ClientConnectionManager clientConnectionManager
@@ -48,6 +51,7 @@ public class SystemController
         this.cryptoServiceProperties = cryptoServiceProperties;
         this.nodeProperties = nodeProperties;
         this.cryptoSupport = cryptoSupport;
+        this.clientStartupCoordinator = clientStartupCoordinator;
         this.transferTaskRegistry = transferTaskRegistry;
         this.localTransferHistoryService = localTransferHistoryService;
         this.clientConnectionManager = clientConnectionManager;
@@ -60,7 +64,8 @@ public class SystemController
         payload.put("application", "file-security-transmission-tool");
         payload.put("status", "UP");
         payload.put("deviceId", nodeProperties.getDeviceId());
-        payload.put("accountId", cryptoSupport.publicKeyFingerprint());
+        Map<String, Object> keyStatus = cryptoSupport.keyStatus();
+        payload.put("accountId", clientStartupCoordinator.isKeyMissing(keyStatus) ? "" : cryptoSupport.publicKeyFingerprint());
         payload.put("clientServerHost", clientProperties.getServerHost());
         payload.put("clientServerPort", clientProperties.getServerPort());
         payload.put("tcpEnabled", serverProperties.isEnabled());
@@ -82,7 +87,9 @@ public class SystemController
     @PostMapping("/key/generate")
     public ResponseEntity<Map<String, String>> generateKey() throws Exception
     {
-        return ResponseEntity.ok(cryptoSupport.generateKeyPair());
+        Map<String, String> result = cryptoSupport.generateKeyPair();
+        clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/key/delete")
@@ -104,6 +111,7 @@ public class SystemController
         } else {
             throw new IllegalArgumentException("privateKey or privateKeyPath is required");
         }
+        clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
         return ResponseEntity.ok(cryptoSupport.keyStatus());
     }
 
@@ -147,7 +155,40 @@ public class SystemController
             throw new IllegalArgumentException("privateKeyPath is required");
         }
         cryptoSupport.importPrivateKeyFile(PathInputNormalizer.toPath(request.getPrivateKeyPath()));
+        clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
         return ResponseEntity.ok(cryptoSupport.keyStatus());
+    }
+
+    @GetMapping("/startup-status")
+    public ResponseEntity<Map<String, Object>> startupStatus()
+    {
+        return ResponseEntity.ok(clientStartupCoordinator.startupStatus());
+    }
+
+    @PostMapping("/startup/key/generate")
+    public ResponseEntity<Map<String, Object>> startupGenerateKey()
+    {
+        return ResponseEntity.ok(clientStartupCoordinator.generateStartupKeyAndContinue());
+    }
+
+    @PostMapping("/startup/key/skip")
+    public ResponseEntity<Map<String, Object>> startupSkipKeySetup()
+    {
+        return ResponseEntity.ok(clientStartupCoordinator.skipStartupKeySetup());
+    }
+
+    @PostMapping("/startup/key/import-private")
+    public ResponseEntity<Map<String, Object>> startupImportPrivateKey(@RequestBody ImportPrivateKeyRequest request) throws Exception
+    {
+        importPrivateKey(request);
+        return ResponseEntity.ok(clientStartupCoordinator.startupStatus());
+    }
+
+    @PostMapping("/startup/key/import-private-file")
+    public ResponseEntity<Map<String, Object>> startupImportPrivateKeyFile(@RequestBody ImportPrivateKeyRequest request) throws Exception
+    {
+        importPrivateKeyFile(request);
+        return ResponseEntity.ok(clientStartupCoordinator.startupStatus());
     }
 
     @PostMapping("/connect")
@@ -216,6 +257,11 @@ public class SystemController
         system.put("POST /api/system/disconnect", "Disconnect from server");
         system.put("GET /api/system/connection-status", "Show detailed connection status");
         system.put("GET /api/system/public-key", "Show local public key");
+        system.put("GET /api/system/startup-status", "Show startup key setup and auto-connect gate status");
+        system.put("POST /api/system/startup/key/generate", "Generate key for startup flow and continue auto-connect if blocked");
+        system.put("POST /api/system/startup/key/skip", "Mark startup key setup as skipped");
+        system.put("POST /api/system/startup/key/import-private", "Import private key for startup flow");
+        system.put("POST /api/system/startup/key/import-private-file", "Import private key file for startup flow");
         system.put("GET /api/system/help", "Show this help message");
         payload.put("system", system);
 

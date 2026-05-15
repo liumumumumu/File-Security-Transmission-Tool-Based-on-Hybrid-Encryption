@@ -1,6 +1,5 @@
 package com.client;
 
-import com.client.service.ClientTransferService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -19,10 +18,10 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class ClientAutoConnectRunner
 {
-    private final ClientTransferService clientTransferService;
+    private final ClientStartupCoordinator clientStartupCoordinator;
 
-    public ClientAutoConnectRunner(ClientTransferService clientTransferService) {
-        this.clientTransferService = clientTransferService;
+    public ClientAutoConnectRunner(ClientStartupCoordinator clientStartupCoordinator) {
+        this.clientStartupCoordinator = clientStartupCoordinator;
     }
 
     //当Spring Boot 应用完全启动后，调用autoConnect函数
@@ -30,11 +29,11 @@ public class ClientAutoConnectRunner
     public void autoConnect()
     {
         try {
-            clientTransferService.autoConnectIfConfigured();
+            clientStartupCoordinator.handleApplicationReady();
         } catch (Exception ex) {
-            log.warn("Client auto-connect failed. Console remains available; use 'connect <host> <port>' to retry.", ex);
-            System.out.println("Auto-connect failed: " + ex.getMessage());
-            System.out.println("Console is still available. Try: connect <host> <port>");
+            log.warn("Client startup coordination failed.", ex);
+            System.out.println("Startup check failed: " + ex.getMessage());
+            System.out.println("Console is still available. Try: key-info");
         }
     }
 }
