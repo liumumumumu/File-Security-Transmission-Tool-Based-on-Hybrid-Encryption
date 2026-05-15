@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SafeSend Hybrid - App UI</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell" v-cloak>
+      <aside class="sidebar" aria-label="应用导航">
+        <a class="brand" href="./index.html" aria-label="SafeSend Hybrid 首页">
+          <span class="brand-mark">SH</span>
+          <span>
+            <strong>SafeSend</strong>
+            <small>Hybrid Transfer</small>
+          </span>
+        </a>
+
+        <nav class="side-nav">
+          <button
+            v-for="item in navigation"
+            :key="item.id"
+            type="button"
+            :class="{ active: activeView === item.id }"
+            @click="setActiveView(item.id)"
+          >
+            <i :data-lucide="item.icon" aria-hidden="true"></i>
+            <span>{{ item.label }}</span>
+          </button>
+        </nav>
+
+        <section class="sidebar-status" aria-label="连接状态">
+          <div class="status-ring" :class="statusClass" :style="{ '--value': progress }">
+            <span>{{ progress }}</span>
+          </div>
+          <p>{{ connectionText }}</p>
+          <small>{{ apiBase }}</small>
+        </section>
+      </aside>
+
+      <div class="app-main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Vue Frontend Workspace</p>
+            <h1>{{ viewTitle }}</h1>
+          </div>
+          <div class="topbar-actions">
+            <span class="runtime-pill" :class="statusClass">
+              <span class="dot"></span>
+              {{ connectionText }}
+            </span>
+            <button class="icon-button" type="button" title="接口配置" aria-label="接口配置" @click="toggleDevPanel">
+              <i data-lucide="sliders-horizontal" aria-hidden="true"></i>
+            </button>
+          </div>
+        </header>
+
+        <main class="workspace">
+          <section class="overview-grid" aria-label="任务概览">
+            <article class="stat-card accent-teal">
+              <span>文件数</span>
+              <strong>{{ files.length }}</strong>
+              <small>{{ totalSizeText }}</small>
+            </article>
+            <article class="stat-card accent-blue">
+              <span>分块总数</span>
+              <strong>{{ totalChunks }}</strong>
+              <small>{{ settings.chunkSize }} MB / block</small>
+            </article>
+            <article class="stat-card accent-gold">
+              <span>传输进度</span>
+              <strong>{{ progress }}%</strong>
+              <small>{{ progressLabel }}</small>
+            </article>
+            <article class="stat-card accent-rose">
+              <span>安全套件</span>
+              <strong>{{ sessionKeyText }}</strong>
+              <small>{{ settings.keyExchange }} + GCM</small>
+            </article>
+          </section>
+
+          <section class="content-grid">
+            <section class="panel transfer-card" aria-labelledby="transfer-title">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Transfer</p>
+                  <h2 id="transfer-title">{{ mode === "send" ? "发送文件" : "接收任务" }}</h2>
+                </div>
+                <div class="segmented" role="tablist" aria-label="传输模式">
+                  <button
+                    v-for="item in modes"
+                    :key="item.value"
+                    class="segment"
+                    :class="{ active: mode === item.value }"
+                    type="button"
+                    role="tab"
+                    :aria-selected="mode === item.value"
+                    @click="setMode(item.value)"
+                  >
+                    {{ item.label }}
+                  </button>
+                </div>
+              </div>
+
+              <form class="transfer-form" @submit.prevent="startTransfer">
+                <label
+                  class="drop-zone"
+                  :class="{ 'drag-over': isDragging }"
+                  for="file-input"
+                  @dragenter.prevent="isDragging = true"
+                  @dragover.prevent="isDragging = true"
+                  @dragleave.prevent="isDragging = false"
+                  @drop.prevent="handleDrop"
+                >
+                  <input id="file-input" ref="fileInput" type="file" multiple @change="handleFileChange" />
+                  <span class="drop-badge"><i data-lucide="upload-cloud" aria-hidden="true"></i></span>
+                  <strong>{{ mode === "send" ? "拖拽文件到这里" : "输入接收码后查询" }}</strong>
+                  <span>选择文件后会自动计算大小、分块数量和加密链路状态。</span>
+                </label>
+
+                <div class="file-list" aria-live="polite">
+                  <p v-if="!files.length" class="empty-state">还没有选择文件。</p>
+                  <article v-for="file in fileSummaries" :key="file.id" class="file-item">
+                    <span class="file-icon"><i data-lucide="file" aria-hidden="true"></i></span>
+                    <div>
+                      <strong>{{ file.name }}</strong>
+                      <small>{{ file.sizeText }} · {{ file.chunks }} 块</small>
+                    </div>
+                  </article>
+                </div>
+
+                <div class="form-grid">
+                  <label>
+                    <span>Java API</span>
+                    <input v-model.trim="apiBase" type="text" autocomplete="off" />
+                  </label>
+                  <label>
+                    <span>TCP 端口</span>
+                    <input v-model.number="settings.port" type="number" min="1" max="65535" />
+                  </label>
+                  <label>
+                    <span>密钥协商</span>
+                    <select v-model="settings.keyExchange">
+                      <option value="RSA-2048">RSA-2048</option>
+                      <option value="ECC P-256">ECC P-256</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>分块大小</span>
+                    <select v-model.number="settings.chunkSize">
+                      <option :value="1">1 MB</option>
+                      <option :value="2">2 MB</option>
+                      <option :value="4">4 MB</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label v-if="mode === 'receive'" class="receive-code">
+                  <span>接收码 / transferId</span>
+                  <input v-model.trim="receiveCode" type="text" placeholder="TASK-001 或 transferId" autocomplete="off" />
+                </label>
+
+                <div class="settings-row" aria-label="传输选项">
+                  <label>
+                    <input v-model="options.enableGcm" type="checkbox" />
+                    <span>AES-256-GCM</span>
+                  </label>
+                  <label>
+                    <input v-model="options.resume" type="checkbox" />
+                    <span>断点续传</span>
+                  </label>
+                  <label>
+                    <input v-model="options.demoMode" type="checkbox" />
+                    <span>演示模式</span>
+                  </label>
+                </div>
+
+                <div class="action-bar">
+                  <button class="primary-button" type="submit" :disabled="isRunning">
+                    <i data-lucide="send" aria-hidden="true"></i>
+                    <span>{{ isRunning ? "传输中" : mode === "send" ? "开始传输" : "查询任务" }}</span>
+                  </button>
+                  <button class="tool-button" type="button" :disabled="!isRunning" title="暂停" aria-label="暂停" @click="pauseTransfer">
+                    <i data-lucide="pause" aria-hidden="true"></i>
+                  </button>
+                  <button class="tool-button" type="button" :disabled="status !== 'paused'" title="恢复" aria-label="恢复" @click="resumeTransfer">
+                    <i data-lucide="play" aria-hidden="true"></i>
+                  </button>
+                  <button class="tool-button" type="button" title="清空" aria-label="清空" @click="resetTransfer">
+                    <i data-lucide="rotate-ccw" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <aside class="panel progress-card" aria-labelledby="progress-title">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Live Session</p>
+                  <h2 id="progress-title">会话状态</h2>
+                </div>
+                <span class="runtime-pill" :class="statusClass">{{ connectionText }}</span>
+              </div>
+
+              <div class="progress-dial" :style="{ '--value': progress }">
+                <div>
+                  <strong>{{ progress }}%</strong>
+                  <span>{{ progressLabel }}</span>
+                </div>
+              </div>
+
+              <div class="metric-list">
+                <div>
+                  <span>速度</span>
+                  <strong>{{ speedText }}</strong>
+                </div>
+                <div>
+                  <span>ETA</span>
+                  <strong>{{ etaText }}</strong>
+                </div>
+                <div>
+                  <span>ACK</span>
+                  <strong>{{ ackedChunks }}</strong>
+                </div>
+                <div>
+                  <span>任务 ID</span>
+                  <strong>{{ taskId || "未创建" }}</strong>
+                </div>
+              </div>
+            </aside>
+          </section>
+
+          <section class="lower-grid">
+            <section class="panel task-panel" aria-labelledby="tasks-title">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Queue</p>
+                  <h2 id="tasks-title">任务队列</h2>
+                </div>
+                <button class="link-button" type="button" @click="addLog('等待后端 /api/tasks 接口。')">同步</button>
+              </div>
+              <div class="task-list">
+                <article v-for="task in visibleTasks" :key="task.id" class="task-row">
+                  <span class="task-type" :class="task.tone"><i :data-lucide="task.icon" aria-hidden="true"></i></span>
+                  <div>
+                    <strong>{{ task.title }}</strong>
+                    <small>{{ task.meta }}</small>
+                  </div>
+                  <span>{{ task.percent }}%</span>
+                </article>
+              </div>
+            </section>
+
+            <section class="panel security-panel" aria-labelledby="security-title">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Security</p>
+                  <h2 id="security-title">混合加密链路</h2>
+                </div>
+              </div>
+              <ol class="pipeline">
+                <li
+                  v-for="(step, index) in pipeline"
+                  :key="step.key"
+                  :class="{ active: currentStageIndex === index, done: currentStageIndex > index || status === 'completed' }"
+                >
+                  <span>{{ index + 1 }}</span>
+                  <div>
+                    <strong>{{ step.title }}</strong>
+                    <small>{{ step.desc }}</small>
+                  </div>
+                </li>
+              </ol>
+            </section>
+
+            <section class="panel integration-panel" aria-labelledby="integration-title">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Integration</p>
+                  <h2 id="integration-title">后端联调</h2>
+                </div>
+              </div>
+              <div class="integration-stack">
+                <div>
+                  <span>Vue UI</span>
+                  <strong>file:// / static</strong>
+                </div>
+                <div>
+                  <span>Java REST</span>
+                  <strong>{{ apiBase }}</strong>
+                </div>
+                <div>
+                  <span>Netty TCP</span>
+                  <strong>{{ settings.host }}:{{ settings.port }}</strong>
+                </div>
+                <div>
+                  <span>Crypto Module</span>
+                  <strong>{{ systemStatus?.cryptoServiceAddress || "127.0.0.1" }}:{{ systemStatus?.cryptoServicePort || "9081" }}</strong>
+                </div>
+              </div>
+
+              <div v-if="showDevPanel" class="dev-panel">
+                <p>关闭演示模式后将调用 `POST /api/transfers`，再轮询 `GET /api/transfers/{task_id}`。</p>
+              </div>
+            </section>
+          </section>
+
+          <section class="system-grid" aria-label="系统与密钥状态">
+            <section class="panel system-panel" aria-labelledby="system-title">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">System</p>
+                  <h2 id="system-title">Java 后端状态</h2>
+                </div>
+                <button class="link-button" type="button" :disabled="backendLoading" @click="fetchSystemStatus">
+                  {{ backendLoading ? "同步中" : "同步" }}
+                </button>
+              </div>
+
+              <div class="status-summary">
+                <span class="service-badge" :class="{ danger: backendError, online: systemStatus?.status }">
+                  {{ backendStatusText }}
+                </span>
+                <p v-if="backendError">{{ backendError }}</p>
+                <p v-else>前端当前连接 Java REST：{{ apiBase }}</p>
+              </div>
+
+              <div class="detail-grid">
+                <div>
+                  <span>设备 ID</span>
+                  <strong>{{ systemStatus?.deviceId || "--" }}</strong>
+                </div>
+                <div>
+                  <span>账户指纹</span>
+                  <strong>{{ systemStatus?.accountId || "--" }}</strong>
+                </div>
+                <div>
+                  <span>TCP 服务</span>
+                  <strong>{{ systemStatus?.tcpBindHost || "--" }}:{{ systemStatus?.tcpBindPort || "--" }}</strong>
+                </div>
+                <div>
+                  <span>任务数量</span>
+                  <strong>{{ systemStatus?.taskCount ?? "--" }}</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel key-panel" aria-labelledby="key-title">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Keychain</p>
+                  <h2 id="key-title">密钥状态</h2>
+                </div>
+                <button class="link-button" type="button" :disabled="keyLoading" @click="fetchKeyStatus">
+                  {{ keyLoading ? "同步中" : "同步" }}
+                </button>
+              </div>
+
+              <div class="key-state">
+                <span
+                  class="key-indicator"
+                  :class="{ online: toBoolean(keyStatus?.hasPrivateKey) && toBoolean(keyStatus?.hasPublicKey), danger: keyError }"
+                >
+                  <i data-lucide="key-round" aria-hidden="true"></i>
+                </span>
+                <div>
+                  <strong>{{ keyStatusText }}</strong>
+                  <small v-if="keyError" class="error-text">{{ keyError }}</small>
+                  <small v-else>Java 调用 Qt crypto service 管理本地 RSA 密钥。</small>
+                </div>
+              </div>
+
+              <div class="detail-grid compact">
+                <div>
+                  <span>私钥</span>
+                  <strong>{{ toBoolean(keyStatus?.hasPrivateKey) ? "存在" : "缺失" }}</strong>
+                </div>
+                <div>
+                  <span>公钥</span>
+                  <strong>{{ toBoolean(keyStatus?.hasPublicKey) ? "存在" : "缺失" }}</strong>
+                </div>
+              </div>
+
+              <div class="action-bar">
+                <button class="primary-button" type="button" :disabled="keyLoading" @click="generateKeyPair">
+                  <i data-lucide="key-round" aria-hidden="true"></i>
+                  <span>生成密钥</span>
+                </button>
+                <button class="tool-button danger" type="button" :disabled="keyLoading" title="删除密钥" aria-label="删除密钥" @click="deleteKeyPair">
+                  <i data-lucide="trash-2" aria-hidden="true"></i>
+                </button>
+              </div>
+            </section>
+          </section>
+
+          <section class="panel log-panel" aria-label="任务日志">
+            <div class="panel-heading compact">
+              <div>
+                <p class="eyebrow">Events</p>
+                <h2>事件日志</h2>
+              </div>
+            </div>
+            <ol class="event-log" aria-live="polite">
+              <li v-for="item in logs" :key="item.id">
+                <span>{{ item.time }}</span>
+                <strong>{{ item.text }}</strong>
+              </li>
+            </ol>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
