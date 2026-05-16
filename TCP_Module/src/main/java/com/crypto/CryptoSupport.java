@@ -9,6 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -20,6 +23,7 @@ import java.nio.file.Path;
 import java.security.*;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Arrays;
 
 /**
  * Author: LQH
@@ -30,7 +34,7 @@ import java.util.Map;
 
 @Component
 @Slf4j
-public class CryptoSupport   //负责加密，解密，签名，验证签名，密钥管理；但是真正的实现是由Python cryptography库实现，并部署在本地，因此这个类负责调用相关的服务
+public class CryptoSupport   // RSA、签名、密钥管理由 Python crypto service 提供；高频 AES-GCM 文件块加解密在 Java 进程内完成。
 {
 
     private final CryptoServiceProperties  cryptoServiceProperties;
@@ -41,9 +45,11 @@ public class CryptoSupport   //负责加密，解密，签名，验证签名，�
 
     //AES-GCM的认证标签长度128bit
     private static final int GCM_TAG_BITS = 128;
+    private static final int GCM_TAG_BYTES = GCM_TAG_BITS / Byte.SIZE;
+    private static final int AES_KEY_BITS = 256;
 
     //GCM随机nonce长度12字节
-    private static final int GCM_NONCE_BITS = 12;
+    private static final int GCM_NONCE_BYTES = 12;
 
     //用于生产随机数，如nonce
     private final SecureRandom secureRandom = new SecureRandom();//随机数生成器（待定）
@@ -116,8 +122,12 @@ public class CryptoSupport   //负责加密，解密，签名，验证签名，�
     {
 //        return null;
 
-        String keyBase64=POST("/aes/generate", Map.of()).get("key");
-        return new SecretKeySpec(Base64.getDecoder().decode(keyBase64),"AES");
+//        String keyBase64=POST("/aes/generate", Map.of()).get("key");
+//        return new SecretKeySpec(Base64.getDecoder().decode(keyBase64),"AES");
+
+        KeyGenerator keyGenerator=KeyGenerator.getInstance("AES");
+        keyGenerator.init(AES_KEY_BITS, secureRandom);
+        return keyGenerator.generateKey();
     }
 
     //用接收方的RSA公钥加密
@@ -147,16 +157,37 @@ public class CryptoSupport   //负责加密，解密，签名，验证签名，�
     {
 //        return null;
 
-        Map<String, String>result=POST("/aes-gcm/encrypt", Map.of(
-                "key", Base64.getEncoder().encodeToString(AESKey.getEncoded()),
-                "plain", Base64.getEncoder().encodeToString(plain)
-        ));
 
-        return new AesGcmChunk(
-                Base64.getDecoder().decode(result.get("nonce")),
-                Base64.getDecoder().decode(result.get("ciphertext")),
-                Base64.getDecoder().decode(result.get("tag"))
-        );
+
+//        Map<String, String>result=POST("/aes-gcm/encrypt", Map.of(
+//                "key", Base64.getEncoder().encodeToString(AESKey.getEncoded()),
+//                "plain", Base64.getEncoder().encodeToString(plain)
+//        ));
+
+//        return new AesGcmChunk(
+//                Base64.getDecoder().decode(result.get("nonce")),
+//                Base64.getDecoder().decode(result.get("ciphertext")),
+//                Base64.getDecoder().decode(result.get("tag"))
+//        );
+
+        validateAes256Key(AESKey);
+
+        byte[] nonce = new byte[GCM_NONCE_BYTES];
+        secureRandom.nextBytes(nonce);
+
+        Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, AESKey, new GCMParameterSpec(GCM_TAG_BITS, nonce));
+
+        byte[] encrypted= cipher.doFinal(plain);
+        int ciphertextLength=encrypted.length - GCM_TAG_BYTES;
+        if(ciphertextLength<0)
+        {
+            throw new GeneralSecurityException("AES-GCM output shorter than tag length");
+        }
+
+        byte[] ciphertext=Arrays.copyOfRange(encrypted,0,ciphertextLength);
+        byte[] tag=Arrays.copyOfRange(encrypted, ciphertextLength, encrypted.length);
+        return new AesGcmChunk(nonce, ciphertext, tag);
     }
 
     //解密AES-GCM加密的数据块
@@ -164,13 +195,31 @@ public class CryptoSupport   //负责加密，解密，签名，验证签名，�
     {
 //        return null;
 
-        Map<String, String> result = POST("/aes-gcm/decrypt", Map.of(
-                "key", Base64.getEncoder().encodeToString(AESKey.getEncoded()),
-                "nonce", Base64.getEncoder().encodeToString(nonce),
-                "ciphertext", Base64.getEncoder().encodeToString(ciphertext),
-                "tag", Base64.getEncoder().encodeToString(tag)
-        ));
-        return Base64.getDecoder().decode(result.get("plain"));
+//        Map<String, String> result = POST("/aes-gcm/decrypt", Map.of(
+//                "key", Base64.getEncoder().encodeToString(AESKey.getEncoded()),
+//                "nonce", Base64.getEncoder().encodeToString(nonce),
+//                "ciphertext", Base64.getEncoder().encodeToString(ciphertext),
+//                "tag", Base64.getEncoder().encodeToString(tag)
+//        ));
+//        return Base64.getDecoder().decode(result.get("plain"));
+
+        validateAes256Key(AESKey);
+        if(nonce.length != GCM_NONCE_BYTES)
+        {
+            throw new GeneralSecurityException("AES-GCM nonce must be "+GCM_NONCE_BYTES+" bytes");
+        }
+        if(tag.length != GCM_TAG_BYTES)
+        {
+            throw new GeneralSecurityException("AES-GCM tag must be "+GCM_TAG_BYTES+" bytes");
+        }
+
+        byte[] encrypted = new byte[ciphertext.length+tag.length];
+        System.arraycopy(ciphertext, 0, encrypted, 0, ciphertext.length);
+        System.arraycopy(tag, 0, encrypted, ciphertext.length, tag.length);
+
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.DECRYPT_MODE, AESKey, new GCMParameterSpec(GCM_TAG_BITS, nonce));
+        return cipher.doFinal(encrypted);
     }
 
     //用指定的RSA公钥加密字节数据，并返回Base64字符串(底层工具)
@@ -332,6 +381,16 @@ public class CryptoSupport   //负责加密，解密，签名，验证签名，�
             log.info("Crypto service POST failed: "+path);
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Crypto service POST failed: "+path, e);
+        }
+    }
+
+    //验证AES256密钥
+    private void validateAes256Key(SecretKey AESKey) throws GeneralSecurityException
+    {
+        byte[] encoded = AESKey.getEncoded();
+        if(encoded == null || encoded.length != AES_KEY_BITS / Byte.SIZE)
+        {
+            throw new GeneralSecurityException("AES-256 key must be 32 bytes");
         }
     }
 
