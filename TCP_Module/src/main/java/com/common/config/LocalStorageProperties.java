@@ -2,13 +2,20 @@ package com.common.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+/**
+ * Author: LQH
+ * Date: 2026-05-13
+ * Purpose: 配置绑定类，读取配置文件里面的本地存储路径配置
+ *
+ **/
+
 @ConfigurationProperties(prefix = "app.local-storage")
 public class LocalStorageProperties
 {
-    private String transferHistoryPath;
-    private String sqlitePath;
-    private String deviceIdPath;
-    private String startupStatePath;
+    private String transferHistoryPath;//传输历史记录文件的路径
+    private String sqlitePath;//SQLite数据库的路径
+    private String deviceIdPath;//本机设备ID保存路径
+    private String startupStatePath;//启动状态文件路径
 
     public String getTransferHistoryPath() {
         return transferHistoryPath;
