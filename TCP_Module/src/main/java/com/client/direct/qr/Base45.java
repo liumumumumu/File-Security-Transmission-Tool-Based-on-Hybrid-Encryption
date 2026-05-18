@@ -11,8 +11,8 @@ import java.io.ByteArrayOutputStream;
 
 public final class Base45
 {
-    private static final char[] ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:".toCharArray();
-    private static final int[] REVERSE = new int[128];
+    private static final char[] ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:".toCharArray();//Base45的字符表
+    private static final int[] REVERSE = new int[128];//反查表，用字符快速找到他在Base45字符表的数值
 
     static  //静态初始化块，类加载的时候执行一次
     {
@@ -28,7 +28,7 @@ public final class Base45
 
     private Base45() {}
 
-    public static String encode(byte[] bytes)
+    public static String encode(byte[] bytes)//将二进制数据编码成Base45字符串
     {
         StringBuilder result = new StringBuilder((bytes.length * 3 + 1) / 2);
         int index = 0;
@@ -52,7 +52,7 @@ public final class Base45
         return result.toString();
     }
 
-    public static byte[] decode(String value)
+    public static byte[] decode(String value)//把Base45字符串还原成字节数组
     {
         if(value == null)
         {
@@ -96,7 +96,7 @@ public final class Base45
         return out.toByteArray();
     }
 
-    private static int decodeChar(char ch)
+    private static int decodeChar(char ch)//校验并且转换成单个Base45字符
     {
         if(ch >= REVERSE.length || REVERSE[ch] < 0)
         {
