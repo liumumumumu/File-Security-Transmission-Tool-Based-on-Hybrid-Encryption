@@ -1,6 +1,7 @@
 package com.client.console;
 
 import com.client.ClientConnectionManager;
+import com.client.ClientStartupCoordinator;
 import com.common.config.ClientProperties;
 import com.common.protocol.file.IncomingTransferRequestPacket;
 import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
@@ -66,6 +67,7 @@ public class ConsoleCommandRunner
     private static final long TASK_WATCH_INTERVAL_MILLIS = 1000L;
 
     private final ClientConnectionManager clientConnectionManager;//负责客户端连接服务器，认证，断开连接
+    private final ClientStartupCoordinator clientStartupCoordinator;//协调启动期密钥检查、首次询问和自动连接恢复
     private final ClientTransferService clientTransferService;//负责收发文件，处理传输请求
     private final ClientProperties clientProperties;//负责读取客户端配置
     private final CryptoSupport cryptoSupport;//负责访问本地的加密服务，管理密钥，获取密钥状态，生成密钥，导入密钥
@@ -79,6 +81,7 @@ public class ConsoleCommandRunner
 
     public ConsoleCommandRunner(
             ClientConnectionManager clientConnectionManager,
+            ClientStartupCoordinator clientStartupCoordinator,
             ClientTransferService clientTransferService,
             ClientProperties clientProperties,
             CryptoSupport cryptoSupport,
@@ -89,6 +92,7 @@ public class ConsoleCommandRunner
     )
     {
         this.clientConnectionManager = clientConnectionManager;
+        this.clientStartupCoordinator = clientStartupCoordinator;
         this.clientTransferService = clientTransferService;
         this.clientProperties = clientProperties;
         this.cryptoSupport = cryptoSupport;
@@ -121,8 +125,8 @@ public class ConsoleCommandRunner
     private void runCommandLoop()
     {
         printWelcome();//打印欢迎消息
-        remindIfKeyMissing();//检查当前是否有密钥
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, commandInputCharset()))) {
+            handleStartupKeyPrompt(reader);
             while (applicationContext.isActive()) {//进入大循环
                 System.out.print("fst> ");
                 String line = reader.readLine();
@@ -133,6 +137,36 @@ public class ConsoleCommandRunner
             }
         } catch (IOException ex) {
             System.out.println("Console stopped: " + ex.getMessage());
+        }
+    }
+
+    private void handleStartupKeyPrompt(BufferedReader reader) throws IOException
+    {
+        try {
+            if (!clientStartupCoordinator.shouldPromptForStartupKeySetup()) {
+                remindIfKeyMissing();
+                return;
+            }
+
+            System.out.println("No local key pair is available. Auto-connect has been paused for this startup.");
+            System.out.print("Generate a new key pair now and continue auto-connect? [y/N] ");
+            String answer = reader.readLine();
+            if (answer != null && ("y".equalsIgnoreCase(answer.trim()) || "yes".equalsIgnoreCase(answer.trim()))) {
+                Map<String, Object> result = clientStartupCoordinator.generateStartupKeyAndContinue();
+                Object keyResult = result.get("keyResult");
+                if (keyResult instanceof Map<?, ?> keyMap) {
+                    printAnyMap(keyMap);
+                }
+                System.out.println("Key pair generated. Auto-connect will continue if it was configured.");
+                return;
+            }
+
+            clientStartupCoordinator.skipStartupKeySetup();
+            System.out.println("Skipped key generation. Auto-connect remains paused until you generate or import a private key.");
+            printMissingKeyReminder();
+        } catch (Exception ex) {
+            System.out.println("Unable to handle startup key setup: " + ex.getMessage());
+            System.out.println("Run 'key-info' after confirming the crypto service is running.");
         }
     }
 
@@ -1048,7 +1082,11 @@ public class ConsoleCommandRunner
 
     private void generateKey() throws Exception //生成新的一对密钥
     {
-        printMap(cryptoSupport.generateKeyPair());
+        Map<String, Object> result = clientStartupCoordinator.generateStartupKeyAndContinue();
+        Object keyResult = result.get("keyResult");
+        if (keyResult instanceof Map<?, ?> keyMap) {
+            printAnyMap(keyMap);
+        }
     }
 
     private void deleteKey() throws Exception   //删除当前的密钥
@@ -1065,8 +1103,9 @@ public class ConsoleCommandRunner
             return;
         }
         cryptoSupport.importPrivateKeyText(args.get(1));
+        clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
         System.out.println("Private key imported. Public key fingerprint: " + cryptoSupport.publicKeyFingerprint());
-        System.out.println("Reconnect to register/update this public key on the server.");
+        System.out.println("Auto-connect will continue if it was paused by missing key.");
     }
 
     private void importPrivateKeyFile(List<String> args) throws Exception   //导入密钥文件的方式
@@ -1076,8 +1115,9 @@ public class ConsoleCommandRunner
             return;
         }
         cryptoSupport.importPrivateKeyFile(PathInputNormalizer.toPath(args.get(1)));//对于导入私钥文件的路径进行规格化操作
+        clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
         System.out.println("Private key imported. Public key fingerprint: " + cryptoSupport.publicKeyFingerprint());
-        System.out.println("Reconnect to register/update this public key on the server.");
+        System.out.println("Auto-connect will continue if it was paused by missing key.");
     }
 
     private void importPrivateKeyPaste(BufferedReader reader) throws Exception  //通过负责粘贴的方式输入密钥
@@ -1095,8 +1135,9 @@ public class ConsoleCommandRunner
             keyText.append(line).append('\n');
         }
         cryptoSupport.importPrivateKeyText(keyText.toString());
+        clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
         System.out.println("Private key imported. Public key fingerprint: " + cryptoSupport.publicKeyFingerprint());
-        System.out.println("Reconnect to register/update this public key on the server.");
+        System.out.println("Auto-connect will continue if it was paused by missing key.");
     }
 
         //--------------------------导入密钥的三种方式------------------------------//
@@ -1110,6 +1151,13 @@ public class ConsoleCommandRunner
     private void printMap(Map<String, ?> map)
     {
         for (Map.Entry<String, ?> entry : map.entrySet()) {
+            System.out.println(entry.getKey() + ": " + entry.getValue());
+        }
+    }
+
+    private void printAnyMap(Map<?, ?> map)
+    {
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
             System.out.println(entry.getKey() + ": " + entry.getValue());
         }
     }

@@ -42,11 +42,14 @@ import java.util.concurrent.*;
  * 5. 分块读取、AES-GCM 加密并发送文件内容
  * 6. 维护发送窗口，等待并处理每个文件块的 ACK
  * 7. 接收文件 offer，解密会话密钥，创建接收任务和接收上下文
- * 8. 接收、解密文件块，并按块号顺序写入本地文件
- * 9. 支持接收请求的接受/拒绝、传输取消、取消确认和本地资源清理
- * 10. 支持断点重传请求、发送方确认/拒绝重传，以及从指定块重新发送
- * 11. 支持在线用户查询，用于联系人和目标账号公钥获取
- * 12. 更新传输任务状态、持久化任务，并推送控制台/UI 通知
+ * 8. 接收文件块，完成 AES-GCM 解密认证后先放入接收缓存，并根据缓存压力立即或延迟回复 ACK
+ * 9. 后台按块号顺序写入本地文件，避免磁盘写入和进度持久化阻塞 ACK 返回
+ * 10. 使用接收缓存高低水位释放延迟 ACK，对发送端形成动态背压，避免接收端内存无限增长
+ * 11. 对接收进度事件和任务持久化做节流，减少每块写入带来的额外开销
+ * 12. 支持接收请求的接受/拒绝、传输取消、取消确认和本地资源清理
+ * 13. 支持断点重传请求、发送方确认/拒绝重传，以及从指定块重新发送
+ * 14. 支持在线用户查询，用于联系人和目标账号公钥获取
+ * 15. 更新传输任务状态、持久化任务，并推送控制台/UI 通知
  *
  * */
 
@@ -54,6 +57,10 @@ import java.util.concurrent.*;
 @Slf4j
 public class ClientTransferService
 {
+    private static final long RECEIVE_PROGRESS_UPDATE_INTERVAL_NANOS = TimeUnit.MILLISECONDS.toNanos(500);
+    private static final long RECEIVE_PENDING_HIGH_WATERMARK_BYTES = 256L * 1024 * 1024;
+    private static final long RECEIVE_PENDING_LOW_WATERMARK_BYTES = 128L * 1024 * 1024;
+
     private final ClientConnectionManager clientConnectionManager;//负责网络连接，认证状态，发送packet
     private final CryptoSupport cryptoSupport;//提供加密，解密，生成AES密钥，RSA加密AES密钥，AES-GCM加密解密文件块
 
@@ -501,10 +508,10 @@ public class ClientTransferService
 
         //打开输出文件流
         OutputStream outputStream=Files.newOutputStream(
-          outputPath,
-          StandardOpenOption.CREATE,
-          StandardOpenOption.TRUNCATE_EXISTING,
-          StandardOpenOption.WRITE
+                outputPath,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING,
+                StandardOpenOption.WRITE
         );
 
         //创建接收上下文
@@ -548,22 +555,160 @@ public class ClientTransferService
 
         //解密数据块
         byte[] plain=cryptoSupport.decryptChunk(packet.getNonce(),packet.getCiphertext(),packet.getTag(),context.secretKey);
-        boolean complete;//文件接收完成的标志
-        synchronized (context)  //加锁，互斥修改任务上下文变量，避免多个文件块同时修改上下文和写文件
+        boolean accepted;
+        boolean ackNow;
+        synchronized (context)
         {
-            complete=context.acceptBlock(packet.getBlockId(), plain);
+            accepted=context.acceptDecryptedBlock(packet.getBlockId(), plain);
+            if(accepted && context.shouldDelayAck())
+            {
+                context.delayAck(packet.getBlockId());
+                ackNow = false;
+            }
+            else
+            {
+                ackNow = true;
+            }
         }
 
-        //回复ACK
-        clientConnectionManager.send(new AckPacket(packet.getBlockId(),true,packet.getTransferId()));
-        pushNotificationService.publish("transfer-progress", context.transferTask);
-        persistTask(context.transferTask);
-
-        if(complete)//判断文件是否接收完成
+        // 缓存压力低时立即ACK；压力高时由后台写盘降到低水位后释放ACK，形成接收端背压。
+        if(ackNow)
         {
-            inboundTransferContexts.remove(packet.getTransferId());
-            pushNotificationService.publish("transfer-complete", context.transferTask);
-            persistTask(context.transferTask);
+            clientConnectionManager.send(new AckPacket(packet.getBlockId(),true,packet.getTransferId()));
+        }
+
+        if(accepted)
+        {
+            scheduleInboundFlush(packet.getTransferId(), context);
+        }
+    }
+
+    //安排后台任务，把接收缓存里的数据写入文件
+    private void scheduleInboundFlush(String transferId, InboundTransferContext context)
+    {
+        synchronized (context) //加锁检查状态，因为多个文件块可能连续到达，多个线程可能同时想安排写文件任务，所以要锁住同一个接收上下文。
+        {
+            if(context.isClosed() || context.isFlushScheduled())    //避免重复提交任务；context.isClosed表示接收任务已经接收不需要再写；context.isFlushScheduled标识已经有一个后台写文件任务在排队或运行了，不要再提交新的
+            {
+                return;
+            }
+            context.markFlushScheduled();//标记已经有写入任务
+        }
+        executorService.submit(() -> flushInboundBlocks(transferId, context));//并提交后台任务
+    }
+
+    //接收端后台写文件任务，把已经解密且放进内存缓存里的块，按顺序写进目标文件，并更新接收进度，判断文件是否接收完成，释放延迟的ACK，推送进度或完成事件，写文件失败时标记任务失败
+    private void flushInboundBlocks(String transferId, InboundTransferContext context)
+    {
+        boolean complete = false;
+        boolean publishProgress = false;
+        boolean reschedule = false;
+        List<Integer> delayedAckBlockIds = List.of();
+        try
+        {
+            synchronized (context)//锁住当前接收任务，防止多个线程同时修改
+            {
+                if(context.isClosed())//如果任务已经结束，就不再继续写了，直接退出
+                {
+                    context.clearFlushScheduled();
+                    return;
+                }
+
+                boolean wrote = context.flushContiguousBlocks();//真正写文件的地方
+                if(!wrote)//必须按顺序写
+                {
+                    context.clearFlushScheduled();
+                    return;
+                }
+
+                //更新任务进度
+                context.transferTask.updateProgress(context.receivedBytes, context.receivedBlocks);
+                context.transferTask.updateStatus(TransferStatus.TRANSFERRING, "Receiving blocks");
+
+                complete = context.isCompleted();
+                if(complete)//判断是否写入完成
+                {
+                    context.outputStream.flush();
+                    context.outputStream.close();
+                    context.markClosed();
+                    context.transferTask.updateStatus(TransferStatus.COMPLETED, "File received");
+                    delayedAckBlockIds = context.drainDelayedAcks();
+                }
+                else
+                {
+                    //未完成则判断是否到了进度推送时间，避免每块都推送，如果缓存压力已经下降到低水位以下，就释放延迟 ACK
+                    publishProgress = context.shouldPublishProgress();
+                    if(context.shouldReleaseDelayedAcks())
+                    {
+                        delayedAckBlockIds = context.drainDelayedAcks();
+                    }
+                }
+
+                //表示当前后台写任务结束了。
+                context.clearFlushScheduled();
+                reschedule = !context.isClosed() && context.hasContiguousPendingBlock();
+            }
+
+            //如果完成就发出所有延迟 ACK，从接收上下文表里移除这个任务，推送完成事件，持久化任务状态
+            if(complete)
+            {
+                sendDelayedAcks(transferId, delayedAckBlockIds);
+                inboundTransferContexts.remove(transferId, context);
+                pushNotificationService.publish("transfer-complete", context.transferTask);
+                persistTask(context.transferTask);
+                return;
+            }
+
+            //没有完成，但有延迟 ACK 要释放，也在这里发。
+            sendDelayedAcks(transferId, delayedAckBlockIds);
+
+            if(publishProgress)
+            {
+                pushNotificationService.publish("transfer-progress", context.transferTask);
+                persistTask(context.transferTask);
+            }
+
+            if(reschedule)//如果还有连续块能写，就再安排一次后台写任务
+            {
+                scheduleInboundFlush(transferId, context);
+            }
+        }
+        catch(IOException e)
+        {
+            failInboundTransfer(transferId, context, e);
+        }
+    }
+
+    //将之前被推迟的ACK补发出来
+    private void sendDelayedAcks(String transferId, List<Integer> blockIds)
+    {
+        for(Integer blockId : blockIds)//哪些块的ACK之前没有立刻发送，就现在补发
+        {
+            clientConnectionManager.send(new AckPacket(blockId, true, transferId));
+        }
+    }
+
+    //处理接收端文件写入失败
+    private void failInboundTransfer(String transferId, InboundTransferContext context, Exception e)
+    {
+        if(!inboundTransferContexts.remove(transferId, context))//将该结束任务从正在接收的上下文表里移除
+        {
+            return;
+        }
+
+        synchronized (context)
+        {
+            context.markClosed();//标记关闭
+            context.closeQuietly();//2.关闭输出文件流
+            context.transferTask.updateStatus(TransferStatus.FAILED, "Receive write failed: "+e.getMessage());//将任务状态改成失败
+        }
+
+        persistTask(context.transferTask);
+        pushNotificationService.publish("transfer-failed", context.transferTask);
+
+        if(clientConnectionManager.isAuthenticated())//如果还连接着服务器，就告诉发送方失败消息
+        {
+            clientConnectionManager.send(new TransferCancelPacket(transferId, "Receiver write failed: "+e.getMessage()));
         }
     }
 
@@ -586,11 +731,11 @@ public class ClientTransferService
 
             //告诉服务端，文件的信息
             clientConnectionManager.send(new TransferRequestPacket(
-                    task.getTransferId(),
-                    targetAccountId,
-                    task.getFileName(),
-                    task.getTotalBytes(),
-                    task.getTotalBlocks()
+                            task.getTransferId(),
+                            targetAccountId,
+                            task.getFileName(),
+                            task.getTotalBytes(),
+                            task.getTotalBlocks()
                     )
             );
 
@@ -912,11 +1057,11 @@ public class ClientTransferService
 
             //发送设备选择请求
             clientConnectionManager.send(new TransferRequestPacket(
-                    task.getTransferId(),
-                    targetAccountId,
-                    task.getFileName(),
-                    task.getTotalBytes(),
-                    task.getTotalBlocks()
+                            task.getTransferId(),
+                            targetAccountId,
+                            task.getFileName(),
+                            task.getTotalBytes(),
+                            task.getTotalBlocks()
                     )
             );//发送后，当前线程等待结果
 
@@ -1169,9 +1314,14 @@ public class ClientTransferService
         private final TransferTask transferTask;//本次接收任务的状态对象
         private final Map<Integer, byte[]> pendingBlocks=new ConcurrentHashMap<>();//暂存已经收到，但还不能马上写入文件的块
         private final Set<Integer> receivedBlockIds=new HashSet<>();//已经接收过的块编号
+        private final Queue<Integer> delayedAckBlockIds=new ArrayDeque<>();//缓存压力过高时暂缓回复的ACK
+        private long pendingPlainBytes;//已经解密但尚未写入磁盘的明文字节数
         private long receivedBytes;//已经写入文件的字节数
         private int receivedBlocks;//已经写入的块数
         private int nextWriteBlockId;//下一个应该写入的块编号
+        private long lastProgressPublishNanos;
+        private boolean closed;
+        private boolean flushScheduled;
 
         private InboundTransferContext(SecretKey secretKey, OutputStream outputStream, TransferTask transferTask)
         {
@@ -1180,34 +1330,33 @@ public class ClientTransferService
             this.transferTask=transferTask;
         }
 
-        //接受一个已经解密好的文件块
-        private boolean acceptBlock(int blockId, byte[] plain)throws IOException
+        //接受一个已经解密认证成功的文件块，先放入内存缓存；ACK不再等待磁盘写入。
+        private boolean acceptDecryptedBlock(int blockId, byte[] plain)
         {
-            //判断该块是否已经接收过了
-            if(receivedBlockIds.contains(blockId))
+            if(closed || receivedBlockIds.contains(blockId))
             {
-                return isCompleted();
+                return false;
             }
 
             receivedBlockIds.add(blockId);
-            pendingBlocks.put(blockId, plain); //先放入缓存再检查nextWriteBlockId有没有联系的块可以写
-            flushContiguousBlocks();    //按顺序写入文件
-            transferTask.updateProgress(receivedBytes, receivedBlocks);
-            transferTask.updateStatus(TransferStatus.TRANSFERRING, "Receiving blocks");
-
-            //判断文件是否接收完成
-            if(isCompleted())
-            {
-                outputStream.flush();
-                outputStream.close();
-                transferTask.updateStatus(TransferStatus.COMPLETED, "File received");
-                return true;
-            }
-            return false;
+            pendingBlocks.put(blockId, plain);
+            pendingPlainBytes += plain.length;
+            return true;
         }
 
-        private void flushContiguousBlocks() throws IOException
+        private boolean shouldDelayAck()
         {
+            return pendingPlainBytes >= RECEIVE_PENDING_HIGH_WATERMARK_BYTES;
+        }
+
+        private void delayAck(int blockId)
+        {
+            delayedAckBlockIds.add(blockId);
+        }
+
+        private boolean flushContiguousBlocks() throws IOException
+        {
+            boolean wrote = false;
             while(true)
             {
                 //从nextWriteBlockId开始循环取块
@@ -1216,19 +1365,74 @@ public class ClientTransferService
                 //如果收到的块号是不连续的那么这里取出来的块就是0
                 if(chunk==null)
                 {
-                    return;
+                    return wrote;
                 }
                 outputStream.write(chunk);//写入文件
+                pendingPlainBytes-=chunk.length;
                 receivedBytes+=chunk.length;
                 receivedBlocks++;
                 nextWriteBlockId++;
+                wrote = true;
             }
         }
 
         private boolean isCompleted()
         {
-            //收到块数>=文件总块数说明取完了
+            //收到块数>=文件总块数说明取完了；receivedBlocks是在后台写文件时增加的。所有块已收到并解密!=任务完成；只有，所有块已按顺序写入文件=任务完成
             return receivedBlocks >= transferTask.getTotalBlocks();
+        }
+
+        private boolean shouldReleaseDelayedAcks()
+        {
+            return pendingPlainBytes <= RECEIVE_PENDING_LOW_WATERMARK_BYTES && !delayedAckBlockIds.isEmpty();
+        }
+
+        private List<Integer> drainDelayedAcks()
+        {
+            List<Integer> blockIds = new ArrayList<>(delayedAckBlockIds);
+            delayedAckBlockIds.clear();
+            return blockIds;
+        }
+
+        private boolean shouldPublishProgress()
+        {
+            long now = System.nanoTime();
+            if(now - lastProgressPublishNanos < RECEIVE_PROGRESS_UPDATE_INTERVAL_NANOS)
+            {
+                return false;
+            }
+            lastProgressPublishNanos = now;
+            return true;
+        }
+
+        private boolean isClosed()
+        {
+            return closed;
+        }
+
+        private void markClosed()
+        {
+            closed = true;
+        }
+
+        private boolean isFlushScheduled()
+        {
+            return flushScheduled;
+        }
+
+        private void markFlushScheduled()
+        {
+            flushScheduled = true;
+        }
+
+        private void clearFlushScheduled()
+        {
+            flushScheduled = false;
+        }
+
+        private boolean hasContiguousPendingBlock()
+        {
+            return pendingBlocks.containsKey(nextWriteBlockId);
         }
 
         private void closeQuietly()//取消接收任务时需要关闭输出流。
@@ -1267,3 +1471,15 @@ public class ClientTransferService
         }
     }
 }
+
+
+/*
+
+接收端现在有一个内存缓存，先把已经解密，但还没写进文件的数据库放进去
+设置两条缓存警戒线
+256MB, 128MB
+正常情况: 收到块-> 解密 -> 放进缓存 -> 马上回ACK
+缓存超过256MB时: 收到块-> 解密 -> 放进缓存 -> 先不回ACK（发送方会因为收不到ACK而降低发送的速率）
+当缓存降到128MB以下时: 把之前的没回的ACK一次性发回去
+
+*/
