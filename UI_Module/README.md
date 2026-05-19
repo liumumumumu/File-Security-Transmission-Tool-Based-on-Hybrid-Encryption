@@ -14,6 +14,14 @@
 
 ## 如何预览
 
+正式联调时推荐先启动 Java 后端，然后直接打开：
+
+```text
+http://127.0.0.1:20201/
+```
+
+这个地址会读取 `TCP_Module/src/main/resources/static/` 中的内置 UI，和后端接口同源，不会出现 `file://` 跨域问题。
+
 在 WSL 里进入本目录：
 
 ```bash

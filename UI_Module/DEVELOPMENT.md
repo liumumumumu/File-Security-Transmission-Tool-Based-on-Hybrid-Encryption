@@ -8,6 +8,8 @@
 - 缺点：Vue 和 Lucide 图标来自 CDN，浏览器需要能访问互联网；代码暂时没有 `.vue` 单文件组件。
 - 后续升级：安装 Node.js 后，可以迁移到 Vite + Vue，拆成组件和模块。
 
+当前已把 `index.html`、`app.js`、`styles.css` 同步到 `TCP_Module/src/main/resources/static/`。启动 Java 后端后访问 `http://127.0.0.1:20201/`，浏览器页面和 REST API 同源，能避开双击 `file://` 打开时的 CORS 问题。
+
 新版 UI 的设计目标是“更像应用，而不是网页宣传页”：
 
 - 固定左侧导航：对应真实 App 常见的信息架构。
