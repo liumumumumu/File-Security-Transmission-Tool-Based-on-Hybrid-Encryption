@@ -16,6 +16,8 @@ public class LocalStorageProperties
     private String sqlitePath;//SQLite数据库的路径
     private String deviceIdPath;//本机设备ID保存路径
     private String startupStatePath;//启动状态文件路径
+    private String directSettingsPath;//IPv6直连设置文件路径
+    private String qrOutputDir;//二维码临时输出目录
 
     public String getTransferHistoryPath() {
         return transferHistoryPath;
@@ -49,13 +51,31 @@ public class LocalStorageProperties
         this.startupStatePath = startupStatePath;
     }
 
+    public String getDirectSettingsPath() {
+        return directSettingsPath;
+    }
+
+    public void setDirectSettingsPath(String directSettingsPath) {
+        this.directSettingsPath = directSettingsPath;
+    }
+
+    public String getQrOutputDir() {
+        return qrOutputDir;
+    }
+
+    public void setQrOutputDir(String qrOutputDir) {
+        this.qrOutputDir = qrOutputDir;
+    }
+
     @Override
     public String toString() {
         return "LocalStorageProperties{" +
-                "sqlitePath='" + sqlitePath + '\'' +
-                ", deviceIdPath='" + deviceIdPath + '\'' +
-                ", startupStatePath='" + startupStatePath + '\'' +
+                "deviceIdPath='" + deviceIdPath + '\'' +
                 ", transferHistoryPath='" + transferHistoryPath + '\'' +
+                ", sqlitePath='" + sqlitePath + '\'' +
+                ", startupStatePath='" + startupStatePath + '\'' +
+                ", directSettingsPath='" + directSettingsPath + '\'' +
+                ", qrOutputDir='" + qrOutputDir + '\'' +
                 '}';
     }
 }

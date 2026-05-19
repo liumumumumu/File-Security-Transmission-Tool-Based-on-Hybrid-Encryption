@@ -23,6 +23,8 @@ app:
     sqlite-path: ${LOCAL_SQLITE_PATH:${user.home}/.file-security-transmission/local-data.db}
     device-id-path: ${DEVICE_ID_PATH:${user.home}/.file-security-transmission/device-id}
     startup-state-path: ${STARTUP_STATE_PATH:${user.home}/.file-security-transmission/startup-state.json}
+    direct-settings-path: ${DIRECT_SETTINGS_PATH:${user.home}/.file-security-transmission/direct-settings.json}
+    qr-output-dir: ${QR_OUTPUT_DIR:${user.home}/.file-security-transmission/qr}
 
 node:
   device-id: ${NODE_DEVICE_ID:}
