@@ -130,6 +130,11 @@
                   </article>
                 </div>
 
+                <label v-if="mode === 'send'" class="receive-code">
+                  <span>本地文件路径</span>
+                  <input v-model.trim="localFilePath" type="text" placeholder="C:\Users\...\demo.zip" autocomplete="off" />
+                </label>
+
                 <div class="form-grid">
                   <label>
                     <span>Java API</span>
@@ -156,9 +161,14 @@
                   </label>
                 </div>
 
-                <label v-if="mode === 'receive'" class="receive-code">
-                  <span>接收码 / transferId</span>
-                  <input v-model.trim="receiveCode" type="text" placeholder="TASK-001 或 transferId" autocomplete="off" />
+                <label class="receive-code">
+                  <span>{{ mode === "send" ? "目标 accountId" : "接收码 / transferId" }}</span>
+                  <input
+                    v-model.trim="receiveCode"
+                    type="text"
+                    :placeholder="mode === 'send' ? '接收方 accountId 或联系人索引' : 'TASK-001 或 transferId'"
+                    autocomplete="off"
+                  />
                 </label>
 
                 <div class="settings-row" aria-label="传输选项">
@@ -238,7 +248,7 @@
                   <p class="eyebrow">Queue</p>
                   <h2 id="tasks-title">任务队列</h2>
                 </div>
-                <button class="link-button" type="button" @click="addLog('等待后端 /api/tasks 接口。')">同步</button>
+                <button class="link-button" type="button" @click="addLog('等待后端 /api/send/tasks 接口。')">同步</button>
               </div>
               <div class="task-list">
                 <article v-for="task in visibleTasks" :key="task.id" class="task-row">
@@ -296,12 +306,12 @@
                 </div>
                 <div>
                   <span>Crypto Module</span>
-                  <strong>{{ systemStatus?.cryptoServiceAddress || "127.0.0.1" }}:{{ systemStatus?.cryptoServicePort || "9081" }}</strong>
+                  <strong>{{ systemStatus?.cryptoServiceAddress || "127.0.0.1" }}:{{ systemStatus?.cryptoServicePort || "20202" }}</strong>
                 </div>
               </div>
 
               <div v-if="showDevPanel" class="dev-panel">
-                <p>关闭演示模式后将调用 `POST /api/transfers`，再轮询 `GET /api/transfers/{task_id}`。</p>
+                <p>关闭演示模式后将调用 `POST /api/send`，再轮询 `GET /api/send/tasks/{task_id}`。</p>
               </div>
             </section>
           </section>

@@ -23,7 +23,8 @@ createApp({
       isDragging: false,
       showDevPanel: false,
       receiveCode: "",
-      apiBase: "http://127.0.0.1:8081",
+      localFilePath: "",
+      apiBase: "http://127.0.0.1:20201",
       settings: {
         host: "127.0.0.1",
         port: 9000,
@@ -277,13 +278,35 @@ createApp({
     setFiles(fileList) {
       this.files = Array.from(fileList || []);
       if (this.files.length) {
+        const firstFile = this.files[0];
+        if (!this.localFilePath) {
+          this.localFilePath = firstFile.path || firstFile.webkitRelativePath || firstFile.name || "";
+        }
         this.addLog(`已选择 ${this.files.length} 个文件，共 ${this.totalSizeText}。`);
       }
     },
 
     async startTransfer() {
-      if (this.mode === "send" && !this.files.length) {
+      if (this.mode === "send" && this.options.demoMode && !this.files.length) {
         this.addLog("请先选择至少一个文件。");
+        this.status = "idle";
+        return;
+      }
+
+      if (this.mode === "send" && !this.options.demoMode && !this.files.length && !this.localFilePath) {
+        this.addLog("请先选择文件，或直接填写可访问的本地路径。");
+        this.status = "idle";
+        return;
+      }
+
+      if (!this.options.demoMode && this.mode === "send" && !this.localFilePath) {
+        this.addLog("关闭演示模式后，请填写 Java 后端可访问的本地文件路径。");
+        this.status = "idle";
+        return;
+      }
+
+      if (!this.options.demoMode && this.mode === "send" && !this.receiveCode) {
+        this.addLog("关闭演示模式后，请填写接收方 accountId。");
         this.status = "idle";
         return;
       }
@@ -343,39 +366,22 @@ createApp({
 
     async createBackendTransfer() {
       try {
-        const endpoint = `${this.apiBase}/api/transfers`;
-        const formData = new FormData();
-        const metadata = {
-          mode: this.mode,
-          server_host: this.settings.host,
-          server_port: this.settings.port,
-          key_exchange: this.settings.keyExchange,
-          cipher: this.options.enableGcm ? "AES-256-GCM" : "none",
-          chunk_size_mb: this.settings.chunkSize,
-          resume_enabled: this.options.resume,
-          receive_code: this.receiveCode,
-          files: this.files.map((file) => ({
-            name: file.name,
-            size: file.size,
-            chunks: this.fileChunks(file.size),
-          })),
-        };
-
-        formData.append("metadata", JSON.stringify(metadata));
-        this.files.forEach((file) => formData.append("files", file, file.name));
-
-        const response = await fetch(endpoint, {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error(`后端返回 ${response.status}`);
+        if (this.mode === "receive") {
+          this.taskId = this.receiveCode.trim();
+          this.addLog(`开始查询后端任务：${this.taskId}。`);
+          this.startPolling();
+          return;
         }
 
-        const result = await response.json();
+        const result = await this.requestJson("/api/send", {
+          method: "POST",
+          body: JSON.stringify({
+            filePath: this.localFilePath || this.files[0]?.path || this.files[0]?.webkitRelativePath || this.files[0]?.name || "",
+            targetAccountId: this.receiveCode.trim(),
+          }),
+        });
         this.taskId = result.task_id || result.taskId || "";
-        this.status = this.normalizeStatus(result.status || result.current_stage || "key_exchange");
+        this.status = this.normalizeStatus(result.status || "connecting");
         this.addLog(`后端已创建任务：${this.taskId || "未返回 task_id"}。`);
 
         if (this.taskId) {
@@ -473,7 +479,7 @@ createApp({
     startPolling() {
       this.pollTimer = window.setInterval(async () => {
         try {
-          const response = await fetch(`${this.apiBase}/api/transfers/${this.taskId}`);
+          const response = await fetch(`${this.apiBase}/api/send/tasks/${this.taskId}`);
           if (!response.ok) {
             throw new Error(`状态接口返回 ${response.status}`);
           }
@@ -492,7 +498,7 @@ createApp({
       this.status = this.normalizeStatus(result.current_stage || result.status || this.status);
       const rawProgress = Number(result.progress ?? this.progress);
       this.progress = rawProgress > 0 && rawProgress <= 1 ? Math.round(rawProgress * 100) : rawProgress;
-      this.speedMbps = Number(result.speed_mbps ?? result.speedMbps ?? this.speedMbps);
+      this.speedMbps = Number(result.speedMegabytesPerSecond ?? result.speed_mbps ?? result.speedMbps ?? this.speedMbps);
       this.etaSeconds = result.eta_seconds ?? result.etaSeconds ?? this.etaSeconds;
       this.ackedChunks = Number(result.acked_chunks ?? result.transferredBlocks ?? this.ackedChunks);
 
@@ -534,6 +540,7 @@ createApp({
 
       if (clearFiles) {
         this.files = [];
+        this.localFilePath = "";
         if (this.$refs.fileInput) {
           this.$refs.fileInput.value = "";
         }
@@ -561,6 +568,7 @@ createApp({
         created: "connecting",
         pending: "connecting",
         waiting_for_target: "connecting",
+        waiting_for_accept: "waiting_ack",
         waiting_for_receiver: "waiting_ack",
         transferring: "encrypting_chunks",
         encrypting: "encrypting_chunks",
@@ -572,6 +580,7 @@ createApp({
         failed: "failed",
         canceled: "failed",
         cancelled: "failed",
+        rejected: "failed",
       };
       return statusMap[normalized] || status;
     },
