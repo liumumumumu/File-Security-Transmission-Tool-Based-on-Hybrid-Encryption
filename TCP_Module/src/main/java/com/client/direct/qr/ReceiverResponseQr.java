@@ -28,7 +28,16 @@ public class ReceiverResponseQr
 
     public ReceiverResponseQr() {}
 
-    public ReceiverResponseQr(String connectionNonce, Instant expiresAt, String invited, List<String> ipv6AddressCandidates, int port, String receiverAccountId, String receiverDeviceId, String receiverPublicKey, String signature) {
+    public ReceiverResponseQr(
+                              String invited,
+                              String receiverAccountId,
+                              String receiverDeviceId,
+                              String receiverPublicKey,
+                              Instant expiresAt,
+                              List<String> ipv6AddressCandidates,
+                              int port,
+                              String connectionNonce,
+                              String signature) {
         this.connectionNonce = connectionNonce;
         this.expiresAt = expiresAt;
         this.invited = invited;

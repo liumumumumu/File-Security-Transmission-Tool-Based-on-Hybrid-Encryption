@@ -24,7 +24,13 @@ public class SenderOfferQr
 
     public SenderOfferQr() {}
 
-    public SenderOfferQr(Instant expiresAt, String inviteId, String senderAccountId, String senderDeviceId, String senderPublicKey, String signature) {
+    public SenderOfferQr(
+                         String inviteId,
+                         String senderAccountId,
+                         String senderDeviceId,
+                         String senderPublicKey,
+                         Instant expiresAt,
+                         String signature) {
         this.expiresAt = expiresAt;
         this.inviteId = inviteId;
         this.senderAccountId = senderAccountId;
