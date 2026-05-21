@@ -3,6 +3,13 @@ package com.client.direct;
 import com.client.direct.qr.ReceiverResponseQr;
 import com.client.transport.PacketTransport;
 
+/**
+ * Author: LQH
+ * Date: 2026-05-21
+ * Purpose: 直连会话结果对象,表示发送方以及和接收方完成了IPv6直连握手后得到的一组会话信息
+ *
+ * */
+
 public class DirectSessionInfo
 {
     private String inviteId;
