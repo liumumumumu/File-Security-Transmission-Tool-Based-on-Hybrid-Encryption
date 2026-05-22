@@ -17,6 +17,9 @@ client:
   authTimeoutSeconds: 1000
   ackTimeoutSeconds: 1000
 
+direct:
+  default-fixed-listen-port: ${DIRECT_DEFAULT_FIXED_LISTEN_PORT:39001}
+
 app:
   local-storage:
     transfer-history-path: ${TRANSFER_HISTORY_PATH:${user.home}/.file-security-transmission/transfer-history.json} #本机传输记录文件的保存路径
