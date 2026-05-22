@@ -72,7 +72,7 @@ public class DirectQrCodec
     public String encodeReceiverResponse(ReceiverResponseQr response, String senderPublicKey) throws GeneralSecurityException
     {
         Map<String, Object> inner = new LinkedHashMap<>();//内部的明文载荷
-        inner.put("inviteId", response.getInvited());//邀请任务
+        inner.put("inviteId", response.getInviteId());//邀请任务
         inner.put("ipv6AddressCandidates", response.getIpv6AddressCandidates());//IPv6候选地址
         inner.put("port", response.getPort());//监听的端口
         inner.put("connectionNonce", response.getConnectionNonce());//连接挑战值
@@ -158,7 +158,7 @@ public class DirectQrCodec
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("type", "receiver-response");
         root.put("protocolVersion", PROTOCOL_VERSION);
-        root.put("inviteId", response.getInvited());
+        root.put("inviteId", response.getInviteId());
         root.put("receiverAccountId", response.getReceiverAccountId());
         root.put("receiverDeviceId", response.getReceiverDeviceId());
         root.put("receiverPublicKey", response.getReceiverPublicKey());

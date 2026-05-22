@@ -2,6 +2,12 @@ package com.client.console;
 
 import com.client.ClientConnectionManager;
 import com.client.ClientStartupCoordinator;
+import com.client.direct.DirectHandshakeService;
+import com.client.direct.DirectPeerConnectionManager;
+import com.client.direct.DirectSettings;
+import com.client.direct.DirectSettingsService;
+import com.client.direct.DirectSessionInfo;
+import com.client.direct.qr.QrArtifact;
 import com.common.config.ClientProperties;
 import com.common.protocol.file.IncomingTransferRequestPacket;
 import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
@@ -75,6 +81,9 @@ public class ConsoleCommandRunner
     private final ConfigurableApplicationContext applicationContext;//负责控制Spring应用的生命周期
     private final PushNotificationService pushNotificationService;//监听本地通知
     private final LocalContactBookService localContactBookService;//负责本地联系人和黑名单
+    private final DirectHandshakeService directHandshakeService;
+    private final DirectSettingsService directSettingsService;
+    private final DirectPeerConnectionManager directPeerConnectionManager;
     private Runnable notificationSubscription;
     private int lastProgressLineLength;
     private HelpLanguage helpLanguage = HelpLanguage.ENGLISH;
@@ -88,7 +97,10 @@ public class ConsoleCommandRunner
             TransferTaskRegistry transferTaskRegistry,
             ConfigurableApplicationContext applicationContext,
             PushNotificationService pushNotificationService,
-            LocalContactBookService localContactBookService
+            LocalContactBookService localContactBookService,
+            DirectHandshakeService directHandshakeService,
+            DirectSettingsService directSettingsService,
+            DirectPeerConnectionManager directPeerConnectionManager
     )
     {
         this.clientConnectionManager = clientConnectionManager;
@@ -100,6 +112,9 @@ public class ConsoleCommandRunner
         this.applicationContext = applicationContext;
         this.pushNotificationService = pushNotificationService;
         this.localContactBookService = localContactBookService;
+        this.directHandshakeService = directHandshakeService;
+        this.directSettingsService = directSettingsService;
+        this.directPeerConnectionManager = directPeerConnectionManager;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -128,15 +143,78 @@ public class ConsoleCommandRunner
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, commandInputCharset()))) {
             handleStartupKeyPrompt(reader);
             while (applicationContext.isActive()) {//进入大循环
-                System.out.print("fst> ");
-                String line = reader.readLine();
-                if (line == null) {
+                printModeMenu();
+                String selected = reader.readLine();
+                if (selected == null) {
                     return;
                 }
-                handleCommand(reader, line.trim());
+                switch (selected.trim().toLowerCase(Locale.ROOT)) {
+                    case "1", "relay" -> runRelayConsole(reader);
+                    case "2", "direct" -> runDirectConsole(reader);
+                    case "0", "exit", "quit" -> {
+                        exit();
+                        return;
+                    }
+                    default -> System.out.println("Unknown mode. Choose 1/relay, 2/direct, or 0/exit.");
+                }
             }
         } catch (IOException ex) {
             System.out.println("Console stopped: " + ex.getMessage());
+        }
+    }
+
+    //模式选择，中继服务器/ IPv6直连
+    private void printModeMenu()
+    {
+        System.out.println();
+        System.out.println("Choose transfer mode:");
+        System.out.println("  1. relay  - server relay mode");
+        System.out.println("  2. direct - IPv6 direct QR handshake mode");
+        System.out.println("  0. exit");
+        System.out.print("mode> ");
+    }
+
+    //使用中继服务器传输模式
+    private void runRelayConsole(BufferedReader reader) throws IOException
+    {
+        System.out.println("Relay console. Type 'back' to choose another mode.");
+        while (applicationContext.isActive()) {
+            System.out.print("fst-relay> ");
+            String line = reader.readLine();
+            if (line == null) {
+                return;
+            }
+            String trimmed = line.trim();
+            if ("back".equalsIgnoreCase(trimmed) || "mode".equalsIgnoreCase(trimmed)) {
+                if(confirm(reader, "Return to mode selector and disconnect relay connection if active? [y/N] ")) {
+                    disconnect();
+                    return;
+                }
+                continue;
+            }
+            handleCommand(reader, trimmed);
+        }
+    }
+
+    //使用IPv6直连模式
+    private void runDirectConsole(BufferedReader reader) throws IOException
+    {
+        System.out.println("IPv6 direct console. Type 'help' for commands or 'back' to choose another mode.");
+        while (applicationContext.isActive()) {
+            System.out.print("fst-direct> ");
+            String line = reader.readLine();
+            if (line == null) {
+                return;
+            }
+            String trimmed = line.trim();
+            if ("back".equalsIgnoreCase(trimmed) || "mode".equalsIgnoreCase(trimmed)) {
+                if(confirm(reader, "Return to mode selector and close direct listener if active? [y/N] ")) {
+                    directPeerConnectionManager.stopListener();
+                    return;
+                }
+                continue;
+            }
+            handleDirectCommand(reader, trimmed);
         }
     }
 
@@ -230,6 +308,181 @@ public class ConsoleCommandRunner
         } catch (Exception ex) {
             System.out.println("Command failed: " + ex.getMessage());
         }
+    }
+
+    private void handleDirectCommand(BufferedReader reader, String line)
+    {
+        if (line.isBlank()) {
+            return;
+        }
+        List<String> args = parseArguments(line);
+        if (args.isEmpty()) {
+            return;
+        }
+        String command = args.get(0).toLowerCase(Locale.ROOT);
+        try {
+            switch (command) {
+                case "help" -> printDirectHelp();
+                case "status" -> printDirectStatus();
+                case "handshake" -> directHandshake(reader);
+                case "port-mode" -> directPortMode(args);
+                case "qr-clean" -> System.out.println("Expired QR groups removed: " + directHandshakeService.cleanupExpiredQr());
+                case "incoming" -> printIncomingRequests();
+                case "accept" -> acceptIncomingRequest(args);
+                case "reject" -> rejectIncomingRequest(args);
+                case "cancel" -> cancelTransfer(args);
+                case "retransmit" -> requestRetransmission(args);
+                case "retransmit-accept" -> acceptRetransmission(args);
+                case "retransmit-reject" -> rejectRetransmission(args);
+                case "tasks" -> printTasks();
+                case "task" -> printTask(reader, args);
+                case "key-info" -> printKeyInfo();
+                case "public-key" -> printPublicKey();
+                case "public-key-fingerprint", "accountid", "account-id" -> printPublicKeyFingerprint(args);
+                case "exit", "quit" -> exit();
+                default -> System.out.println("Unknown direct command: " + command + ". Type 'help' for commands.");
+            }
+        } catch (Exception ex) {
+            System.out.println("Command failed: " + ex.getMessage());
+        }
+    }
+
+    private void printDirectHelp()
+    {
+        System.out.println("Direct commands:");
+        System.out.println("  help                              Show this help");
+        System.out.println("  status                            Show direct settings and task status");
+        System.out.println("  handshake                         Start sender/receiver QR handshake wizard");
+        System.out.println("  port-mode                         Show direct listen port mode");
+        System.out.println("  port-mode random                  Use a random temporary listen port");
+        System.out.println("  port-mode fixed <port>            Use a fixed listen port");
+        System.out.println("  qr-clean                          Remove expired QR files");
+        System.out.println("  incoming                          List incoming transfer requests");
+        System.out.println("  accept <transferId>               Accept an incoming transfer");
+        System.out.println("  reject <transferId>               Reject an incoming transfer");
+        System.out.println("  cancel <taskId|transferId>        Cancel a transfer");
+        System.out.println("  retransmit <taskId|transferId>    Request retransmission");
+        System.out.println("  retransmit-accept <transferId>    Accept retransmission");
+        System.out.println("  retransmit-reject <transferId>    Reject retransmission");
+        System.out.println("  tasks                             List transfer tasks");
+        System.out.println("  task <taskId|transferId> [--once] Watch one task");
+        System.out.println("  key-info                          Show crypto service key status");
+        System.out.println("  public-key                        Print local public key");
+        System.out.println("  account-id [publicKey]            Print accountId/fingerprint");
+        System.out.println("  back                              Return to mode selector");
+        System.out.println("  exit                              Stop application");
+    }
+
+    private void printDirectStatus()
+    {
+        DirectSettings settings = directSettingsService.current();
+        System.out.println("Direct listen port mode: " + settings.getListenPortMode());
+        if(settings.getListenPortMode() == com.client.direct.DirectListenPortMode.FIXED) {
+            System.out.println("Fixed listen port: " + settings.getFixedListenPort());
+        }
+        System.out.println("QR output dir: " + directHandshakeService.cleanupExpiredQr() + " expired QR groups cleaned");
+        System.out.println("Task count: " + transferTaskRegistry.allTasks().size());
+    }
+
+    private void directPortMode(List<String> args)
+    {
+        if(args.size() == 1)
+        {
+            DirectSettings settings = directSettingsService.current();
+            System.out.println("listenPortMode=" + settings.getListenPortMode());
+            System.out.println("fixedListenPort=" + settings.getFixedListenPort());
+            System.out.println("settingsPath=" + directSettingsService.settingsPath());
+            return;
+        }
+        switch(args.get(1).toLowerCase(Locale.ROOT))
+        {
+            case "random" -> {
+                DirectSettings settings = directSettingsService.useRandomPort();
+                System.out.println("Direct listen port mode set to " + settings.getListenPortMode());
+            }
+            case "fixed" -> {
+                if(args.size() < 3)
+                {
+                    System.out.println("Usage: port-mode fixed <port>");
+                    return;
+                }
+                DirectSettings settings = directSettingsService.useFixedPort(Integer.parseInt(args.get(2)));
+                System.out.println("Direct listen port mode set to " + settings.getListenPortMode() + " " + settings.getFixedListenPort());
+            }
+            default -> System.out.println("Usage: port-mode | port-mode random | port-mode fixed <port>");
+        }
+    }
+
+    private void directHandshake(BufferedReader reader) throws Exception
+    {
+        if (!ensureKeyPresent()) {
+            return;
+        }
+        System.out.print("Role [sender/receiver]> ");
+        String role = reader.readLine();
+        if(role == null) {
+            return;
+        }
+        switch(role.trim().toLowerCase(Locale.ROOT))
+        {
+            case "sender", "s" -> directSenderHandshake(reader);
+            case "receiver", "r" -> directReceiverHandshake(reader);
+            default -> System.out.println("Invalid role. Choose sender or receiver.");
+        }
+    }
+
+    private void directSenderHandshake(BufferedReader reader) throws Exception
+    {
+        DirectHandshakeService.SenderHandshakeOffer offer = directHandshakeService.createSenderOffer();
+        printQrArtifact(offer.artifact(), offer.text());
+        System.out.println("Send this QR/FST1 text to the receiver.");
+        System.out.println("Paste receiver FST1 text or type a FST1/PNG file path:");
+        System.out.print("receiver-fst1> ");
+        String receiverInput = reader.readLine();
+        if(receiverInput == null || receiverInput.isBlank()) {
+            return;
+        }
+        String receiverText = directHandshakeService.readFst1Text(receiverInput);
+        DirectSessionInfo session = directHandshakeService.connectSender(offer.offer(), receiverText).get();
+        directHandshakeService.deleteQrInvite(offer.offer().getInviteId());
+        System.out.println("Direct session connected: " + session.getPeerDeviceId());
+        System.out.print("File path to send> ");
+        String filePath = reader.readLine();
+        if(filePath == null || filePath.isBlank()) {
+            return;
+        }
+        String taskId = clientTransferService.sendFileDirect(PathInputNormalizer.toPath(filePath.trim()), session.getReceiverResponse(), session.getTransport());
+        System.out.println("Send task created: " + taskId);
+    }
+
+    private void directReceiverHandshake(BufferedReader reader) throws Exception
+    {
+        System.out.println("Paste sender FST1 text or type a FST1/PNG file path:");
+        System.out.print("sender-fst1> ");
+        String senderInput = reader.readLine();
+        if(senderInput == null || senderInput.isBlank()) {
+            return;
+        }
+        String senderText = directHandshakeService.readFst1Text(senderInput);
+        var receiverSession = directHandshakeService.createReceiverResponse(senderText);
+        printQrArtifact(receiverSession.getArtifact(), Files.readString(receiverSession.getArtifact().getFst1Path()).trim());
+        System.out.println("Send this QR/FST1 text to the sender. Waiting for incoming transfer request.");
+    }
+
+    private void printQrArtifact(QrArtifact artifact, String text) throws IOException
+    {
+        System.out.println("QR PNG: " + artifact.getPngPath());
+        System.out.println("QR FST1 file: " + artifact.getFst1Path());
+        System.out.println("QR ASCII file: " + artifact.getAsciiPath());
+        System.out.println("QR text:");
+        System.out.println(text);
+    }
+
+    private boolean confirm(BufferedReader reader, String prompt) throws IOException
+    {
+        System.out.print(prompt);
+        String answer = reader.readLine();
+        return answer != null && ("y".equalsIgnoreCase(answer.trim()) || "yes".equalsIgnoreCase(answer.trim()));
     }
 
     private void printWelcome()//打印欢迎消息
@@ -1140,7 +1393,7 @@ public class ConsoleCommandRunner
         System.out.println("Auto-connect will continue if it was paused by missing key.");
     }
 
-        //--------------------------导入密钥的三种方式------------------------------//
+    //--------------------------导入密钥的三种方式------------------------------//
 
     private void exit() //退出程序的指令；退出整个TCP模块！！！；退出整个Spring应用
     {

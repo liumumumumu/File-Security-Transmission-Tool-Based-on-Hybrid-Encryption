@@ -70,12 +70,12 @@ public class LocalStorageProperties
     @Override
     public String toString() {
         return "LocalStorageProperties{" +
-                "deviceIdPath='" + deviceIdPath + '\'' +
-                ", transferHistoryPath='" + transferHistoryPath + '\'' +
-                ", sqlitePath='" + sqlitePath + '\'' +
+                "sqlitePath='" + sqlitePath + '\'' +
+                ", deviceIdPath='" + deviceIdPath + '\'' +
                 ", startupStatePath='" + startupStatePath + '\'' +
                 ", directSettingsPath='" + directSettingsPath + '\'' +
                 ", qrOutputDir='" + qrOutputDir + '\'' +
+                ", transferHistoryPath='" + transferHistoryPath + '\'' +
                 '}';
     }
 }

@@ -16,7 +16,7 @@ import java.util.List;
 
 public class ReceiverResponseQr
 {
-    private String invited;
+    private String inviteId;
     private String receiverAccountId;
     private String receiverDeviceId;
     private String receiverPublicKey;
@@ -29,7 +29,7 @@ public class ReceiverResponseQr
     public ReceiverResponseQr() {}
 
     public ReceiverResponseQr(
-                              String invited,
+                              String inviteId,
                               String receiverAccountId,
                               String receiverDeviceId,
                               String receiverPublicKey,
@@ -40,7 +40,7 @@ public class ReceiverResponseQr
                               String signature) {
         this.connectionNonce = connectionNonce;
         this.expiresAt = expiresAt;
-        this.invited = invited;
+        this.inviteId = inviteId;
         this.ipv6AddressCandidates = ipv6AddressCandidates;
         this.port = port;
         this.receiverAccountId = receiverAccountId;
@@ -65,12 +65,12 @@ public class ReceiverResponseQr
         this.expiresAt = expiresAt;
     }
 
-    public String getInvited() {
-        return invited;
+    public String getInviteId() {
+        return inviteId;
     }
 
-    public void setInvited(String invited) {
-        this.invited = invited;
+    public void setInviteId(String inviteId) {
+        this.inviteId = inviteId;
     }
 
     public List<String> getIpv6AddressCandidates() {
@@ -125,7 +125,7 @@ public class ReceiverResponseQr
     public String toString() {
         return "ReceiverResponseQr{" +
                 "connectionNonce='" + connectionNonce + '\'' +
-                ", invited='" + invited + '\'' +
+                ", inviteId='" + inviteId + '\'' +
                 ", receiverAccountId='" + receiverAccountId + '\'' +
                 ", receiverDeviceId='" + receiverDeviceId + '\'' +
                 ", receiverPublicKey='" + receiverPublicKey + '\'' +

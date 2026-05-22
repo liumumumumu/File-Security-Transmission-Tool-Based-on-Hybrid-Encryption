@@ -1,6 +1,7 @@
 package com.common.codec.encoder.direct;
 
 import io.netty.buffer.ByteBuf;
+import java.nio.charset.StandardCharsets;
 
 public class DirectSessionEncoderSupport
 {

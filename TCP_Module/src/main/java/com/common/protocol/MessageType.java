@@ -22,7 +22,6 @@ public final class MessageType
     public static final byte Retransmit_Request=22;
     public static final byte Retransmit_Ack=23;
 
-    //IPv6直连的握手包
     public static final byte Direct_Session_Hello=30;
     public static final byte Direct_Session_Challenge=31;
     public static final byte Direct_Session_Proof=32;
@@ -33,4 +32,6 @@ public final class MessageType
     public static final byte Error=99;
 }
 
-//消息编号表
+/*
+消息编号表
+ */
