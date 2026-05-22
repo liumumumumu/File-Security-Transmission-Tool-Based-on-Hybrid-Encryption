@@ -52,7 +52,12 @@ public interface BlacklistMapper
     List<BlacklistRecord> findAll();
 
     @Select("""
-            SELECT COUNT(1)
+            SELECT
+                id,
+                account_id AS accountId,
+                public_key AS publicKey,
+                reason,
+                created_at AS createdAt
             FROM blacklist
             WHERE account_id = #{accountId}
             """)

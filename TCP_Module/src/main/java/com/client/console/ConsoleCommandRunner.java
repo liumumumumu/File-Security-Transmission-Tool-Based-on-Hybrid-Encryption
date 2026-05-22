@@ -8,6 +8,9 @@ import com.client.direct.DirectSettings;
 import com.client.direct.DirectSettingsService;
 import com.client.direct.DirectSessionInfo;
 import com.client.direct.qr.QrArtifact;
+import com.client.language.ConsoleMessages;
+import com.client.language.LanguageSettingsService;
+import com.client.language.UiLanguage;
 import com.common.config.ClientProperties;
 import com.common.protocol.file.IncomingTransferRequestPacket;
 import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
@@ -59,7 +62,7 @@ import java.util.concurrent.TimeUnit;
  * 12. public-key / public-key-fingerprint / account-id：查看本地公钥或计算公钥指纹(accountId)
  * 13. key-info / generate-key / delete-key：查看、生成或删除本地密钥
  * 14. import-private-key / import-private-key-file / import-private-key-paste：导入私钥
- * 15. language：切换 help 说明界面的语言
+ * 15. language：切换客户端控制台语言
  * 16. exit / quit：退出客户端程序
  *
  * */
@@ -84,9 +87,10 @@ public class ConsoleCommandRunner
     private final DirectHandshakeService directHandshakeService;
     private final DirectSettingsService directSettingsService;
     private final DirectPeerConnectionManager directPeerConnectionManager;
+    private final LanguageSettingsService languageSettingsService;
+    private final ConsoleMessages messages;
     private Runnable notificationSubscription;
     private int lastProgressLineLength;
-    private HelpLanguage helpLanguage = HelpLanguage.ENGLISH;
 
     public ConsoleCommandRunner(
             ClientConnectionManager clientConnectionManager,
@@ -100,7 +104,9 @@ public class ConsoleCommandRunner
             LocalContactBookService localContactBookService,
             DirectHandshakeService directHandshakeService,
             DirectSettingsService directSettingsService,
-            DirectPeerConnectionManager directPeerConnectionManager
+            DirectPeerConnectionManager directPeerConnectionManager,
+            LanguageSettingsService languageSettingsService,
+            ConsoleMessages messages
     )
     {
         this.clientConnectionManager = clientConnectionManager;
@@ -115,6 +121,8 @@ public class ConsoleCommandRunner
         this.directHandshakeService = directHandshakeService;
         this.directSettingsService = directSettingsService;
         this.directPeerConnectionManager = directPeerConnectionManager;
+        this.languageSettingsService = languageSettingsService;
+        this.messages = messages;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -151,15 +159,16 @@ public class ConsoleCommandRunner
                 switch (selected.trim().toLowerCase(Locale.ROOT)) {
                     case "1", "relay" -> runRelayConsole(reader);
                     case "2", "direct" -> runDirectConsole(reader);
+                    case "language" -> changeLanguage(reader);
                     case "0", "exit", "quit" -> {
                         exit();
                         return;
                     }
-                    default -> System.out.println("Unknown mode. Choose 1/relay, 2/direct, or 0/exit.");
+                    default -> System.out.println(messages.text(ConsoleMessages.Key.UNKNOWN_MODE));
                 }
             }
         } catch (IOException ex) {
-            System.out.println("Console stopped: " + ex.getMessage());
+            System.out.println(messages.format(ConsoleMessages.Key.CONSOLE_STOPPED, ex.getMessage()));
         }
     }
 
@@ -167,17 +176,17 @@ public class ConsoleCommandRunner
     private void printModeMenu()
     {
         System.out.println();
-        System.out.println("Choose transfer mode:");
-        System.out.println("  1. relay  - server relay mode");
-        System.out.println("  2. direct - IPv6 direct QR handshake mode");
-        System.out.println("  0. exit");
+        System.out.println(messages.text(ConsoleMessages.Key.MODE_TITLE));
+        System.out.println(messages.text(ConsoleMessages.Key.MODE_RELAY_OPTION));
+        System.out.println(messages.text(ConsoleMessages.Key.MODE_DIRECT_OPTION));
+        System.out.println(messages.text(ConsoleMessages.Key.MODE_EXIT_OPTION));
         System.out.print("mode> ");
     }
 
     //使用中继服务器传输模式
     private void runRelayConsole(BufferedReader reader) throws IOException
     {
-        System.out.println("Relay console. Type 'back' to choose another mode.");
+        System.out.println(messages.text(ConsoleMessages.Key.RELAY_CONSOLE_READY));
         while (applicationContext.isActive()) {
             System.out.print("fst-relay> ");
             String line = reader.readLine();
@@ -186,7 +195,7 @@ public class ConsoleCommandRunner
             }
             String trimmed = line.trim();
             if ("back".equalsIgnoreCase(trimmed) || "mode".equalsIgnoreCase(trimmed)) {
-                if(confirm(reader, "Return to mode selector and disconnect relay connection if active? [y/N] ")) {
+                if(confirm(reader, messages.text(ConsoleMessages.Key.CONFIRM_RETURN_MODE_DISCONNECT_RELAY))) {
                     disconnect();
                     return;
                 }
@@ -199,7 +208,7 @@ public class ConsoleCommandRunner
     //使用IPv6直连模式
     private void runDirectConsole(BufferedReader reader) throws IOException
     {
-        System.out.println("IPv6 direct console. Type 'help' for commands or 'back' to choose another mode.");
+        System.out.println(messages.text(ConsoleMessages.Key.DIRECT_CONSOLE_READY));
         while (applicationContext.isActive()) {
             System.out.print("fst-direct> ");
             String line = reader.readLine();
@@ -208,7 +217,7 @@ public class ConsoleCommandRunner
             }
             String trimmed = line.trim();
             if ("back".equalsIgnoreCase(trimmed) || "mode".equalsIgnoreCase(trimmed)) {
-                if(confirm(reader, "Return to mode selector and close direct listener if active? [y/N] ")) {
+                if(confirm(reader, messages.text(ConsoleMessages.Key.CONFIRM_RETURN_MODE_CLOSE_DIRECT))) {
                     directPeerConnectionManager.stopListener();
                     return;
                 }
@@ -226,8 +235,8 @@ public class ConsoleCommandRunner
                 return;
             }
 
-            System.out.println("No local key pair is available. Auto-connect has been paused for this startup.");
-            System.out.print("Generate a new key pair now and continue auto-connect? [y/N] ");
+            System.out.println(messages.text(ConsoleMessages.Key.STARTUP_NO_KEY_PAUSED));
+            System.out.print(messages.text(ConsoleMessages.Key.STARTUP_GENERATE_PROMPT));
             String answer = reader.readLine();
             if (answer != null && ("y".equalsIgnoreCase(answer.trim()) || "yes".equalsIgnoreCase(answer.trim()))) {
                 Map<String, Object> result = clientStartupCoordinator.generateStartupKeyAndContinue();
@@ -235,16 +244,16 @@ public class ConsoleCommandRunner
                 if (keyResult instanceof Map<?, ?> keyMap) {
                     printAnyMap(keyMap);
                 }
-                System.out.println("Key pair generated. Auto-connect will continue if it was configured.");
+                System.out.println(messages.text(ConsoleMessages.Key.STARTUP_KEY_GENERATED));
                 return;
             }
 
             clientStartupCoordinator.skipStartupKeySetup();
-            System.out.println("Skipped key generation. Auto-connect remains paused until you generate or import a private key.");
+            System.out.println(messages.text(ConsoleMessages.Key.STARTUP_SKIPPED));
             printMissingKeyReminder();
         } catch (Exception ex) {
-            System.out.println("Unable to handle startup key setup: " + ex.getMessage());
-            System.out.println("Run 'key-info' after confirming the crypto service is running.");
+            System.out.println(messages.format(ConsoleMessages.Key.STARTUP_UNABLE_HANDLE, ex.getMessage()));
+            System.out.println(messages.text(ConsoleMessages.Key.RUN_KEY_INFO_AFTER_CRYPTO));
         }
     }
 
@@ -269,7 +278,7 @@ public class ConsoleCommandRunner
         try {
             switch (command) {
                 case "help" -> printHelp();                     //打印所有可用命令
-                case "language" -> changeHelpLanguage(reader);  //切换help说明界面的语言
+                case "language" -> changeLanguage(reader);      //切换控制台语言
                 case "status" -> printStatus();                 //把当前客户端连接状态逐项打印出来
                 case "connect" -> connect(args);                //用于连接服务器并完成认证，connect [host] [port]
                 case "disconnect" -> disconnect();              //断开当前连接
@@ -303,10 +312,10 @@ public class ConsoleCommandRunner
                 case "import-private-key-file" -> importPrivateKeyFile(args);       //从文件导入私钥，import-private-key-file <path>
                 case "import-private-key-paste" -> importPrivateKeyPaste(reader);   //进入多行粘贴模式，用户可以粘贴多行私钥内容，最后一行只输入一个'.'标识结束， import-private-key-paste
                 case "exit", "quit" -> exit();                  //推出程序， exit或者quit
-                default -> System.out.println("Unknown command: " + command + ". Type 'help' for commands.");
+                default -> System.out.println(messages.format(ConsoleMessages.Key.UNKNOWN_COMMAND, command));
             }
         } catch (Exception ex) {
-            System.out.println("Command failed: " + ex.getMessage());
+            System.out.println(messages.format(ConsoleMessages.Key.COMMAND_FAILED, ex.getMessage()));
         }
     }
 
@@ -323,10 +332,11 @@ public class ConsoleCommandRunner
         try {
             switch (command) {
                 case "help" -> printDirectHelp();
+                case "language" -> changeLanguage(reader);
                 case "status" -> printDirectStatus();
                 case "handshake" -> directHandshake(reader);
                 case "port-mode" -> directPortMode(args);
-                case "qr-clean" -> System.out.println("Expired QR groups removed: " + directHandshakeService.cleanupExpiredQr());
+                case "qr-clean" -> System.out.println(messages.format(ConsoleMessages.Key.EXPIRED_QR_GROUPS_REMOVED, directHandshakeService.cleanupExpiredQr()));
                 case "incoming" -> printIncomingRequests();
                 case "accept" -> acceptIncomingRequest(args);
                 case "reject" -> rejectIncomingRequest(args);
@@ -340,48 +350,27 @@ public class ConsoleCommandRunner
                 case "public-key" -> printPublicKey();
                 case "public-key-fingerprint", "accountid", "account-id" -> printPublicKeyFingerprint(args);
                 case "exit", "quit" -> exit();
-                default -> System.out.println("Unknown direct command: " + command + ". Type 'help' for commands.");
+                default -> System.out.println(messages.format(ConsoleMessages.Key.UNKNOWN_DIRECT_COMMAND, command));
             }
         } catch (Exception ex) {
-            System.out.println("Command failed: " + ex.getMessage());
+            System.out.println(messages.format(ConsoleMessages.Key.COMMAND_FAILED, ex.getMessage()));
         }
     }
 
     private void printDirectHelp()
     {
-        System.out.println("Direct commands:");
-        System.out.println("  help                              Show this help");
-        System.out.println("  status                            Show direct settings and task status");
-        System.out.println("  handshake                         Start sender/receiver QR handshake wizard");
-        System.out.println("  port-mode                         Show direct listen port mode");
-        System.out.println("  port-mode random                  Use a random temporary listen port");
-        System.out.println("  port-mode fixed <port>            Use a fixed listen port");
-        System.out.println("  qr-clean                          Remove expired QR files");
-        System.out.println("  incoming                          List incoming transfer requests");
-        System.out.println("  accept <transferId>               Accept an incoming transfer");
-        System.out.println("  reject <transferId>               Reject an incoming transfer");
-        System.out.println("  cancel <taskId|transferId>        Cancel a transfer");
-        System.out.println("  retransmit <taskId|transferId>    Request retransmission");
-        System.out.println("  retransmit-accept <transferId>    Accept retransmission");
-        System.out.println("  retransmit-reject <transferId>    Reject retransmission");
-        System.out.println("  tasks                             List transfer tasks");
-        System.out.println("  task <taskId|transferId> [--once] Watch one task");
-        System.out.println("  key-info                          Show crypto service key status");
-        System.out.println("  public-key                        Print local public key");
-        System.out.println("  account-id [publicKey]            Print accountId/fingerprint");
-        System.out.println("  back                              Return to mode selector");
-        System.out.println("  exit                              Stop application");
+        messages.directHelpLines().forEach(System.out::println);
     }
 
     private void printDirectStatus()
     {
         DirectSettings settings = directSettingsService.current();
-        System.out.println("Direct listen port mode: " + settings.getListenPortMode());
+        System.out.println(messages.format(ConsoleMessages.Key.DIRECT_LISTEN_PORT_MODE, settings.getListenPortMode()));
         if(settings.getListenPortMode() == com.client.direct.DirectListenPortMode.FIXED) {
-            System.out.println("Fixed listen port: " + settings.getFixedListenPort());
+            System.out.println(messages.format(ConsoleMessages.Key.FIXED_LISTEN_PORT, settings.getFixedListenPort()));
         }
-        System.out.println("QR output dir: " + directHandshakeService.cleanupExpiredQr() + " expired QR groups cleaned");
-        System.out.println("Task count: " + transferTaskRegistry.allTasks().size());
+        System.out.println(messages.format(ConsoleMessages.Key.QR_OUTPUT_CLEANED, directHandshakeService.cleanupExpiredQr()));
+        System.out.println(messages.format(ConsoleMessages.Key.TASK_COUNT, transferTaskRegistry.allTasks().size()));
     }
 
     private void directPortMode(List<String> args)
@@ -389,27 +378,27 @@ public class ConsoleCommandRunner
         if(args.size() == 1)
         {
             DirectSettings settings = directSettingsService.current();
-            System.out.println("listenPortMode=" + settings.getListenPortMode());
-            System.out.println("fixedListenPort=" + settings.getFixedListenPort());
-            System.out.println("settingsPath=" + directSettingsService.settingsPath());
+            System.out.println(messages.label("listenPortMode") + "=" + settings.getListenPortMode());
+            System.out.println(messages.label("fixedListenPort") + "=" + settings.getFixedListenPort());
+            System.out.println(messages.label("settingsPath") + "=" + directSettingsService.settingsPath());
             return;
         }
         switch(args.get(1).toLowerCase(Locale.ROOT))
         {
             case "random" -> {
                 DirectSettings settings = directSettingsService.useRandomPort();
-                System.out.println("Direct listen port mode set to " + settings.getListenPortMode());
+                System.out.println(messages.format(ConsoleMessages.Key.DIRECT_PORT_MODE_SET, settings.getListenPortMode()));
             }
             case "fixed" -> {
                 if(args.size() < 3)
                 {
-                    System.out.println("Usage: port-mode fixed <port>");
+                    System.out.println(messages.usage("port-mode fixed <port>"));
                     return;
                 }
                 DirectSettings settings = directSettingsService.useFixedPort(Integer.parseInt(args.get(2)));
-                System.out.println("Direct listen port mode set to " + settings.getListenPortMode() + " " + settings.getFixedListenPort());
+                System.out.println(messages.format(ConsoleMessages.Key.DIRECT_PORT_MODE_SET_WITH_PORT, settings.getListenPortMode(), settings.getFixedListenPort()));
             }
-            default -> System.out.println("Usage: port-mode | port-mode random | port-mode fixed <port>");
+            default -> System.out.println(messages.usage("port-mode | port-mode random | port-mode fixed <port>"));
         }
     }
 
@@ -418,7 +407,7 @@ public class ConsoleCommandRunner
         if (!ensureKeyPresent()) {
             return;
         }
-        System.out.print("Role [sender/receiver]> ");
+        System.out.print(messages.text(ConsoleMessages.Key.ROLE_PROMPT));
         String role = reader.readLine();
         if(role == null) {
             return;
@@ -427,7 +416,7 @@ public class ConsoleCommandRunner
         {
             case "sender", "s" -> directSenderHandshake(reader);
             case "receiver", "r" -> directReceiverHandshake(reader);
-            default -> System.out.println("Invalid role. Choose sender or receiver.");
+            default -> System.out.println(messages.text(ConsoleMessages.Key.INVALID_ROLE));
         }
     }
 
@@ -435,8 +424,8 @@ public class ConsoleCommandRunner
     {
         DirectHandshakeService.SenderHandshakeOffer offer = directHandshakeService.createSenderOffer();
         printQrArtifact(offer.artifact(), offer.text());
-        System.out.println("Send this QR/FST1 text to the receiver.");
-        System.out.println("Paste receiver FST1 text or type a FST1/PNG file path:");
+        System.out.println(messages.text(ConsoleMessages.Key.SEND_QR_TO_RECEIVER));
+        System.out.println(messages.text(ConsoleMessages.Key.PASTE_RECEIVER_FST1));
         System.out.print("receiver-fst1> ");
         String receiverInput = reader.readLine();
         if(receiverInput == null || receiverInput.isBlank()) {
@@ -445,19 +434,19 @@ public class ConsoleCommandRunner
         String receiverText = directHandshakeService.readFst1Text(receiverInput);
         DirectSessionInfo session = directHandshakeService.connectSender(offer.offer(), receiverText).get();
         directHandshakeService.deleteQrInvite(offer.offer().getInviteId());
-        System.out.println("Direct session connected: " + session.getPeerDeviceId());
-        System.out.print("File path to send> ");
+        System.out.println(messages.format(ConsoleMessages.Key.DIRECT_SESSION_CONNECTED, session.getPeerDeviceId()));
+        System.out.print(messages.text(ConsoleMessages.Key.FILE_PATH_TO_SEND));
         String filePath = reader.readLine();
         if(filePath == null || filePath.isBlank()) {
             return;
         }
         String taskId = clientTransferService.sendFileDirect(PathInputNormalizer.toPath(filePath.trim()), session.getReceiverResponse(), session.getTransport());
-        System.out.println("Send task created: " + taskId);
+        System.out.println(messages.format(ConsoleMessages.Key.SEND_TASK_CREATED, taskId));
     }
 
     private void directReceiverHandshake(BufferedReader reader) throws Exception
     {
-        System.out.println("Paste sender FST1 text or type a FST1/PNG file path:");
+        System.out.println(messages.text(ConsoleMessages.Key.PASTE_SENDER_FST1));
         System.out.print("sender-fst1> ");
         String senderInput = reader.readLine();
         if(senderInput == null || senderInput.isBlank()) {
@@ -466,15 +455,15 @@ public class ConsoleCommandRunner
         String senderText = directHandshakeService.readFst1Text(senderInput);
         var receiverSession = directHandshakeService.createReceiverResponse(senderText);
         printQrArtifact(receiverSession.getArtifact(), Files.readString(receiverSession.getArtifact().getFst1Path()).trim());
-        System.out.println("Send this QR/FST1 text to the sender. Waiting for incoming transfer request.");
+        System.out.println(messages.text(ConsoleMessages.Key.SEND_QR_TO_SENDER_WAITING));
     }
 
     private void printQrArtifact(QrArtifact artifact, String text) throws IOException
     {
-        System.out.println("QR PNG: " + artifact.getPngPath());
-        System.out.println("QR FST1 file: " + artifact.getFst1Path());
-        System.out.println("QR ASCII file: " + artifact.getAsciiPath());
-        System.out.println("QR text:");
+        System.out.println(messages.format(ConsoleMessages.Key.QR_PNG, artifact.getPngPath()));
+        System.out.println(messages.format(ConsoleMessages.Key.QR_FST1, artifact.getFst1Path()));
+        System.out.println(messages.format(ConsoleMessages.Key.QR_ASCII, artifact.getAsciiPath()));
+        System.out.println(messages.text(ConsoleMessages.Key.QR_TEXT));
         System.out.println(text);
     }
 
@@ -488,111 +477,19 @@ public class ConsoleCommandRunner
     private void printWelcome()//打印欢迎消息
     {
         System.out.println();
-        System.out.println("File Security Transmission console is ready.");
-        System.out.println("Type 'help' for commands.");
+        System.out.println(messages.text(ConsoleMessages.Key.WELCOME_READY));
+        System.out.println(messages.text(ConsoleMessages.Key.WELCOME_HELP_HINT));
     }
 
     private void printHelp()//打印该控制台程序支持的所有命令
     {
-        if (helpLanguage == HelpLanguage.CHINESE) {
-            printHelpChinese();
-            return;
-        }
-        printHelpEnglish();
-    }
-
-    //英语版的指令说明
-    private void printHelpEnglish()
-    {
-        System.out.println("Commands:");
-        System.out.println("  help                              Show this help");
-        System.out.println("  language                          Change help language");
-        System.out.println("  status                            Show client connection status");
-        System.out.println("  connect [host] [port]             Connect and authenticate with server");
-        System.out.println("  disconnect                        Disconnect from server");
-        System.out.println("  send <filePath> <targetAccountId> Send a file to target account");
-        System.out.println("  incoming                          List incoming transfer requests");
-        System.out.println("  accept <transferId>               Accept an incoming transfer on this device");
-        System.out.println("  reject <transferId>               Reject and cancel an incoming transfer");
-        System.out.println("  cancel <taskId|transferId>        Cancel an active transfer task");
-        System.out.println("  retransmit <taskId|transferId>    Request retransmission from the receiver progress");
-        System.out.println("  retransmit-accept <transferId>    Accept a receiver retransmission request");
-        System.out.println("  retransmit-reject <transferId>    Reject a receiver retransmission request");
-        System.out.println("  contacts                          List local contacts");
-        System.out.println("  contact-add <accountId> [alias] Add or update a local contact");
-        System.out.println("  contact-remove <contact-N|N>      Remove a local contact");
-        System.out.println("  contact-show <contact-N|N>        Show one local contact");
-        System.out.println("  blacklist                         List blacklist records");
-        System.out.println("  blacklist-add <accountId> [reason] Add or update a blacklist record");
-        System.out.println("  blacklist-add-contact <contact-N|N> [reason] Add a contact to blacklist");
-        System.out.println("  blacklist-remove <accountId>      Remove a blacklist record");
-        System.out.println("  search-user <accountId>           Search whether an account is online");
-        System.out.println("  search-user-add <accountId> [alias] Search online user and add to contacts");
-        System.out.println("  tasks                             List transfer tasks");
-        System.out.println("  task <taskId|transferId> [--once] Watch one transfer task progress. Press Enter or q then Enter to stop watching.");
-        System.out.println("  open-received <taskId|transferId|fileName> Reveal a received file in Finder or Explorer");
-        System.out.println("                                    Wrap fileName with double or single quotes, for example: open-received \"report.zip\"");
-        System.out.println("  public-key                        Print local public key");
-        System.out.println("  public-key-fingerprint [publicKey] Print fingerprint for the given public key, or local public key when omitted");
-        System.out.println("  account-id [publicKey]             Alias of public-key-fingerprint");//alias别名
-        System.out.println("  key-info                          Show crypto service key status");
-        System.out.println("  generate-key                      Generate key pair in the crypto service");
-        System.out.println("  delete-key                        Delete key pair from the crypto service");
-        System.out.println("  import-private-key <keyText>      Import private key text from manual copy or QR scan");
-        System.out.println("  import-private-key-file <path>    Import private key from a file");
-        System.out.println("  import-private-key-paste          Paste a multi-line private key, then enter a single dot");
-        System.out.println("  exit                              Stop application");
-        System.out.println("Paths with spaces can be wrapped in double quotes.");
-    }
-
-    //中文版的指令说明
-    private void printHelpChinese()
-    {
-        System.out.println("命令:");
-        System.out.println("  help                              显示此帮助说明");
-        System.out.println("  language                          切换help说明界面的语言");
-        System.out.println("  status                            查看客户端连接状态");
-        System.out.println("  connect [host] [port]             连接服务器并完成认证");
-        System.out.println("  disconnect                        断开服务器连接");
-        System.out.println("  send <filePath> <targetAccountId> 向目标账号发送文件");
-        System.out.println("  incoming                          查看待接收的传输请求");
-        System.out.println("  accept <transferId>               在本设备接受一个传输请求");
-        System.out.println("  reject <transferId>               拒绝并取消一个传输请求");
-        System.out.println("  cancel <taskId|transferId>        取消正在进行的传输任务");
-        System.out.println("  retransmit <taskId|transferId>    按接收方进度请求断点重传");
-        System.out.println("  retransmit-accept <transferId>    接受接收方的重传请求");
-        System.out.println("  retransmit-reject <transferId>    拒绝接收方的重传请求");
-        System.out.println("  contacts                          查看本地联系人");
-        System.out.println("  contact-add <accountId> [alias]   新增或更新本地联系人");
-        System.out.println("  contact-remove <contact-N|N>      删除本地联系人");
-        System.out.println("  contact-show <contact-N|N>        查看一个本地联系人");
-        System.out.println("  blacklist                         查看黑名单记录");
-        System.out.println("  blacklist-add <accountId> [reason] 新增或更新黑名单记录");
-        System.out.println("  blacklist-add-contact <contact-N|N> [reason] 将联系人加入黑名单");
-        System.out.println("  blacklist-remove <accountId>      删除黑名单记录");
-        System.out.println("  search-user <accountId>           搜索账号是否在线");
-        System.out.println("  search-user-add <accountId> [alias] 搜索在线账号并加入联系人");
-        System.out.println("  tasks                             查看传输任务列表");
-        System.out.println("  task <taskId|transferId> [--once] 查看单个传输任务进度。按Enter或输入q后按Enter停止动态查看。");
-        System.out.println("  open-received <taskId|transferId|fileName> 在Finder或Explorer中定位接收到的文件");
-        System.out.println("                                    文件名包含空格时可用双引号或单引号包裹，例如: open-received \"report.zip\"");
-        System.out.println("  public-key                        打印本地公钥");
-        System.out.println("  public-key-fingerprint [publicKey] 打印指定公钥的指纹，未提供时打印本地公钥指纹");
-        System.out.println("  account-id [publicKey]             public-key-fingerprint的别名");
-        System.out.println("  key-info                          查看加密服务密钥状态");
-        System.out.println("  generate-key                      在加密服务中生成密钥对");
-        System.out.println("  delete-key                        从加密服务中删除密钥对");
-        System.out.println("  import-private-key <keyText>      从手动复制或二维码扫描文本导入私钥");
-        System.out.println("  import-private-key-file <path>    从文件导入私钥");
-        System.out.println("  import-private-key-paste          粘贴多行私钥，最后输入单独一行的点号结束");
-        System.out.println("  exit                              停止应用程序");
-        System.out.println("路径包含空格时可以用双引号包裹。");
+        messages.relayHelpLines().forEach(System.out::println);
     }
 
     //处理切换语言的函数
-    private void changeHelpLanguage(BufferedReader reader) throws IOException
+    private void changeLanguage(BufferedReader reader) throws IOException
     {
-        System.out.println("Select help language:");//目前先只支持这两个语言
+        System.out.println(messages.text(ConsoleMessages.Key.SELECT_LANGUAGE));//目前先只支持这两个语言
         System.out.println("  1. English");
         System.out.println("  2. Chinese");
         System.out.print("language> ");
@@ -603,17 +500,19 @@ public class ConsoleCommandRunner
         }
 
         //切换语言
-        switch (selected.trim().toLowerCase(Locale.ROOT)) {
-            case "1", "english", "en" -> {
-                helpLanguage = HelpLanguage.ENGLISH;
-                System.out.println("Help language changed to English.");
-            }
-            case "2", "chinese", "zh", "cn" -> {
-                helpLanguage = HelpLanguage.CHINESE;
-                System.out.println("Help language changed to Chinese.");
-            }
-            default -> System.out.println("Invalid language. Please choose 1/English or 2/Chinese.");
+        UiLanguage language = UiLanguage.fromUserSelection(selected);
+        if(language == null)
+        {
+            System.out.println(messages.text(ConsoleMessages.Key.INVALID_LANGUAGE));
+            return;
         }
+        languageSettingsService.save(language);
+        if(language == UiLanguage.CHINESE)
+        {
+            System.out.println(messages.text(ConsoleMessages.Key.LANGUAGE_CHANGED_CHINESE));
+            return;
+        }
+        System.out.println(messages.text(ConsoleMessages.Key.LANGUAGE_CHANGED_ENGLISH));
     }
 
     //在控制它推送待处理的传输请求
@@ -631,12 +530,12 @@ public class ConsoleCommandRunner
     private void printIncomingTransferNotification(Object payload)
     {
         if (!(notificationPayload(payload) instanceof Map<?, ?> values)) {
-            printConsoleNotice("New incoming transfer request. Run 'incoming' to list requests.");
+            printConsoleNotice(messages.text(ConsoleMessages.Key.INCOMING_NOTIFICATION_SIMPLE));
             return;
         }
 
-        printConsoleNotice(String.format(
-                "New incoming transfer request: %s | sender=%s | file=%s | bytes=%s | blocks=%s%nUse 'accept %s' to receive it or 'reject %s' to cancel it.",
+        printConsoleNotice(messages.format(
+                ConsoleMessages.Key.INCOMING_NOTIFICATION,
                 values.get("transferId"),
                 values.get("senderDeviceId"),
                 values.get("fileName"),
@@ -651,12 +550,12 @@ public class ConsoleCommandRunner
     private void printRetransmitRequestNotification(Object payload)
     {
         if (!(notificationPayload(payload) instanceof Map<?, ?> values)) {
-            printConsoleNotice("Retransmission request received. Use 'retransmit-accept <transferId>' or 'retransmit-reject <transferId>'.");
+            printConsoleNotice(messages.text(ConsoleMessages.Key.RETRANSMISSION_NOTIFICATION_SIMPLE));
             return;
         }
 
-        printConsoleNotice(String.format(
-                "Retransmission request received: %s | file=%s | from block=%s | reason=%s%nUse 'retransmit-accept %s' to continue, or 'retransmit-reject %s' to refuse.",
+        printConsoleNotice(messages.format(
+                ConsoleMessages.Key.RETRANSMISSION_NOTIFICATION,
                 values.get("transferId"),
                 values.get("fileName"),
                 values.get("startBlockId"),
@@ -698,13 +597,13 @@ public class ConsoleCommandRunner
         int port = args.size() >= 3 ? Integer.parseInt(args.get(2)) : clientProperties.getServerPort();//port参数
         clientConnectionManager.connectAndAuthenticate(host, port)
                 .get(clientProperties.getAuthTimeoutSeconds(), TimeUnit.SECONDS);//通过该方法连接服务器并完成身份认证
-        System.out.println("Connected and authenticated: " + host + ":" + port);
+        System.out.println(messages.format(ConsoleMessages.Key.CONNECTED_AUTHENTICATED, host, port));
     }
 
     private void disconnect()
     {
         clientConnectionManager.disconnect();
-        System.out.println("Disconnected.");
+        System.out.println(messages.text(ConsoleMessages.Key.DISCONNECTED));
     }
 
     private void sendFile(List<String> args)    //处理发送文件的命令
@@ -713,29 +612,30 @@ public class ConsoleCommandRunner
             return;
         }
         if (args.size() < 3) {  //校验参数
-            System.out.println("Usage: send <filePath> <targetAccountId>");
+            System.out.println(messages.usage("send <filePath> <targetAccountId>"));
             return;
         }
         //最后一个参数是目标账户的公钥指纹，中间参数拼回文件路径，兼容未加引号但包含空格的路径
         String filePath = joinArguments(args, 1, args.size() - 1);
         String targetAccountId = localContactBookService.resolveAccountId(args.get(args.size() - 1));
         String taskId = clientTransferService.sendFile(PathInputNormalizer.toPath(filePath), targetAccountId);//处理发送文件的函数，对于文件路径进行规格化操作
-        System.out.println("Send task created: " + taskId);
+        System.out.println(messages.format(ConsoleMessages.Key.SEND_TASK_CREATED, taskId));
     }
 
     private void printTasks()//任务查询命令，打印所有任务
     {
         List<TransferTask> tasks = transferTaskRegistry.allTasks();
         if (tasks.isEmpty()) {
-            System.out.println("No transfer tasks.");
+            System.out.println(messages.text(ConsoleMessages.Key.NO_TRANSFER_TASKS));
             return;
         }
-        System.out.println("taskId | direction | status | progress | fileName | message");
+        System.out.println(messages.tableHeader("taskId", "direction", "mode", "status", "progress", "fileName", "message"));
         for (TransferTask task : tasks) {
             System.out.printf(
-                    "%s | %s | %s | %.2f%% | %s | %s%n",
+                    "%s | %s | %s | %s | %.2f%% | %s | %s%n",
                     task.getTaskId(),
                     task.getDirection(),
+                    task.getTransportMode(),
                     task.getStatus(),
                     task.getProgress() * 100D,
                     task.getFileName(),
@@ -748,10 +648,10 @@ public class ConsoleCommandRunner
     {
         Map<String, IncomingTransferRequestPacket> requests = clientTransferService.pendingIncomingTransferRequests();
         if (requests.isEmpty()) {
-            System.out.println("No incoming transfer requests.");
+            System.out.println(messages.text(ConsoleMessages.Key.NO_INCOMING_REQUESTS));
             return;
         }
-        System.out.println("transferId | sender | file | bytes | blocks");
+        System.out.println(messages.tableHeader("transferId", "sender", "file", "bytes", "blocks"));
         for (IncomingTransferRequestPacket request : requests.values()) {
             System.out.printf(
                     "%s | %s | %s | %d | %d%n",
@@ -767,73 +667,73 @@ public class ConsoleCommandRunner
     private void acceptIncomingRequest(List<String> args)//接受某个传输请求
     {
         if (args.size() < 2) {
-            System.out.println("Usage: accept <transferId>");
+            System.out.println(messages.usage("accept <transferId>"));
             return;
         }
         clientTransferService.acceptIncomingTransfer(args.get(1));//参数是任务Id
-        System.out.println("Accepted incoming transfer request: " + args.get(1));
+        System.out.println(messages.format(ConsoleMessages.Key.ACCEPTED_INCOMING, args.get(1)));
     }
 
     private void rejectIncomingRequest(List<String> args)//拒绝某个传输请求
     {
         if (args.size() < 2) {
-            System.out.println("Usage: reject <transferId>");
+            System.out.println(messages.usage("reject <transferId>"));
             return;
         }
         clientTransferService.rejectIncomingTransfer(args.get(1));//参数是任务Id
-        System.out.println("Rejected incoming transfer request: " + args.get(1));
+        System.out.println(messages.format(ConsoleMessages.Key.REJECTED_INCOMING, args.get(1)));
     }
 
     //处理取消传输任务
     private void cancelTransfer(List<String> args)
     {
         if (args.size() < 2) {
-            System.out.println("Usage: cancel <taskId|transferId>");
+            System.out.println(messages.usage("cancel <taskId|transferId>"));
             return;
         }
         clientTransferService.cancelTransfer(args.get(1));
-        System.out.println("Transfer canceled: " + args.get(1));
+        System.out.println(messages.format(ConsoleMessages.Key.TRANSFER_CANCELED, args.get(1)));
     }
 
     private void requestRetransmission(List<String> args)
     {
         if (args.size() < 2) {
-            System.out.println("Usage: retransmit <taskId|transferId>");
+            System.out.println(messages.usage("retransmit <taskId|transferId>"));
             return;
         }
         clientTransferService.requestRetransmission(args.get(1));
-        System.out.println("Retransmission requested: " + args.get(1));
+        System.out.println(messages.format(ConsoleMessages.Key.RETRANSMISSION_REQUESTED, args.get(1)));
     }
 
     private void acceptRetransmission(List<String> args)
     {
         if (args.size() < 2) {
-            System.out.println("Usage: retransmit-accept <transferId>");
+            System.out.println(messages.usage("retransmit-accept <transferId>"));
             return;
         }
         clientTransferService.acceptRetransmission(args.get(1));
-        System.out.println("Retransmission accepted: " + args.get(1));
+        System.out.println(messages.format(ConsoleMessages.Key.RETRANSMISSION_ACCEPTED, args.get(1)));
     }
 
     private void rejectRetransmission(List<String> args)
     {
         if (args.size() < 2) {
-            System.out.println("Usage: retransmit-reject <transferId>");
+            System.out.println(messages.usage("retransmit-reject <transferId>"));
             return;
         }
         clientTransferService.rejectRetransmission(args.get(1));
-        System.out.println("Retransmission rejected: " + args.get(1));
+        System.out.println(messages.format(ConsoleMessages.Key.RETRANSMISSION_REJECTED, args.get(1)));
     }
 
     private void printContacts()
     {
         List<ContactRecord> contacts = localContactBookService.listContacts();
         if (contacts.isEmpty()) {
-            System.out.println("No contacts.");
+            System.out.println(messages.text(ConsoleMessages.Key.NO_CONTACTS));
             return;
         }
 
-        System.out.println("contact | alias | accountId | publicKey");
+        System.out.println(messages.tableHeader("contact", "alias", "accountId", "publicKey"));
         for (ContactRecord contact : contacts) {
             System.out.printf(
                     "contact-%d | %s | %s | %s%n",
@@ -850,20 +750,20 @@ public class ConsoleCommandRunner
     private void addContact(List<String> args)//指令格式contact-add <accountId> [alias]
     {
         if (args.size() < 2) {
-            System.out.println("Usage: contact-add <accountId> [alias]");
+            System.out.println(messages.usage("contact-add <accountId> [alias]"));
             return;
         }
 
         String alias = args.size() >= 3 ? joinArguments(args, 2) : null;
         String publicKey = searchPublicKeyForContact(args.get(1));
         ContactRecord contact = localContactBookService.addContact(args.get(1), publicKey, alias);
-        System.out.printf(
-                "Contact saved: contact-%d | %s | %s | %s%n",
+        System.out.println(messages.format(
+                ConsoleMessages.Key.CONTACT_SAVED,
                 contact.getContactIndex(),
                 displayNullable(contact.getAlias()),
                 contact.getAccountId(),
                 abbreviate(contact.getPublicKey(), 32)
-        );
+        ));
     }
 
     //根据 accountId 去服务器查 publicKey。
@@ -875,9 +775,9 @@ public class ConsoleCommandRunner
             {
                 return result.getPublicKey();
             }
-            System.out.println("Online user not found. Contact publicKey will be empty.");
+            System.out.println(messages.text(ConsoleMessages.Key.ONLINE_USER_NOT_FOUND_CONTACT_EMPTY));
         } catch (Exception ex) {
-            System.out.println("Unable to search publicKey from server. Contact publicKey will be empty: " + ex.getMessage());
+            System.out.println(messages.format(ConsoleMessages.Key.SEARCH_PUBLIC_KEY_FAILED, ex.getMessage()));
         }
         return null;
     }
@@ -885,46 +785,46 @@ public class ConsoleCommandRunner
     private void removeContact(List<String> args)
     {
         if (args.size() < 2) {
-            System.out.println("Usage: contact-remove <contact-N|N>");
+            System.out.println(messages.usage("contact-remove <contact-N|N>"));
             return;
         }
 
         int contactIndex = parseContactIndexArgument(args.get(1));
         localContactBookService.removeContactByIndex(contactIndex);
-        System.out.println("Contact removed: contact-" + contactIndex);
+        System.out.println(messages.format(ConsoleMessages.Key.CONTACT_REMOVED, contactIndex));
     }
 
     private void showContact(List<String> args)
     {
         if (args.size() < 2) {
-            System.out.println("Usage: contact-show <contact-N|N>");
+            System.out.println(messages.usage("contact-show <contact-N|N>"));
             return;
         }
 
         int contactIndex = parseContactIndexArgument(args.get(1));
         ContactRecord contact = localContactBookService.findContactByIndex(contactIndex).orElse(null);
         if (contact == null) {
-            System.out.println("Contact not found: contact-" + contactIndex);
+            System.out.println(messages.format(ConsoleMessages.Key.CONTACT_NOT_FOUND, contactIndex));
             return;
         }
 
-        System.out.println("contact: contact-" + contact.getContactIndex());
-        System.out.println("alias: " + displayNullable(contact.getAlias()));
-        System.out.println("accountId: " + contact.getAccountId());
-        System.out.println("publicKey: " + contact.getPublicKey());
-        System.out.println("createdAt: " + contact.getCreatedAt());
-        System.out.println("updatedAt: " + contact.getUpdatedAt());
+        printLabelValue("contact", "contact-" + contact.getContactIndex());
+        printLabelValue("alias", displayNullable(contact.getAlias()));
+        printLabelValue("accountId", contact.getAccountId());
+        printLabelValue("publicKey", contact.getPublicKey());
+        printLabelValue("createdAt", contact.getCreatedAt());
+        printLabelValue("updatedAt", contact.getUpdatedAt());
     }
 
     private void printBlacklist()
     {
         List<BlacklistRecord> records = localContactBookService.listBlacklist();
         if (records.isEmpty()) {
-            System.out.println("No blacklist records.");
+            System.out.println(messages.text(ConsoleMessages.Key.NO_BLACKLIST));
             return;
         }
 
-        System.out.println("accountId | reason | publicKey | createdAt");
+        System.out.println(messages.tableHeader("accountId", "reason", "publicKey", "createdAt"));
         for (BlacklistRecord record : records) {
             System.out.printf(
                     "%s | %s | %s | %s%n",
@@ -939,43 +839,43 @@ public class ConsoleCommandRunner
     private void addBlacklist(List<String> args)
     {
         if (args.size() < 2) {
-            System.out.println("Usage: blacklist-add <accountId> [reason]");
+            System.out.println(messages.usage("blacklist-add <accountId> [reason]"));
             return;
         }
 
         String reason = args.size() >= 3 ? joinArguments(args, 2) : null;
         BlacklistRecord record = localContactBookService.addBlacklist(args.get(1), null, reason);
-        System.out.println("Blacklist record saved: " + record.getAccountId());
+        System.out.println(messages.format(ConsoleMessages.Key.BLACKLIST_SAVED, record.getAccountId()));
     }
 
     private void addBlacklistContact(List<String> args)
     {
         if (args.size() < 2) {
-            System.out.println("Usage: blacklist-add-contact <contact-N|N> [reason]");
+            System.out.println(messages.usage("blacklist-add-contact <contact-N|N> [reason]"));
             return;
         }
 
         int contactIndex = parseContactIndexArgument(args.get(1));
         String reason = args.size() >= 3 ? joinArguments(args, 2) : null;
         BlacklistRecord record = localContactBookService.addBlacklistByContactIndex(contactIndex, reason);
-        System.out.println("Blacklist record saved from contact-" + contactIndex + ": " + record.getAccountId());
+        System.out.println(messages.format(ConsoleMessages.Key.BLACKLIST_SAVED_FROM_CONTACT, contactIndex, record.getAccountId()));
     }
 
     private void removeBlacklist(List<String> args)
     {
         if (args.size() < 2) {
-            System.out.println("Usage: blacklist-remove <accountId>");
+            System.out.println(messages.usage("blacklist-remove <accountId>"));
             return;
         }
 
         localContactBookService.removeBlacklist(args.get(1));
-        System.out.println("Blacklist record removed: " + args.get(1));
+        System.out.println(messages.format(ConsoleMessages.Key.BLACKLIST_REMOVED, args.get(1)));
     }
 
     private void searchUser(List<String> args)
     {
         if (args.size() < 2) {
-            System.out.println("Usage: search-user <accountId>");
+            System.out.println(messages.usage("search-user <accountId>"));
             return;
         }
 
@@ -986,7 +886,7 @@ public class ConsoleCommandRunner
     private void searchUserAndAddContact(List<String> args)
     {
         if (args.size() < 2) {
-            System.out.println("Usage: search-user-add <accountId> [alias]");
+            System.out.println(messages.usage("search-user-add <accountId> [alias]"));
             return;
         }
 
@@ -999,31 +899,31 @@ public class ConsoleCommandRunner
         }
 
         ContactRecord contact = localContactBookService.addContact(result.getAccountId(), result.getPublicKey(), alias);
-        System.out.printf(
-                "Contact saved: contact-%d | %s | %s%n",
+        System.out.println(messages.format(
+                ConsoleMessages.Key.CONTACT_SAVED_SHORT,
                 contact.getContactIndex(),
                 displayNullable(contact.getAlias()),
                 contact.getAccountId()
-        );
+        ));
     }
 
     private void printOnlineUserSearchResult(OnlineUserSearchResultPacket result)
     {
-        System.out.println("found: " + result.isSearchResult());
-        System.out.println("accountId: " + result.getAccountId());
-        System.out.println("message: " + result.getMessage());
+        printLabelValue("found", result.isSearchResult());
+        printLabelValue("accountId", result.getAccountId());
+        printLabelValue("message", result.getMessage());
         if(!result.isSearchResult())
         {
             return;
         }
-        System.out.println("publicKey: " + result.getPublicKey());
+        printLabelValue("publicKey", result.getPublicKey());
     }
 
     //查看传输进度的时候，可以动态的显示传输进度，也可以仅是一次传输任务进度的快照
     private void printTask(BufferedReader reader, List<String> args) throws IOException
     {
         if (args.size() < 2) {      //校验参数数量
-            System.out.println("Usage: task <taskId|transferId> [--once]");
+            System.out.println(messages.usage("task <taskId|transferId> [--once]"));
             return;
         }
 
@@ -1032,7 +932,7 @@ public class ConsoleCommandRunner
                 .or(() -> transferTaskRegistry.findByTransferId(id))//根据transferId查
                 .orElse(null);
         if (task == null) {
-            System.out.println("Task not found: " + id);
+            System.out.println(messages.format(ConsoleMessages.Key.TASK_NOT_FOUND, id));
             return;
         }
 
@@ -1049,7 +949,7 @@ public class ConsoleCommandRunner
     //动态查看传输任务的进度的函数
     private void watchTaskProgress(BufferedReader reader, TransferTask task) throws IOException
     {
-        System.out.println("Watching task progress. Press 'Enter' or 'q then Enter' to stop watching.");
+        System.out.println(messages.text(ConsoleMessages.Key.WATCHING_TASK));
         lastProgressLineLength = 0;
         while (applicationContext.isActive()) {     //外层循环
             synchronized (System.out) {
@@ -1065,7 +965,7 @@ public class ConsoleCommandRunner
                 if (line == null || line.isBlank() || "q".equalsIgnoreCase(line.trim())) {
                     synchronized (System.out) {
                         System.out.println();
-                        System.out.println("Stopped watching. Transfer continues in background.");
+                        System.out.println(messages.text(ConsoleMessages.Key.STOPPED_WATCHING));
                     }
                     return;
                 }
@@ -1178,13 +1078,15 @@ public class ConsoleCommandRunner
         int filledWidth = (int) Math.round(Math.min(100D, Math.max(0D, progressPercent)) / 100D * PROGRESS_BAR_WIDTH);
         String bar = "#".repeat(filledWidth) + "-".repeat(PROGRESS_BAR_WIDTH - filledWidth);
         return String.format(
-                "[%s] %.2f%% | %s | %.2f mb/s | bytes %d/%d | blocks %d/%d | %s",
+                messages.text(ConsoleMessages.Key.PROGRESS_LINE),
                 bar,
                 progressPercent,
                 task.getStatus(),
                 task.getAverageSpeedMegabytesPerSecond(),
+                messages.label("bytes"),
                 task.getTransferredBytes(),
                 task.getTotalBytes(),
+                messages.label("blocks"),
                 task.getTransferredBlocks(),
                 task.getTotalBlocks(),
                 task.getMessage()
@@ -1200,49 +1102,50 @@ public class ConsoleCommandRunner
     //打印任务详情
     private void printTaskDetails(TransferTask task)
     {
-        System.out.println("taskId: " + task.getTaskId());
-        System.out.println("transferId: " + task.getTransferId());
-        System.out.println("direction: " + task.getDirection());
-        System.out.println("status: " + task.getStatus());
-        System.out.println("fileName: " + task.getFileName());
-        System.out.println("localPath: " + task.getLocalPath());
-        System.out.println("peerDeviceId: " + task.getPeerDeviceId());
-        System.out.println("bytes: " + task.getTransferredBytes() + "/" + task.getTotalBytes());
-        System.out.println("blocks: " + task.getTransferredBlocks() + "/" + task.getTotalBlocks());
-        System.out.printf("progress: %.2f%%%n", task.getProgress() * 100D);
-        System.out.printf("speed: %.2f mb/s%n", task.getAverageSpeedMegabytesPerSecond());
-        System.out.println("createdAt: " + task.getCreatedAt());
-        System.out.println("transferStartedAt: " + task.getTransferStartedAt());
-        System.out.println("message: " + task.getMessage());
+        printLabelValue("taskId", task.getTaskId());
+        printLabelValue("transferId", task.getTransferId());
+        printLabelValue("direction", task.getDirection());
+        printLabelValue("transportMode", task.getTransportMode());
+        printLabelValue("status", task.getStatus());
+        printLabelValue("fileName", task.getFileName());
+        printLabelValue("localPath", task.getLocalPath());
+        printLabelValue("peerDeviceId", task.getPeerDeviceId());
+        printLabelValue("bytes", task.getTransferredBytes() + "/" + task.getTotalBytes());
+        printLabelValue("blocks", task.getTransferredBlocks() + "/" + task.getTotalBlocks());
+        System.out.printf("%s: %.2f%%%n", messages.label("progress"), task.getProgress() * 100D);
+        System.out.printf("%s: %.2f mb/s%n", messages.label("speed"), task.getAverageSpeedMegabytesPerSecond());
+        printLabelValue("createdAt", task.getCreatedAt());
+        printLabelValue("transferStartedAt", task.getTransferStartedAt());
+        printLabelValue("message", task.getMessage());
     }
 
     //处理打开文件位置的函数
     private void openReceivedFile(List<String> args) throws IOException
     {
         if (args.size() < 2) {
-            System.out.println("Usage: open-received <taskId|transferId|\"fileName\">");
+            System.out.println(messages.usage("open-received <taskId|transferId|\"fileName\">"));
             return;
         }
 
         String target = args.get(1);
         TransferTask task = resolveReceivedFileTask(target);
         if (task == null) {
-            System.out.println("Received file not found by taskId, transferId, or fileName: " + target);
+            System.out.println(messages.format(ConsoleMessages.Key.RECEIVED_FILE_NOT_FOUND, target));
             return;
         }
         if (task.getLocalPath() == null || task.getLocalPath().isBlank()) {
-            System.out.println("Received file path is empty for task: " + task.getTaskId());
+            System.out.println(messages.format(ConsoleMessages.Key.RECEIVED_PATH_EMPTY, task.getTaskId()));
             return;
         }
 
         Path filePath = Path.of(task.getLocalPath()).toAbsolutePath().normalize();
         if (!Files.exists(filePath)) {
-            System.out.println("Received file path no longer exists: " + filePath);
+            System.out.println(messages.format(ConsoleMessages.Key.RECEIVED_PATH_MISSING, filePath));
             return;
         }
 
         revealInFileManager(filePath);
-        System.out.println("Opened file location: " + filePath);
+        System.out.println(messages.format(ConsoleMessages.Key.OPENED_FILE_LOCATION, filePath));
     }
 
     private TransferTask resolveReceivedFileTask(String target)
@@ -1252,7 +1155,7 @@ public class ConsoleCommandRunner
                 .orElse(null);
         if (task != null) {
             if (task.getDirection() != TransferDirection.RECEIVE) {
-                throw new IllegalArgumentException("Task is not a received file: " + target);
+                throw new IllegalArgumentException(messages.format(ConsoleMessages.Key.NOT_RECEIVED_FILE_TASK, target));
             }
             return task;
         }
@@ -1265,13 +1168,17 @@ public class ConsoleCommandRunner
             return null;
         }
         if (matches.size() > 1) {
-            System.out.println("Multiple received files matched. Please use taskId or transferId:");
+            System.out.println(messages.text(ConsoleMessages.Key.MULTIPLE_RECEIVED_MATCHED));
             for (TransferTask match : matches) {
                 System.out.printf(
-                        "  taskId=%s | transferId=%s | fileName=%s | localPath=%s%n",
+                        "  %s=%s | %s=%s | %s=%s | %s=%s%n",
+                        messages.label("taskId"),
                         match.getTaskId(),
+                        messages.label("transferId"),
                         match.getTransferId(),
+                        messages.label("fileName"),
                         match.getFileName(),
+                        messages.label("localPath"),
                         match.getLocalPath()
                 );
             }
@@ -1322,7 +1229,7 @@ public class ConsoleCommandRunner
             return;
         }
         if (!ensureLocalPublicKeyPresent()) {   //当前是否密钥文件
-            System.out.println("Command invalid: no local public key is available.");
+            System.out.println(messages.text(ConsoleMessages.Key.NO_LOCAL_PUBLIC_KEY));
             return;
         }
         System.out.println(cryptoSupport.publicKeyFingerprint());//输出当前公钥的指纹
@@ -1352,30 +1259,30 @@ public class ConsoleCommandRunner
     private void importPrivateKey(List<String> args) throws Exception      //手动输入的方式
     {
         if (args.size() < 2) {
-            System.out.println("Usage: import-private-key <privateKeyBase64OrPem>");
+            System.out.println(messages.usage("import-private-key <privateKeyBase64OrPem>"));
             return;
         }
         cryptoSupport.importPrivateKeyText(args.get(1));
         clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
-        System.out.println("Private key imported. Public key fingerprint: " + cryptoSupport.publicKeyFingerprint());
-        System.out.println("Auto-connect will continue if it was paused by missing key.");
+        System.out.println(messages.format(ConsoleMessages.Key.PRIVATE_KEY_IMPORTED, cryptoSupport.publicKeyFingerprint()));
+        System.out.println(messages.text(ConsoleMessages.Key.AUTO_CONNECT_CONTINUE));
     }
 
     private void importPrivateKeyFile(List<String> args) throws Exception   //导入密钥文件的方式
     {
         if (args.size() < 2) {
-            System.out.println("Usage: import-private-key-file <path>");
+            System.out.println(messages.usage("import-private-key-file <path>"));
             return;
         }
         cryptoSupport.importPrivateKeyFile(PathInputNormalizer.toPath(args.get(1)));//对于导入私钥文件的路径进行规格化操作
         clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
-        System.out.println("Private key imported. Public key fingerprint: " + cryptoSupport.publicKeyFingerprint());
-        System.out.println("Auto-connect will continue if it was paused by missing key.");
+        System.out.println(messages.format(ConsoleMessages.Key.PRIVATE_KEY_IMPORTED, cryptoSupport.publicKeyFingerprint()));
+        System.out.println(messages.text(ConsoleMessages.Key.AUTO_CONNECT_CONTINUE));
     }
 
     private void importPrivateKeyPaste(BufferedReader reader) throws Exception  //通过负责粘贴的方式输入密钥
     {
-        System.out.println("Paste private key text. Enter a single dot on its own line to finish.");
+        System.out.println(messages.text(ConsoleMessages.Key.PASTE_PRIVATE_KEY));
         StringBuilder keyText = new StringBuilder();
         while (true) {
             String line = reader.readLine();
@@ -1389,30 +1296,35 @@ public class ConsoleCommandRunner
         }
         cryptoSupport.importPrivateKeyText(keyText.toString());
         clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
-        System.out.println("Private key imported. Public key fingerprint: " + cryptoSupport.publicKeyFingerprint());
-        System.out.println("Auto-connect will continue if it was paused by missing key.");
+        System.out.println(messages.format(ConsoleMessages.Key.PRIVATE_KEY_IMPORTED, cryptoSupport.publicKeyFingerprint()));
+        System.out.println(messages.text(ConsoleMessages.Key.AUTO_CONNECT_CONTINUE));
     }
 
     //--------------------------导入密钥的三种方式------------------------------//
 
     private void exit() //退出程序的指令；退出整个TCP模块！！！；退出整个Spring应用
     {
-        System.out.println("Stopping application...");
+        System.out.println(messages.text(ConsoleMessages.Key.STOPPING_APPLICATION));
         applicationContext.close();
     }
 
     private void printMap(Map<String, ?> map)
     {
         for (Map.Entry<String, ?> entry : map.entrySet()) {
-            System.out.println(entry.getKey() + ": " + entry.getValue());
+            printLabelValue(entry.getKey(), entry.getValue());
         }
     }
 
     private void printAnyMap(Map<?, ?> map)
     {
         for (Map.Entry<?, ?> entry : map.entrySet()) {
-            System.out.println(entry.getKey() + ": " + entry.getValue());
+            printLabelValue(String.valueOf(entry.getKey()), entry.getValue());
         }
+    }
+
+    private void printLabelValue(String label, Object value)
+    {
+        System.out.println(messages.label(label) + ": " + value);
     }
 
     private void remindIfKeyMissing()//如果当前没有有效的密钥就提醒用户
@@ -1422,8 +1334,8 @@ public class ConsoleCommandRunner
                 printMissingKeyReminder();
             }
         } catch (Exception ex) {
-            System.out.println("Unable to check key status: " + ex.getMessage());
-            System.out.println("Run 'key-info' after confirming the crypto service is running.");
+            System.out.println(messages.format(ConsoleMessages.Key.UNABLE_CHECK_KEY_STATUS, ex.getMessage()));
+            System.out.println(messages.text(ConsoleMessages.Key.RUN_KEY_INFO_AFTER_CRYPTO));
         }
     }
 
@@ -1436,8 +1348,8 @@ public class ConsoleCommandRunner
             printMissingKeyReminder();
             return false;
         } catch (Exception ex) {
-            System.out.println("Unable to check key status: " + ex.getMessage());
-            System.out.println("Run 'key-info' after confirming the crypto service is running.");
+            System.out.println(messages.format(ConsoleMessages.Key.UNABLE_CHECK_KEY_STATUS, ex.getMessage()));
+            System.out.println(messages.text(ConsoleMessages.Key.RUN_KEY_INFO_AFTER_CRYPTO));
             return false;
         }
     }
@@ -1447,8 +1359,8 @@ public class ConsoleCommandRunner
         try {
             return isTruthy(cryptoSupport.keyStatus().get("hasPublicKey"));//检查当前是否有密钥
         } catch (Exception ex) {
-            System.out.println("Unable to check key status: " + ex.getMessage());
-            System.out.println("Run 'key-info' after confirming the crypto service is running.");
+            System.out.println(messages.format(ConsoleMessages.Key.UNABLE_CHECK_KEY_STATUS, ex.getMessage()));
+            System.out.println(messages.text(ConsoleMessages.Key.RUN_KEY_INFO_AFTER_CRYPTO));
             return false;
         }
     }
@@ -1526,8 +1438,8 @@ public class ConsoleCommandRunner
     //打印密钥缺失提醒
     private void printMissingKeyReminder()
     {
-        System.out.println("No local key pair is available.");
-        System.out.println("Run 'generate-key' to create one, or use 'import-private-key-file <path>' / 'import-private-key-paste' to import an existing private key.");
+        System.out.println(messages.text(ConsoleMessages.Key.NO_LOCAL_KEY_PAIR));
+        System.out.println(messages.text(ConsoleMessages.Key.MISSING_KEY_ACTION));
     }
 
     private List<String> parseArguments(String line)//参数解析函数
@@ -1590,10 +1502,4 @@ public class ConsoleCommandRunner
         }
     }
 
-    //语言枚举类
-    private enum HelpLanguage
-    {
-        ENGLISH,
-        CHINESE
-    }
 }

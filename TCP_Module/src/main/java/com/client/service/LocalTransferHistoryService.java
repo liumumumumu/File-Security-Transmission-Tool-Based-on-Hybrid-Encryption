@@ -1,6 +1,7 @@
 package com.client.service;
 
 import com.common.config.LocalStorageProperties;
+import com.client.transport.TransportMode;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.session.TransferDirection;
@@ -116,7 +117,8 @@ public class LocalTransferHistoryService {
             TransferStatus status,
             long transferredBytes,
             int transferredBlocks,
-            String message
+            String message,
+            TransportMode transportMode
     )
     {
         //TransferTask转StoredTransferTask
@@ -136,7 +138,8 @@ public class LocalTransferHistoryService {
                     task.getStatus(),
                     task.getTransferredBytes(),
                     task.getTransferredBlocks(),
-                    task.getMessage()
+                    task.getMessage(),
+                    task.getTransportMode()
             );
         }
 
@@ -152,7 +155,8 @@ public class LocalTransferHistoryService {
                     peerDeviceId,
                     totalBytes,
                     totalBlocks,
-                    createdAt
+                    createdAt,
+                    transportMode == null ? TransportMode.UNKNOWN : transportMode
             );
             task.restoreState(status, transferredBytes, transferredBlocks, message, transferStartedAt);
             return task;

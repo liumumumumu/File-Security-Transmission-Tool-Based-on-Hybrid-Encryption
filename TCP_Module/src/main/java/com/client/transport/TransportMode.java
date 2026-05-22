@@ -10,5 +10,6 @@ package com.client.transport;
 public enum TransportMode
 {
     SERVER_RELAY,   //服务器中继
-    DIRECT_PEER     //IPv6直连
+    DIRECT_PEER,    //IPv6直连
+    UNKNOWN         //旧历史记录或缺失模式的任务
 }

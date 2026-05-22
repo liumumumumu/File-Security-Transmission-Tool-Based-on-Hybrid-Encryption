@@ -17,6 +17,7 @@ public class LocalStorageProperties
     private String deviceIdPath;//本机设备ID保存路径
     private String startupStatePath;//启动状态文件路径
     private String directSettingsPath;//IPv6直连设置文件路径
+    private String languageSettingsPath;//语言设置文件路径
     private String qrOutputDir;//二维码临时输出目录
 
     public String getTransferHistoryPath() {
@@ -59,6 +60,14 @@ public class LocalStorageProperties
         this.directSettingsPath = directSettingsPath;
     }
 
+    public String getLanguageSettingsPath() {
+        return languageSettingsPath;
+    }
+
+    public void setLanguageSettingsPath(String languageSettingsPath) {
+        this.languageSettingsPath = languageSettingsPath;
+    }
+
     public String getQrOutputDir() {
         return qrOutputDir;
     }
@@ -74,6 +83,7 @@ public class LocalStorageProperties
                 ", deviceIdPath='" + deviceIdPath + '\'' +
                 ", startupStatePath='" + startupStatePath + '\'' +
                 ", directSettingsPath='" + directSettingsPath + '\'' +
+                ", languageSettingsPath='" + languageSettingsPath + '\'' +
                 ", qrOutputDir='" + qrOutputDir + '\'' +
                 ", transferHistoryPath='" + transferHistoryPath + '\'' +
                 '}';

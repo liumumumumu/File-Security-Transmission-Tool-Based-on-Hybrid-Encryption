@@ -1,5 +1,7 @@
 package com.session;
 
+import com.client.transport.TransportMode;
+
 import java.time.Duration;
 import java.time.Instant;
 
@@ -18,6 +20,7 @@ public class TransferTask
     private final TransferDirection direction;
     private final String fileName;
     private final String localPath;
+    private final TransportMode transportMode;
     private volatile String peerDeviceId;//发送方的公钥
     private final long totalBytes;//总字节数
     private final int totalBlocks;//总块数
@@ -41,6 +44,22 @@ public class TransferTask
             Instant createdAt
     )
     {
+        this(taskId, transferId, direction, fileName, localPath, peerDeviceId, totalBytes, totalBlocks, createdAt, TransportMode.UNKNOWN);
+    }
+
+    public TransferTask(
+            String taskId,
+            String transferId,
+            TransferDirection direction,
+            String fileName,
+            String localPath,
+            String peerDeviceId,
+            long totalBytes,
+            int totalBlocks,
+            Instant createdAt,
+            TransportMode transportMode
+    )
+    {
         this.taskId = taskId;
         this.transferId = transferId;
         this.direction = direction;
@@ -50,6 +69,7 @@ public class TransferTask
         this.totalBytes = totalBytes;
         this.totalBlocks = totalBlocks;
         this.createdAt = createdAt == null ? Instant.now() : createdAt;
+        this.transportMode = transportMode == null ? TransportMode.UNKNOWN : transportMode;
     }
 
     //更新进度
@@ -109,6 +129,10 @@ public class TransferTask
 
     public String getLocalPath() {
         return localPath;
+    }
+
+    public TransportMode getTransportMode() {
+        return transportMode;
     }
 
     public String getMessage() {
@@ -193,6 +217,7 @@ public class TransferTask
                 ", direction=" + direction +
                 ", fileName='" + fileName + '\'' +
                 ", localPath='" + localPath + '\'' +
+                ", transportMode=" + transportMode +
                 ", peerDeviceId='" + peerDeviceId + '\'' +
                 ", totalBytes=" + totalBytes +
                 ", totalBlocks=" + totalBlocks +
