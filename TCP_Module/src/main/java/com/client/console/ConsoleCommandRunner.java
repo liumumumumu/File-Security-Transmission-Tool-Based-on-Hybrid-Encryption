@@ -1,5 +1,6 @@
 package com.client.console;
 
+import com.client.ApplicationShutdownService;
 import com.client.ClientConnectionManager;
 import com.client.ClientStartupCoordinator;
 import com.client.direct.DirectHandshakeService;
@@ -7,6 +8,7 @@ import com.client.direct.DirectPeerConnectionManager;
 import com.client.direct.DirectSettings;
 import com.client.direct.DirectSettingsService;
 import com.client.direct.DirectSessionInfo;
+import com.client.direct.ReceiverListeningSession;
 import com.client.direct.qr.QrArtifact;
 import com.client.language.ConsoleMessages;
 import com.client.language.LanguageSettingsService;
@@ -20,6 +22,7 @@ import com.client.service.LocalContactBookService;
 import com.common.service.PushNotificationService;
 import com.common.util.PathInputNormalizer;
 import com.client.service.TransferTaskRegistry;
+import com.client.service.PrivateKeyArtifactService;
 import com.persistence.local.model.contactsRecord.BlacklistRecord;
 import com.persistence.local.model.contactsRecord.ContactRecord;
 import com.session.TransferDirection;
@@ -27,7 +30,6 @@ import com.session.TransferStatus;
 import com.session.TransferTask;
 import jakarta.annotation.PreDestroy;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
@@ -73,6 +75,7 @@ public class ConsoleCommandRunner
     private static final int PROGRESS_BAR_WIDTH = 30;
     private static final int WINDOWS_DEFAULT_TERMINAL_COLUMNS = 80;
     private static final int DEFAULT_TERMINAL_COLUMNS = 120;
+    private static final int FST1_TERMINAL_WRAP_WIDTH = 96;
     private static final long TASK_WATCH_INTERVAL_MILLIS = 1000L;
 
     private final ClientConnectionManager clientConnectionManager;//负责客户端连接服务器，认证，断开连接
@@ -81,9 +84,10 @@ public class ConsoleCommandRunner
     private final ClientProperties clientProperties;//负责读取客户端配置
     private final CryptoSupport cryptoSupport;//负责访问本地的加密服务，管理密钥，获取密钥状态，生成密钥，导入密钥
     private final TransferTaskRegistry transferTaskRegistry;//负责保持传输任务状态，用于对tasks, task的命令查询
-    private final ConfigurableApplicationContext applicationContext;//负责控制Spring应用的生命周期
+    private final ApplicationShutdownService applicationShutdownService;//负责统一关闭整个客户端应用
     private final PushNotificationService pushNotificationService;//监听本地通知
     private final LocalContactBookService localContactBookService;//负责本地联系人和黑名单
+    private final PrivateKeyArtifactService privateKeyArtifactService;
     private final DirectHandshakeService directHandshakeService;
     private final DirectSettingsService directSettingsService;
     private final DirectPeerConnectionManager directPeerConnectionManager;
@@ -99,9 +103,10 @@ public class ConsoleCommandRunner
             ClientProperties clientProperties,
             CryptoSupport cryptoSupport,
             TransferTaskRegistry transferTaskRegistry,
-            ConfigurableApplicationContext applicationContext,
+            ApplicationShutdownService applicationShutdownService,
             PushNotificationService pushNotificationService,
             LocalContactBookService localContactBookService,
+            PrivateKeyArtifactService privateKeyArtifactService,
             DirectHandshakeService directHandshakeService,
             DirectSettingsService directSettingsService,
             DirectPeerConnectionManager directPeerConnectionManager,
@@ -115,9 +120,10 @@ public class ConsoleCommandRunner
         this.clientProperties = clientProperties;
         this.cryptoSupport = cryptoSupport;
         this.transferTaskRegistry = transferTaskRegistry;
-        this.applicationContext = applicationContext;
+        this.applicationShutdownService = applicationShutdownService;
         this.pushNotificationService = pushNotificationService;
         this.localContactBookService = localContactBookService;
+        this.privateKeyArtifactService = privateKeyArtifactService;
         this.directHandshakeService = directHandshakeService;
         this.directSettingsService = directSettingsService;
         this.directPeerConnectionManager = directPeerConnectionManager;
@@ -150,10 +156,11 @@ public class ConsoleCommandRunner
         printWelcome();//打印欢迎消息
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, commandInputCharset()))) {
             handleStartupKeyPrompt(reader);
-            while (applicationContext.isActive()) {//进入大循环
+            while (isApplicationActive()) {//进入大循环
                 printModeMenu();
                 String selected = reader.readLine();
                 if (selected == null) {
+                    handleConsoleInputClosed();
                     return;
                 }
                 switch (selected.trim().toLowerCase(Locale.ROOT)) {
@@ -187,10 +194,11 @@ public class ConsoleCommandRunner
     private void runRelayConsole(BufferedReader reader) throws IOException
     {
         System.out.println(messages.text(ConsoleMessages.Key.RELAY_CONSOLE_READY));
-        while (applicationContext.isActive()) {
+        while (isApplicationActive()) {
             System.out.print("fst-relay> ");
             String line = reader.readLine();
             if (line == null) {
+                handleConsoleInputClosed();
                 return;
             }
             String trimmed = line.trim();
@@ -209,10 +217,11 @@ public class ConsoleCommandRunner
     private void runDirectConsole(BufferedReader reader) throws IOException
     {
         System.out.println(messages.text(ConsoleMessages.Key.DIRECT_CONSOLE_READY));
-        while (applicationContext.isActive()) {
+        while (isApplicationActive()) {
             System.out.print("fst-direct> ");
             String line = reader.readLine();
             if (line == null) {
+                handleConsoleInputClosed();
                 return;
             }
             String trimmed = line.trim();
@@ -308,6 +317,7 @@ public class ConsoleCommandRunner
                 case "key-info" -> printKeyInfo();              //打印Python加密服务管理的密钥状态
                 case "generate-key" -> generateKey();           //请求Python加密服务生成密钥
                 case "delete-key" -> deleteKey();               //请求Python加密服务删除密钥
+                case "export-private-key" -> exportPrivateKey();//导出私钥文本和二维码文件
                 case "import-private-key" -> importPrivateKey(args);                //以文本的方式导入私钥，import-private-key <keyText>
                 case "import-private-key-file" -> importPrivateKeyFile(args);       //从文件导入私钥，import-private-key-file <path>
                 case "import-private-key-paste" -> importPrivateKeyPaste(reader);   //进入多行粘贴模式，用户可以粘贴多行私钥内容，最后一行只输入一个'.'标识结束， import-private-key-paste
@@ -347,8 +357,14 @@ public class ConsoleCommandRunner
                 case "tasks" -> printTasks();
                 case "task" -> printTask(reader, args);
                 case "key-info" -> printKeyInfo();
+                case "generate-key" -> generateKey();
+                case "delete-key" -> deleteKey();
+                case "export-private-key" -> exportPrivateKey();
                 case "public-key" -> printPublicKey();
                 case "public-key-fingerprint", "accountid", "account-id" -> printPublicKeyFingerprint(args);
+                case "import-private-key" -> importPrivateKey(args);
+                case "import-private-key-file" -> importPrivateKeyFile(args);
+                case "import-private-key-paste" -> importPrivateKeyPaste(reader);
                 case "exit", "quit" -> exit();
                 default -> System.out.println(messages.format(ConsoleMessages.Key.UNKNOWN_DIRECT_COMMAND, command));
             }
@@ -425,37 +441,134 @@ public class ConsoleCommandRunner
         DirectHandshakeService.SenderHandshakeOffer offer = directHandshakeService.createSenderOffer();
         printQrArtifact(offer.artifact(), offer.text());
         System.out.println(messages.text(ConsoleMessages.Key.SEND_QR_TO_RECEIVER));
-        System.out.println(messages.text(ConsoleMessages.Key.PASTE_RECEIVER_FST1));
-        System.out.print("receiver-fst1> ");
-        String receiverInput = reader.readLine();
-        if(receiverInput == null || receiverInput.isBlank()) {
+        DirectSessionInfo session = waitForReceiverHandshake(reader, offer);
+        if (session == null) {
             return;
         }
-        String receiverText = directHandshakeService.readFst1Text(receiverInput);
-        DirectSessionInfo session = directHandshakeService.connectSender(offer.offer(), receiverText).get();
         directHandshakeService.deleteQrInvite(offer.offer().getInviteId());
         System.out.println(messages.format(ConsoleMessages.Key.DIRECT_SESSION_CONNECTED, session.getPeerDeviceId()));
-        System.out.print(messages.text(ConsoleMessages.Key.FILE_PATH_TO_SEND));
-        String filePath = reader.readLine();
-        if(filePath == null || filePath.isBlank()) {
+        String taskId = promptDirectFileSend(reader, session);
+        if (taskId == null) {
             return;
         }
-        String taskId = clientTransferService.sendFileDirect(PathInputNormalizer.toPath(filePath.trim()), session.getReceiverResponse(), session.getTransport());
         System.out.println(messages.format(ConsoleMessages.Key.SEND_TASK_CREATED, taskId));
     }
 
     private void directReceiverHandshake(BufferedReader reader) throws Exception
     {
-        System.out.println(messages.text(ConsoleMessages.Key.PASTE_SENDER_FST1));
-        System.out.print("sender-fst1> ");
-        String senderInput = reader.readLine();
-        if(senderInput == null || senderInput.isBlank()) {
+        var receiverSession = waitForSenderHandshake(reader);
+        if (receiverSession == null) {
             return;
         }
-        String senderText = directHandshakeService.readFst1Text(senderInput);
-        var receiverSession = directHandshakeService.createReceiverResponse(senderText);
         printQrArtifact(receiverSession.getArtifact(), Files.readString(receiverSession.getArtifact().getFst1Path()).trim());
         System.out.println(messages.text(ConsoleMessages.Key.SEND_QR_TO_SENDER_WAITING));
+    }
+
+    private DirectSessionInfo waitForReceiverHandshake(BufferedReader reader, DirectHandshakeService.SenderHandshakeOffer offer) throws IOException
+    {
+        while (isApplicationActive()) {
+            System.out.println(messages.text(ConsoleMessages.Key.PASTE_RECEIVER_FST1));
+            System.out.println(messages.text(ConsoleMessages.Key.HANDSHAKE_CANCEL_HINT));
+            System.out.println(messages.text(ConsoleMessages.Key.FST1_MULTILINE_HINT));
+            String receiverInput = readFst1ConsoleInput(reader, "receiver-fst1> ");
+            if(receiverInput == null) {
+                return null;
+            }
+            try {
+                String receiverText = directHandshakeService.readFst1Text(receiverInput);
+                return directHandshakeService.connectSender(offer.offer(), receiverText).get();
+            } catch (Exception ex) {
+                System.out.println(messages.format(ConsoleMessages.Key.COMMAND_FAILED, ex.getMessage()));
+            }
+        }
+        return null;
+    }
+
+    private ReceiverListeningSession waitForSenderHandshake(BufferedReader reader) throws IOException
+    {
+        while (isApplicationActive()) {
+            System.out.println(messages.text(ConsoleMessages.Key.PASTE_SENDER_FST1));
+            System.out.println(messages.text(ConsoleMessages.Key.HANDSHAKE_CANCEL_HINT));
+            System.out.println(messages.text(ConsoleMessages.Key.FST1_MULTILINE_HINT));
+            String senderInput = readFst1ConsoleInput(reader, "sender-fst1> ");
+            if(senderInput == null) {
+                return null;
+            }
+            try {
+                String senderText = directHandshakeService.readFst1Text(senderInput);
+                return directHandshakeService.createReceiverResponse(senderText);
+            } catch (Exception ex) {
+                System.out.println(messages.format(ConsoleMessages.Key.COMMAND_FAILED, ex.getMessage()));
+            }
+        }
+        return null;
+    }
+
+    private String readFst1ConsoleInput(BufferedReader reader, String prompt) throws IOException
+    {
+        System.out.print(prompt);
+        String firstLine = reader.readLine();
+        if(firstLine == null) {
+            handleConsoleInputClosed();
+            return null;
+        }
+        if(isHandshakeAbortInput(firstLine)) {
+            return null;
+        }
+        String trimmed = firstLine.trim();
+        if(!trimmed.startsWith("FST1:")) {
+            return firstLine;
+        }
+
+        List<String> lines = new ArrayList<>();
+        lines.add(firstLine);
+        while (true) {
+            String line = reader.readLine();
+            if(line == null) {
+                handleConsoleInputClosed();
+                return null;
+            }
+            if(".".equals(line.trim())) {
+                return joinFst1PasteLines(lines);
+            }
+            if(isHandshakeAbortInput(line)) {
+                return null;
+            }
+            lines.add(line);
+        }
+    }
+
+    private String promptDirectFileSend(BufferedReader reader, DirectSessionInfo session) throws IOException
+    {
+        while (isApplicationActive()) {
+            System.out.println(messages.text(ConsoleMessages.Key.HANDSHAKE_CANCEL_HINT));
+            System.out.print(messages.text(ConsoleMessages.Key.FILE_PATH_TO_SEND));
+            String filePath = reader.readLine();
+            if(filePath == null) {
+                handleConsoleInputClosed();
+                return null;
+            }
+            if(isHandshakeAbortInput(filePath)) {
+                return null;
+            }
+            try {
+                return clientTransferService.sendFileDirect(
+                        PathInputNormalizer.toPath(filePath),
+                        session.getReceiverResponse(),
+                        session.getTransport());
+            } catch (Exception ex) {
+                System.out.println(messages.format(ConsoleMessages.Key.COMMAND_FAILED, ex.getMessage()));
+            }
+        }
+        return null;
+    }
+
+    private boolean isHandshakeAbortInput(String value)
+    {
+        String trimmed = value == null ? "" : value.trim();
+        return trimmed.isBlank()
+                || "cancel".equalsIgnoreCase(trimmed)
+                || "back".equalsIgnoreCase(trimmed);
     }
 
     private void printQrArtifact(QrArtifact artifact, String text) throws IOException
@@ -464,7 +577,33 @@ public class ConsoleCommandRunner
         System.out.println(messages.format(ConsoleMessages.Key.QR_FST1, artifact.getFst1Path()));
         System.out.println(messages.format(ConsoleMessages.Key.QR_ASCII, artifact.getAsciiPath()));
         System.out.println(messages.text(ConsoleMessages.Key.QR_TEXT));
-        System.out.println(text);
+        System.out.println(wrapLongText(text, FST1_TERMINAL_WRAP_WIDTH));
+    }
+
+    static String wrapLongText(String text, int width)
+    {
+        if(text == null || text.isEmpty() || width <= 0) {
+            return text;
+        }
+        StringBuilder wrapped = new StringBuilder(text.length() + text.length() / width);
+        for(int index = 0; index < text.length(); index += width) {
+            if(index > 0) {
+                wrapped.append(System.lineSeparator());
+            }
+            wrapped.append(text, index, Math.min(index + width, text.length()));
+        }
+        return wrapped.toString();
+    }
+
+    static String joinFst1PasteLines(List<String> lines)
+    {
+        StringBuilder joined = new StringBuilder();
+        for(String line : lines) {
+            if(line != null) {
+                joined.append(line.trim());
+            }
+        }
+        return joined.toString();
     }
 
     private boolean confirm(BufferedReader reader, String prompt) throws IOException
@@ -496,6 +635,7 @@ public class ConsoleCommandRunner
 
         String selected = reader.readLine();
         if (selected == null) {
+            handleConsoleInputClosed();
             return;
         }
 
@@ -646,20 +786,22 @@ public class ConsoleCommandRunner
 
     private void printIncomingRequests()//打印所有待处理的接收请求
     {
-        Map<String, IncomingTransferRequestPacket> requests = clientTransferService.pendingIncomingTransferRequests();
+        List<ClientTransferService.PendingIncomingTransferRequest> requests = clientTransferService.pendingIncomingTransferRequestsDetailed();
         if (requests.isEmpty()) {
             System.out.println(messages.text(ConsoleMessages.Key.NO_INCOMING_REQUESTS));
             return;
         }
-        System.out.println(messages.tableHeader("transferId", "sender", "file", "bytes", "blocks"));
-        for (IncomingTransferRequestPacket request : requests.values()) {
+        System.out.println(messages.tableHeader("receivedAt", "transferId", "sender", "file", "bytes", "blocks"));
+        for (ClientTransferService.PendingIncomingTransferRequest request : requests) {
+            IncomingTransferRequestPacket packet = request.packet();
             System.out.printf(
-                    "%s | %s | %s | %d | %d%n",
-                    request.getTransferId(),
-                    request.getSenderDeviceId(),
-                    request.getFileName(),
-                    request.getFileSize(),
-                    request.getTotalBlocks()
+                    "%s | %s | %s | %s | %d | %d%n",
+                    request.receivedAt(),
+                    packet.getTransferId(),
+                    packet.getSenderDeviceId(),
+                    packet.getFileName(),
+                    packet.getFileSize(),
+                    packet.getTotalBlocks()
             );
         }
     }
@@ -951,7 +1093,7 @@ public class ConsoleCommandRunner
     {
         System.out.println(messages.text(ConsoleMessages.Key.WATCHING_TASK));
         lastProgressLineLength = 0;
-        while (applicationContext.isActive()) {     //外层循环
+        while (isApplicationActive()) {     //外层循环
             synchronized (System.out) {
                 printProgressLine(formatProgressLine(task));// \r把光标移回当前行开头，然后覆盖旧内容
             }
@@ -1254,15 +1396,26 @@ public class ConsoleCommandRunner
         printMap(cryptoSupport.deleteKeyPair());
     }
 
+    private void exportPrivateKey() throws Exception
+    {
+        if (isKeyMissing(cryptoSupport.keyStatus())) {
+            System.out.println(messages.text(ConsoleMessages.Key.NO_LOCAL_KEY_PAIR));
+            return;
+        }
+        PrivateKeyArtifactService.ExportedPrivateKey exported = privateKeyArtifactService.exportPrivateKey();
+        printQrArtifact(exported.artifact(), exported.privateKeyText());
+        System.out.println(messages.text(ConsoleMessages.Key.PRIVATE_KEY_EXPORT_READY));
+    }
+
     //--------------------------导入密钥的三种方式------------------------------//
 
     private void importPrivateKey(List<String> args) throws Exception      //手动输入的方式
     {
         if (args.size() < 2) {
-            System.out.println(messages.usage("import-private-key <privateKeyBase64OrPem>"));
+            System.out.println(messages.usage("import-private-key <privateKeyBase64OrPem|path|pngPath>"));
             return;
         }
-        cryptoSupport.importPrivateKeyText(args.get(1));
+        privateKeyArtifactService.importPrivateKey(joinArguments(args, 1, args.size()));
         clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
         System.out.println(messages.format(ConsoleMessages.Key.PRIVATE_KEY_IMPORTED, cryptoSupport.publicKeyFingerprint()));
         System.out.println(messages.text(ConsoleMessages.Key.AUTO_CONNECT_CONTINUE));
@@ -1271,10 +1424,10 @@ public class ConsoleCommandRunner
     private void importPrivateKeyFile(List<String> args) throws Exception   //导入密钥文件的方式
     {
         if (args.size() < 2) {
-            System.out.println(messages.usage("import-private-key-file <path>"));
+            System.out.println(messages.usage("import-private-key-file <path|pngPath>"));
             return;
         }
-        cryptoSupport.importPrivateKeyFile(PathInputNormalizer.toPath(args.get(1)));//对于导入私钥文件的路径进行规格化操作
+        privateKeyArtifactService.importPrivateKey(PathInputNormalizer.toPath(joinArguments(args, 1, args.size())));//对于导入私钥文件的路径进行规格化操作
         clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
         System.out.println(messages.format(ConsoleMessages.Key.PRIVATE_KEY_IMPORTED, cryptoSupport.publicKeyFingerprint()));
         System.out.println(messages.text(ConsoleMessages.Key.AUTO_CONNECT_CONTINUE));
@@ -1287,6 +1440,7 @@ public class ConsoleCommandRunner
         while (true) {
             String line = reader.readLine();
             if (line == null) {
+                handleConsoleInputClosed();
                 return;
             }
             if (".".equals(line.trim())) {
@@ -1304,8 +1458,17 @@ public class ConsoleCommandRunner
 
     private void exit() //退出程序的指令；退出整个TCP模块！！！；退出整个Spring应用
     {
-        System.out.println(messages.text(ConsoleMessages.Key.STOPPING_APPLICATION));
-        applicationContext.close();
+        applicationShutdownService.requestShutdown();
+    }
+
+    void handleConsoleInputClosed()
+    {
+        applicationShutdownService.requestShutdown();
+    }
+
+    private boolean isApplicationActive()
+    {
+        return applicationShutdownService.isApplicationActive();
     }
 
     private void printMap(Map<String, ?> map)

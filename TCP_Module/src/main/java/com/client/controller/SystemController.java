@@ -1,5 +1,6 @@
 package com.client.controller;
 
+import com.client.ApplicationShutdownService;
 import com.client.ClientConnectionManager;
 import com.client.ClientStartupCoordinator;
 import com.client.controller.dto.ConnectRequest;
@@ -12,6 +13,7 @@ import com.client.controller.dto.PublicKeyFingerprintRequest;
 import com.common.util.PathInputNormalizer;
 import com.crypto.CryptoSupport;
 import com.client.service.LocalTransferHistoryService;
+import com.client.service.PrivateKeyArtifactService;
 import com.client.service.TransferTaskRegistry;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +35,8 @@ public class SystemController
     private final TransferTaskRegistry transferTaskRegistry;
     private final LocalTransferHistoryService localTransferHistoryService;
     private final ClientConnectionManager clientConnectionManager;
+    private final ApplicationShutdownService applicationShutdownService;
+    private final PrivateKeyArtifactService privateKeyArtifactService;
 
     public SystemController(
             ClientProperties clientProperties,
@@ -43,7 +47,9 @@ public class SystemController
             ClientStartupCoordinator clientStartupCoordinator,
             TransferTaskRegistry transferTaskRegistry,
             LocalTransferHistoryService localTransferHistoryService,
-            ClientConnectionManager clientConnectionManager
+            ClientConnectionManager clientConnectionManager,
+            ApplicationShutdownService applicationShutdownService,
+            PrivateKeyArtifactService privateKeyArtifactService
     )
     {
         this.clientProperties = clientProperties;
@@ -55,6 +61,8 @@ public class SystemController
         this.transferTaskRegistry = transferTaskRegistry;
         this.localTransferHistoryService = localTransferHistoryService;
         this.clientConnectionManager = clientConnectionManager;
+        this.applicationShutdownService = applicationShutdownService;
+        this.privateKeyArtifactService = privateKeyArtifactService;
     }
 
     @GetMapping("/status")
@@ -105,9 +113,9 @@ public class SystemController
             throw new IllegalArgumentException("privateKey or privateKeyPath is required");
         }
         if (request.getPrivateKey() != null && !request.getPrivateKey().isBlank()) {
-            cryptoSupport.importPrivateKeyText(request.getPrivateKey());
+            privateKeyArtifactService.importPrivateKey(request.getPrivateKey());
         } else if (request.getPrivateKeyPath() != null && !request.getPrivateKeyPath().isBlank()) {
-            cryptoSupport.importPrivateKeyFile(PathInputNormalizer.toPath(request.getPrivateKeyPath()));
+            privateKeyArtifactService.importPrivateKey(PathInputNormalizer.toPath(request.getPrivateKeyPath()));
         } else {
             throw new IllegalArgumentException("privateKey or privateKeyPath is required");
         }
@@ -154,9 +162,22 @@ public class SystemController
         if (request == null || request.getPrivateKeyPath() == null || request.getPrivateKeyPath().isBlank()) {
             throw new IllegalArgumentException("privateKeyPath is required");
         }
-        cryptoSupport.importPrivateKeyFile(PathInputNormalizer.toPath(request.getPrivateKeyPath()));
+        privateKeyArtifactService.importPrivateKey(PathInputNormalizer.toPath(request.getPrivateKeyPath()));
         clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
         return ResponseEntity.ok(cryptoSupport.keyStatus());
+    }
+
+    @PostMapping("/key/export-private")
+    public ResponseEntity<Map<String, Object>> exportPrivateKey() throws Exception
+    {
+        PrivateKeyArtifactService.ExportedPrivateKey exported = privateKeyArtifactService.exportPrivateKey();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("privateKey", exported.privateKeyText());
+        payload.put("pngPath", exported.artifact().getPngPath().toString());
+        payload.put("textPath", exported.artifact().getFst1Path().toString());
+        payload.put("asciiPath", exported.artifact().getAsciiPath().toString());
+        payload.put("expiresAt", exported.artifact().getExpiresAt().toString());
+        return ResponseEntity.ok(payload);
     }
 
     @GetMapping("/startup-status")
@@ -223,6 +244,16 @@ public class SystemController
         return ResponseEntity.ok(payload);
     }
 
+    @PostMapping("/shutdown")
+    public ResponseEntity<Map<String, Object>> shutdown()
+    {
+        applicationShutdownService.requestShutdownAsync(200L);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("accepted", true);
+        payload.put("message", "Shutdown requested");
+        return ResponseEntity.accepted().body(payload);
+    }
+
     @GetMapping("/connection-status")
     public ResponseEntity<Map<String, Object>> connectionStatus()
     {
@@ -247,22 +278,25 @@ public class SystemController
         system.put("GET /api/system/key", "Show crypto service key status");
         system.put("POST /api/system/key/generate", "Generate key pair in crypto service");
         system.put("POST /api/system/key/delete", "Delete key pair from crypto service");
-        system.put("POST /api/system/key/import-private", "Import private key (body: {privateKey} or {privateKeyPath})");
-        system.put("POST /api/system/key/import-private-file", "Import private key from file (body: {privateKeyPath})");
+        system.put("POST /api/system/key/export-private", "Export private key as text and QR artifact files");
+        system.put("POST /api/system/key/import-private", "Import private key from raw text, a text file, or a PNG QR (body: {privateKey} or {privateKeyPath})");
+        system.put("POST /api/system/key/import-private-file", "Import private key from file or PNG QR (body: {privateKeyPath})");
         system.put("GET /api/system/key/fingerprint", "Calculate fingerprint/accountId for local public key");
         system.put("POST /api/system/key/fingerprint", "Calculate fingerprint for a public key, or local public key when body is empty");
         system.put("GET /api/system/account-id", "Show local accountId");
         system.put("POST /api/system/account-id", "Calculate accountId for a public key, or local public key when body is empty");
         system.put("POST /api/system/connect", "Connect to server (optional body: {host, port})");
         system.put("POST /api/system/disconnect", "Disconnect from server");
+        system.put("POST /api/system/shutdown", "Request client application shutdown");
         system.put("GET /api/system/connection-status", "Show detailed connection status");
         system.put("GET /api/system/public-key", "Show local public key");
         system.put("GET /api/system/startup-status", "Show startup key setup and auto-connect gate status");
         system.put("POST /api/system/startup/key/generate", "Generate key for startup flow and continue auto-connect if blocked");
         system.put("POST /api/system/startup/key/skip", "Mark startup key setup as skipped");
-        system.put("POST /api/system/startup/key/import-private", "Import private key for startup flow");
-        system.put("POST /api/system/startup/key/import-private-file", "Import private key file for startup flow");
+        system.put("POST /api/system/startup/key/import-private", "Import private key for startup flow from raw text, file, or PNG QR");
+        system.put("POST /api/system/startup/key/import-private-file", "Import private key file or PNG QR for startup flow");
         system.put("GET /api/system/help", "Show this help message");
+        system.put("GET /host/shutdown", "Open a host-facing shutdown page");
         payload.put("system", system);
 
         payload.put("send", Map.of(

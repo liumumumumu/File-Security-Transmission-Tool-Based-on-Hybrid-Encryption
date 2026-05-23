@@ -93,7 +93,7 @@ public class ClientTransferService
     private final Map<String, CompletableFuture<ReceiverDeviceSelectionPacket>> directReceiverSelectionFutures = new ConcurrentHashMap<>();
     private final Map<String, OutboundTransferContext>  outboundTransferContexts = new ConcurrentHashMap<>();//保存正在发送的任务的上下文，AES密钥，等待接收方接收的Future，每个块的ACK Future
     private final Map<String, InboundTransferContext> inboundTransferContexts = new ConcurrentHashMap<>();//保存正在接收的任务上下文，AES密钥，输出文件流，已收到但暂时不能写入的块
-    private final Map<String, IncomingTransferRequestPacket> pendingIncomingTransferRequests = new ConcurrentHashMap<>();
+    private final Map<String, PendingIncomingTransferRequest> pendingIncomingTransferRequests = new ConcurrentHashMap<>();
     private final Map<String, PacketTransport> transferTransports = new ConcurrentHashMap<>();
     private final Map<String, TransportMode> transferModes = new ConcurrentHashMap<>();
     private final Map<String, Instant> directRetransmitExpiresAt = new ConcurrentHashMap<>();
@@ -501,7 +501,8 @@ public class ClientTransferService
                 .orElse(null);
         if(task==null)
         {
-            IncomingTransferRequestPacket request = pendingIncomingTransferRequests.get(taskIdOrTransferId);
+            PendingIncomingTransferRequest pendingRequest = pendingIncomingTransferRequests.get(taskIdOrTransferId);
+            IncomingTransferRequestPacket request = pendingRequest == null ? null : pendingRequest.packet();
             if(request==null)   //任务不存在的情况
             {
                 throw new IllegalArgumentException("Transfer task not found: "+taskIdOrTransferId);
@@ -548,6 +549,7 @@ public class ClientTransferService
         String reason = packet.getReason()==null || packet.getReason().isBlank()
                 ? "Transfer canceled by peer"
                 : packet.getReason();//确定传输任务取消的原因
+        removePendingIncomingTransferRequest(packet.getTransferId());
         boolean firstCancel = canceledTransferIds.add(packet.getTransferId());
         if(!firstCancel)
         {
@@ -660,14 +662,15 @@ public class ClientTransferService
     //接收方设备主动拒绝传输请求
     public void rejectIncomingTransfer(String transferId)
     {
-        IncomingTransferRequestPacket request=pendingIncomingTransferRequests.get(transferId);
+        PendingIncomingTransferRequest pendingRequest = pendingIncomingTransferRequests.get(transferId);
+        IncomingTransferRequestPacket request = pendingRequest == null ? null : pendingRequest.packet();
         if(request==null)
         {
             throw new IllegalStateException("Incoming transfer request not found: "+transferId);
         }
         ensureKnownTransferModeAllowsNetworkControl(transferId);
         sendForTransfer(transferId, new ReceiverDeviceSelectionPacket(transferId, false, "Rejected by receiver device"));
-        pendingIncomingTransferRequests.remove(transferId);
+        removePendingIncomingTransferRequest(transferId);
         if(resolveTransferMode(transferId) == TransportMode.DIRECT_PEER)
         {
             closeDirectTransport(transferId);
@@ -1669,7 +1672,9 @@ public class ClientTransferService
         {
             registerTransferMode(packet.getTransferId(), TransportMode.SERVER_RELAY);
         }
-        pendingIncomingTransferRequests.put(packet.getTransferId(), packet);
+        pendingIncomingTransferRequests.compute(packet.getTransferId(), (transferId, existing) -> existing == null
+                ? new PendingIncomingTransferRequest(packet, Instant.now())
+                : existing.refresh(packet));
         pushNotificationService.publish("incoming-transfer-request", Map.of(
                 "transferId", packet.getTransferId(),
                 "senderDeviceId", packet.getSenderDeviceId(),
@@ -1689,14 +1694,14 @@ public class ClientTransferService
             return;
         }
         if (packet.isAccepted()) {
-            pendingIncomingTransferRequests.remove(packet.getTransferId());
+            removePendingIncomingTransferRequest(packet.getTransferId());
             pushNotificationService.publish("incoming-transfer-selected", Map.of(
                     "transferId", packet.getTransferId(),
                     "message", packet.getMessage()
             ));
             return;
         }
-        pendingIncomingTransferRequests.remove(packet.getTransferId());
+        removePendingIncomingTransferRequest(packet.getTransferId());
         pushNotificationService.publish("incoming-transfer-selection-failed", Map.of(
                 "transferId", packet.getTransferId(),
                 "message", packet.getMessage()
@@ -1705,13 +1710,14 @@ public class ClientTransferService
 
     public void acceptIncomingTransfer(String transferId)
     {
-        IncomingTransferRequestPacket request = pendingIncomingTransferRequests.get(transferId);
+        PendingIncomingTransferRequest pendingRequest = pendingIncomingTransferRequests.get(transferId);
+        IncomingTransferRequestPacket request = pendingRequest == null ? null : pendingRequest.packet();
         if (request == null) {
             throw new IllegalArgumentException("Incoming transfer request not found: " + transferId);
         }
         ensureKnownTransferModeAllowsNetworkControl(transferId);
         sendForTransfer(transferId, new ReceiverDeviceSelectionPacket(transferId, true, "Accepted by receiver device"));
-        pendingIncomingTransferRequests.remove(transferId);
+        removePendingIncomingTransferRequest(transferId);
         if(resolveTransferMode(transferId) == TransportMode.DIRECT_PEER)
         {
             acceptedIncomingTransferIds.add(transferId);
@@ -1720,7 +1726,21 @@ public class ClientTransferService
 
     public Map<String, IncomingTransferRequestPacket> pendingIncomingTransferRequests()
     {
-        return Map.copyOf(pendingIncomingTransferRequests);
+        LinkedHashMap<String, IncomingTransferRequestPacket> snapshot = new LinkedHashMap<>();
+        pendingIncomingTransferRequestsDetailed().forEach(request -> snapshot.put(request.packet().getTransferId(), request.packet()));
+        return snapshot;
+    }
+
+    public List<PendingIncomingTransferRequest> pendingIncomingTransferRequestsDetailed()
+    {
+        return pendingIncomingTransferRequests.values().stream()
+                .sorted(Comparator.comparing(PendingIncomingTransferRequest::receivedAt).reversed())
+                .toList();
+    }
+
+    private void removePendingIncomingTransferRequest(String transferId)
+    {
+        pendingIncomingTransferRequests.remove(transferId);
     }
 
 
@@ -1757,6 +1777,15 @@ public class ClientTransferService
                     "deviceId='" + deviceId + '\'' +
                     ", publicKey='" + publicKey + '\'' +
                     '}';
+        }
+    }
+
+    public record PendingIncomingTransferRequest(IncomingTransferRequestPacket packet,
+                                                 Instant receivedAt)
+    {
+        private PendingIncomingTransferRequest refresh(IncomingTransferRequestPacket latestPacket)
+        {
+            return new PendingIncomingTransferRequest(latestPacket, receivedAt);
         }
     }
 

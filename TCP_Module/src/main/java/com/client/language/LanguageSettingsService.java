@@ -3,6 +3,7 @@ package com.client.language;
 import com.common.config.LocalStorageProperties;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -15,6 +16,7 @@ public class LanguageSettingsService
     private final Path settingsPath;
     private final Gson gson = new Gson();
 
+    @Autowired
     public LanguageSettingsService(LocalStorageProperties localStorageProperties)
     {
         this(Path.of(localStorageProperties.getLanguageSettingsPath()).toAbsolutePath());

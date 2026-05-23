@@ -1,6 +1,7 @@
 package com.client.direct.qr;
 
 import com.common.config.LocalStorageProperties;
+import com.common.util.PathInputNormalizer;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.zxing.BinaryBitmap;
@@ -165,18 +166,61 @@ public class QrArtifactService
     public String readFst1Text(String valueOrPath)
     {
         String trimmed = valueOrPath == null ? "" : valueOrPath.trim();
+        String compacted = compactWhitespace(trimmed);
         if(trimmed.startsWith(DirectQrCodec.PREFIX))//二维码文本输入
         {
-            return trimmed;
+            return compacted;
+        }
+        if(compacted.startsWith(DirectQrCodec.PREFIX))//支持为终端粘贴拆成多行的FST1文本
+        {
+            return compacted;
         }
         if(trimmed.startsWith("file "))//输入的是文件路径
         {
             trimmed = trimmed.substring("file ".length()).trim();
         }
-        Path path = Path.of(trimmed);
+        Path path = PathInputNormalizer.toPath(trimmed);
+        String text = readQrText(path);
+        if(!text.startsWith(DirectQrCodec.PREFIX))
+        {
+            throw new IllegalArgumentException("QR code import failed: content is not FST1 text: "+path);
+        }
+        return text;
+    }
+
+    private String compactWhitespace(String value)
+    {
+        StringBuilder compacted = new StringBuilder(value.length());
+        for(int i = 0; i < value.length(); i++)
+        {
+            char ch = value.charAt(i);
+            if(!Character.isWhitespace(ch))
+            {
+                compacted.append(ch);
+            }
+        }
+        return compacted.toString();
+    }
+
+    public String readQrText(String valueOrPath)
+    {
+        String trimmed = valueOrPath == null ? "" : valueOrPath.trim();
+        if(trimmed.isBlank())
+        {
+            throw new IllegalArgumentException("QR text or path is required");
+        }
+        if(trimmed.startsWith("file "))//输入的是文件路径
+        {
+            trimmed = trimmed.substring("file ".length()).trim();
+        }
+        return readQrText(PathInputNormalizer.toPath(trimmed));
+    }
+
+    public String readQrText(Path path)
+    {
         if(isPngPath(path))//判断是否是PNG,是PNG就从图中识别二维码文本
         {
-            return readPngFst1Text(path);
+            return readPngText(path);
         }
         try //不是就按普通文本文件读取
         {
@@ -184,7 +228,7 @@ public class QrArtifactService
         }
         catch(IOException ex)
         {
-            throw new IllegalArgumentException("Unable to read FST1 text file: "+trimmed, ex);
+            throw new IllegalArgumentException("Unable to read QR text file: "+path, ex);
         }
     }
 
@@ -202,7 +246,7 @@ public class QrArtifactService
     }
 
     //从PNG识别二维码
-    private String readPngFst1Text(Path path)
+    private String readPngText(Path path)
     {
         try
         {
@@ -221,10 +265,6 @@ public class QrArtifactService
             String text = result.getText().trim();
 
             //校验二维码内容是否属于本系统的格式
-            if(!text.startsWith(DirectQrCodec.PREFIX))
-            {
-                throw new IllegalArgumentException("QR code import failed: PNG does not contain FST1 text: "+path);
-            }
             return text;
         }
         catch(IOException | ReaderException ex)

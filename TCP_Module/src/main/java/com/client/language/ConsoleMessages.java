@@ -147,8 +147,9 @@ public class ConsoleMessages
                     "  key-info                          查看加密服务密钥状态",
                     "  generate-key                      在加密服务中生成密钥对",
                     "  delete-key                        从加密服务中删除密钥对",
-                    "  import-private-key <keyText>      从手动复制或二维码扫描文本导入私钥",
-                    "  import-private-key-file <path>    从文件导入私钥",
+                    "  export-private-key                导出私钥文本和二维码文件",
+                    "  import-private-key <keyText|path> 从手动复制、文本文件或PNG二维码导入私钥",
+                    "  import-private-key-file <path>    从文件或PNG二维码导入私钥",
                     "  import-private-key-paste          粘贴多行私钥，最后输入单独一行的点号结束",
                     "  back                              返回模式选择",
                     "  exit                              停止应用程序",
@@ -190,8 +191,9 @@ public class ConsoleMessages
                 "  key-info                          Show crypto service key status",
                 "  generate-key                      Generate key pair in the crypto service",
                 "  delete-key                        Delete key pair from the crypto service",
-                "  import-private-key <keyText>      Import private key text from manual copy or QR scan",
-                "  import-private-key-file <path>    Import private key from a file",
+                "  export-private-key                Export private key text and QR artifact files",
+                "  import-private-key <keyText|path> Import private key from raw text, a text file, or a PNG QR",
+                "  import-private-key-file <path>    Import private key from a file or PNG QR",
                 "  import-private-key-paste          Paste a multi-line private key, then enter a single dot",
                 "  back                              Return to mode selector",
                 "  exit                              Stop application",
@@ -223,6 +225,12 @@ public class ConsoleMessages
                     "  tasks                             查看传输任务列表",
                     "  task <taskId|transferId> [--once] 查看单个传输任务",
                     "  key-info                          查看加密服务密钥状态",
+                    "  generate-key                      在加密服务中生成密钥对",
+                    "  delete-key                        从加密服务中删除密钥对",
+                    "  export-private-key                导出私钥文本和二维码文件",
+                    "  import-private-key <keyText|path> 从手动复制、文本文件或PNG二维码导入私钥",
+                    "  import-private-key-file <path>    从文件或PNG二维码导入私钥",
+                    "  import-private-key-paste          粘贴多行私钥，最后输入单独一行的点号结束",
                     "  public-key                        打印本地公钥",
                     "  account-id [publicKey]            打印accountId/公钥指纹",
                     "  back                              返回模式选择",
@@ -249,6 +257,12 @@ public class ConsoleMessages
                 "  tasks                             List transfer tasks",
                 "  task <taskId|transferId> [--once] Watch one task",
                 "  key-info                          Show crypto service key status",
+                "  generate-key                      Generate key pair in the crypto service",
+                "  delete-key                        Delete key pair from the crypto service",
+                "  export-private-key                Export private key text and QR artifact files",
+                "  import-private-key <keyText|path> Import private key from raw text, a text file, or a PNG QR",
+                "  import-private-key-file <path>    Import private key from a file or PNG QR",
+                "  import-private-key-paste          Paste a multi-line private key, then enter a single dot",
                 "  public-key                        Print local public key",
                 "  account-id [publicKey]            Print accountId/fingerprint",
                 "  back                              Return to mode selector",
@@ -293,6 +307,8 @@ public class ConsoleMessages
         put(en, zh, Key.INVALID_ROLE, "Invalid role. Choose sender or receiver.", "角色无效。请选择 sender 或 receiver。");
         put(en, zh, Key.SEND_QR_TO_RECEIVER, "Send this QR/FST1 text to the receiver.", "请将此二维码/FST1文本发送给接收方。");
         put(en, zh, Key.PASTE_RECEIVER_FST1, "Paste receiver FST1 text or type a FST1/PNG file path:", "粘贴接收方FST1文本，或输入FST1/PNG文件路径:");
+        put(en, zh, Key.HANDSHAKE_CANCEL_HINT, "Leave blank or type 'cancel' to stop this handshake step.", "留空或输入 'cancel' 可停止当前握手步骤。");
+        put(en, zh, Key.FST1_MULTILINE_HINT, "For FST1 text, paste all wrapped lines, then enter a single '.' line to finish.", "粘贴FST1文本时，可以粘贴多行，最后单独输入一行 '.' 结束。");
         put(en, zh, Key.DIRECT_SESSION_CONNECTED, "Direct session connected: %s", "直连会话已连接: %s");
         put(en, zh, Key.FILE_PATH_TO_SEND, "File path to send> ", "要发送的文件路径> ");
         put(en, zh, Key.SEND_TASK_CREATED, "Send task created: %s", "发送任务已创建: %s");
@@ -345,12 +361,13 @@ public class ConsoleMessages
         put(en, zh, Key.NOT_RECEIVED_FILE_TASK, "Task is not a received file: %s", "该任务不是接收文件任务: %s");
         put(en, zh, Key.NO_LOCAL_PUBLIC_KEY, "Command invalid: no local public key is available.", "命令无效: 当前没有本地公钥。");
         put(en, zh, Key.PRIVATE_KEY_IMPORTED, "Private key imported. Public key fingerprint: %s", "私钥已导入。公钥指纹: %s");
+        put(en, zh, Key.PRIVATE_KEY_EXPORT_READY, "Private key export files are ready. Keep them secure and remove them after use.", "私钥导出文件已生成。请妥善保管，并在使用后及时删除。");
         put(en, zh, Key.AUTO_CONNECT_CONTINUE, "Auto-connect will continue if it was paused by missing key.", "如果自动连接因缺少密钥而暂停，将继续自动连接。");
         put(en, zh, Key.PASTE_PRIVATE_KEY, "Paste private key text. Enter a single dot on its own line to finish.", "请粘贴私钥文本。单独输入一行点号结束。");
         put(en, zh, Key.STOPPING_APPLICATION, "Stopping application...", "正在停止应用程序...");
         put(en, zh, Key.UNABLE_CHECK_KEY_STATUS, "Unable to check key status: %s", "无法检查密钥状态: %s");
         put(en, zh, Key.NO_LOCAL_KEY_PAIR, "No local key pair is available.", "当前没有本地密钥对。");
-        put(en, zh, Key.MISSING_KEY_ACTION, "Run 'generate-key' to create one, or use 'import-private-key-file <path>' / 'import-private-key-paste' to import an existing private key.", "执行 'generate-key' 创建密钥对，或使用 'import-private-key-file <path>' / 'import-private-key-paste' 导入已有私钥。");
+        put(en, zh, Key.MISSING_KEY_ACTION, "Run 'generate-key' to create one, or use 'import-private-key-file <path>' / 'import-private-key-paste' to import an existing private key. PNG QR files are also supported.", "执行 'generate-key' 创建密钥对，或使用 'import-private-key-file <path>' / 'import-private-key-paste' 导入已有私钥。也支持PNG二维码文件。");
         put(en, zh, Key.AUTO_CONNECT_FAILED, "Auto-connect failed: %s", "自动连接失败: %s");
         put(en, zh, Key.CONSOLE_AVAILABLE_TRY_CONNECT, "Console is still available. Try: connect <host> <port>", "控制台仍可使用。可尝试: connect <host> <port>");
         put(en, zh, Key.STARTUP_CHECK_FAILED, "Startup check failed: %s", "启动检查失败: %s");
@@ -377,6 +394,7 @@ public class ConsoleMessages
                 Map.entry("file", "文件"),
                 Map.entry("bytes", "字节"),
                 Map.entry("blocks", "分块"),
+                Map.entry("receivedAt", "接收时间"),
                 Map.entry("contact", "联系人"),
                 Map.entry("alias", "别名"),
                 Map.entry("accountId", "账号ID"),
@@ -453,6 +471,8 @@ public class ConsoleMessages
         INVALID_ROLE,
         SEND_QR_TO_RECEIVER,
         PASTE_RECEIVER_FST1,
+        HANDSHAKE_CANCEL_HINT,
+        FST1_MULTILINE_HINT,
         DIRECT_SESSION_CONNECTED,
         FILE_PATH_TO_SEND,
         SEND_TASK_CREATED,
@@ -505,6 +525,7 @@ public class ConsoleMessages
         NOT_RECEIVED_FILE_TASK,
         NO_LOCAL_PUBLIC_KEY,
         PRIVATE_KEY_IMPORTED,
+        PRIVATE_KEY_EXPORT_READY,
         AUTO_CONNECT_CONTINUE,
         PASTE_PRIVATE_KEY,
         STOPPING_APPLICATION,
