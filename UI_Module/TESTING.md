@@ -341,18 +341,18 @@ UI 只对接 Java 后端，不直接对接 Qt crypto service。
 当前实际端口：
 
 ```text
-Java client HTTP: 8081
-Qt crypto service: 9081
+Java client HTTP: 20201
+Qt crypto service: 20202
 Netty TCP: 9000
 ```
 
 因此 UI 页面中的 Java API 地址，联调 client 时应填：
 
 ```text
-http://127.0.0.1:8081
+http://127.0.0.1:20201
 ```
 
-Qt crypto service 的 9081 是 Java 内部调用端口，通常不应暴露给 UI。
+Qt crypto service 的 20202 是 Java 内部调用端口，通常不应暴露给 UI。
 
 ## 10. 已知代码问题
 
@@ -373,7 +373,7 @@ POST("/rsa/decrypt", ...)
 否则可能拼出非法 URL：
 
 ```text
-http://127.0.0.1:9081rsa/encrypt
+http://127.0.0.1:20202rsa/encrypt
 ```
 
 另外，若 Java `HttpClient` 仍然读 Qt HTTP 响应失败，可考虑强制 HTTP/1.1：
@@ -398,9 +398,9 @@ private final HttpClient httpClient = HttpClient.newBuilder()
 
 ```text
 1. UI 是 Vue CDN 静态 App Shell。
-2. Java client 后端这次启动在 8081。
-3. Qt crypto service 建议跑 9081，避免 Nahimic 占用 9080。
-4. UI 不直接访问 9081，只访问 Java 后端。
-5. start-client.bat 需要追加 --crypto-service.port=9081。
-6. 后续 UI 可增加“系统状态 / 密钥状态”面板，用于调用 Java 的 /api/system/status 和 /api/system/key。
+2. Java client 后端当前默认在 20201。
+3. Qt crypto service 当前默认在 20202。
+4. UI 不直接访问 20202，只访问 Java 后端。
+5. 后续 UI 已对齐 `/api/system/*` 和 `/api/send/*`。
+6. 后续 UI 可继续补“系统状态 / 密钥状态 / 发送任务”面板。
 ```
