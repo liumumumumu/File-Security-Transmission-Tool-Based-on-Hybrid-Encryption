@@ -1,15 +1,17 @@
 {
   "name": "file-security-transmission-desktop",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
-  "description": "Windows Electron desktop launcher for File Security Transmission.",
+  "description": "Electron desktop launcher for File Security Transmission.",
   "main": "src/main.js",
   "scripts": {
     "dev": "electron .",
     "test": "node --test",
     "prepare-runtime": "node scripts/prepare-runtime.mjs",
     "build:win": "npm run prepare-runtime",
-    "dist:win-msi": "npm run prepare-runtime && electron-builder --win msi"
+    "build:mac": "npm run prepare-runtime -- --platform=darwin",
+    "dist:win-msi": "npm run prepare-runtime && electron-builder --win msi",
+    "dist:mac": "npm run prepare-runtime -- --platform=darwin && electron-builder --mac dmg zip"
   },
   "devDependencies": {
     "electron": "^31.7.7",
@@ -36,6 +38,17 @@
       "target": [
         "msi"
       ]
+    },
+    "mac": {
+      "category": "public.app-category.utilities",
+      "identity": null,
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "dmg": {
+      "artifactName": "${productName}.${version}.${arch}.${ext}"
     },
     "msi": {
       "createDesktopShortcut": true,

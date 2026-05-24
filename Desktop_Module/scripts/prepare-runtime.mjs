@@ -8,6 +8,73 @@ const scriptDir = path.dirname(scriptPath);
 const desktopRoot = path.resolve(scriptDir, "..");
 const repoRoot = path.resolve(desktopRoot, "..");
 
+export function normalizeTargetPlatform(platform = process.platform) {
+  if (platform === "mac" || platform === "macos") {
+    return "darwin";
+  }
+  if (platform === "windows") {
+    return "win32";
+  }
+  return platform;
+}
+
+export function normalizeTargetArch(arch = process.arch) {
+  if (arch === "x86_64" || arch === "amd64") {
+    return "x64";
+  }
+  if (arch === "aarch64") {
+    return "arm64";
+  }
+  return arch;
+}
+
+export function resolveCryptoRuntimeName({
+  platform = process.platform,
+  arch = process.arch,
+} = {}) {
+  const targetPlatform = normalizeTargetPlatform(platform);
+  const targetArch = normalizeTargetArch(arch);
+
+  if (targetPlatform === "win32") {
+    return "crypto-service-windows-x64";
+  }
+  if (targetPlatform === "darwin") {
+    return `crypto-service-macos-${targetArch}`;
+  }
+  if (targetPlatform === "linux") {
+    return `crypto-service-linux-${targetArch}`;
+  }
+  throw new Error(`Unsupported desktop runtime platform: ${targetPlatform}`);
+}
+
+function getCryptoRequiredFiles(platform = process.platform) {
+  const targetPlatform = normalizeTargetPlatform(platform);
+
+  if (targetPlatform === "win32") {
+    return [
+      { name: "crypto-service.exe", label: "Crypto service executable" },
+    ];
+  }
+
+  if (targetPlatform === "darwin") {
+    return [
+      { name: "crypto-service", label: "Crypto service executable" },
+      { name: "libssl.3.dylib", label: "Crypto service OpenSSL runtime" },
+      { name: "libcrypto.3.dylib", label: "Crypto service libcrypto runtime" },
+    ];
+  }
+
+  if (targetPlatform === "linux") {
+    return [
+      { name: "crypto-service", label: "Crypto service executable" },
+      { name: "libssl.so.3", label: "Crypto service OpenSSL runtime" },
+      { name: "libcrypto.so.3", label: "Crypto service libcrypto runtime" },
+    ];
+  }
+
+  throw new Error(`Unsupported desktop runtime platform: ${targetPlatform}`);
+}
+
 export async function findSingleFile(directory, patterns, listFiles = defaultListFiles) {
   const files = await listFiles(directory);
   const match = files.find((file) => patterns.some((pattern) => pattern.test(file)));
@@ -65,33 +132,14 @@ export function listRequiredRuntimePaths({
   jarPath,
   cryptoDir,
   javaHome,
+  platform = process.platform,
 }) {
   return [
     { path: jarPath, label: "TCP client jar" },
-    {
-      path: path.join(cryptoDir, "crypto-service.exe"),
-      label: "Crypto service executable",
-    },
-    {
-      path: path.join(cryptoDir, "libssl-3-x64.dll"),
-      label: "Crypto service OpenSSL runtime",
-    },
-    {
-      path: path.join(cryptoDir, "libcrypto-3-x64.dll"),
-      label: "Crypto service libcrypto runtime",
-    },
-    {
-      path: path.join(cryptoDir, "brotlicommon.dll"),
-      label: "Crypto service Brotli common runtime",
-    },
-    {
-      path: path.join(cryptoDir, "brotlidec.dll"),
-      label: "Crypto service Brotli decoder runtime",
-    },
-    {
-      path: path.join(cryptoDir, "brotlienc.dll"),
-      label: "Crypto service Brotli encoder runtime",
-    },
+    ...getCryptoRequiredFiles(platform).map((item) => ({
+      path: path.join(cryptoDir, item.name),
+      label: item.label,
+    })),
     {
       path: path.join(
         rootDir,
@@ -130,21 +178,24 @@ export async function prepareRuntime({
   repoRoot: rootDir = repoRoot,
   outputRoot = path.join(desktopRoot, "build", "runtime"),
   javaHome = process.env.JAVA_HOME,
+  platform = process.env.DESKTOP_TARGET_PLATFORM || process.platform,
+  arch = process.env.DESKTOP_TARGET_ARCH || process.arch,
 } = {}) {
   if (!javaHome) {
     throw new Error("JAVA_HOME is required to bundle the desktop JRE runtime.");
   }
 
+  const targetPlatform = normalizeTargetPlatform(platform);
+  const targetArch = normalizeTargetArch(arch);
   const jarPath = await findSingleFile(
     path.join(rootDir, "TCP_Module", "target"),
     [/\.jar$/i, /snapshot\.jar$/i],
   );
   const cryptoDir = path.join(
     rootDir,
-    "Encryption_Module_OpenSSLversion",
-    "Xcode_solution",
+    "Encryption_module",
     "dist",
-    "crypto-service-windows-x64",
+    "crypto-service",
   );
 
   for (const item of listRequiredRuntimePaths({
@@ -152,6 +203,7 @@ export async function prepareRuntime({
     jarPath,
     cryptoDir,
     javaHome,
+    platform: targetPlatform,
   })) {
     await assertExists(item.path, item.label);
   }
@@ -170,8 +222,35 @@ export async function prepareRuntime({
   return plan;
 }
 
+function readCliOptions(argv) {
+  const options = {};
+
+  for (let index = 2; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg.startsWith("--platform=")) {
+      options.platform = arg.slice("--platform=".length);
+      continue;
+    }
+    if (arg === "--platform") {
+      options.platform = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--arch=")) {
+      options.arch = arg.slice("--arch=".length);
+      continue;
+    }
+    if (arg === "--arch") {
+      options.arch = argv[index + 1];
+      index += 1;
+    }
+  }
+
+  return options;
+}
+
 if (process.argv[1] === scriptPath) {
-  prepareRuntime()
+  prepareRuntime(readCliOptions(process.argv))
     .then((plan) => {
       console.log(`Prepared ${plan.length} runtime resources under ${path.join(desktopRoot, "build", "runtime")}`);
     })

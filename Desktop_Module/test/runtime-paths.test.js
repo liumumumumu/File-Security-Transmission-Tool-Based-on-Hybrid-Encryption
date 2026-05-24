@@ -14,6 +14,7 @@ const {
 test("builds packaged runtime paths under resources and LocalAppData", () => {
   const runtimePaths = buildRuntimePaths({
     appName: "File Security Transmission",
+    platform: "win32",
     isPackaged: true,
     resourcesPath: "C:\\Program Files\\FileSecurityTransmissionDesktop\\resources",
     localAppData: "C:\\Users\\Alice\\AppData\\Local",
@@ -51,6 +52,7 @@ test("builds packaged runtime paths under resources and LocalAppData", () => {
 test("prefers bundled java runtime when packaged", () => {
   const runtimePaths = buildRuntimePaths({
     appName: "File Security Transmission",
+    platform: "win32",
     isPackaged: true,
     resourcesPath: "C:\\app\\resources",
     localAppData: "C:\\Users\\Alice\\AppData\\Local",
@@ -66,6 +68,7 @@ test("prefers bundled java runtime when packaged", () => {
 test("uses system java during development", () => {
   const runtimePaths = buildRuntimePaths({
     appName: "File Security Transmission",
+    platform: "win32",
     isPackaged: false,
     projectRoot: "D:\\repo\\Desktop_Module",
     localAppData: "C:\\Users\\Alice\\AppData\\Local",
@@ -78,6 +81,7 @@ test("uses system java during development", () => {
 test("builds runtime environment overrides for java and crypto services", () => {
   const runtimePaths = buildRuntimePaths({
     appName: "File Security Transmission",
+    platform: "win32",
     isPackaged: true,
     resourcesPath: "C:\\app\\resources",
     localAppData: "C:\\Users\\Alice\\AppData\\Local",
@@ -97,6 +101,7 @@ test("builds runtime environment overrides for java and crypto services", () => 
 test("deduplicates case-variant PATH entries in runtime environment", () => {
   const runtimePaths = buildRuntimePaths({
     appName: "File Security Transmission",
+    platform: "win32",
     isPackaged: true,
     resourcesPath: "C:\\app\\resources",
     localAppData: "C:\\Users\\Alice\\AppData\\Local",
@@ -113,6 +118,74 @@ test("deduplicates case-variant PATH entries in runtime environment", () => {
     ["PATH"],
   );
   assert.match(env.PATH, /crypto-service/i);
+});
+
+test("builds packaged runtime paths under macOS Application Support", () => {
+  const runtimePaths = buildRuntimePaths({
+    appName: "File Security Transmission",
+    platform: "darwin",
+    isPackaged: true,
+    resourcesPath: "/Applications/FileSecurityTransmissionDesktop.app/Contents/Resources",
+    home: "/Users/alice",
+  });
+
+  assert.equal(
+    runtimePaths.jarPath,
+    path.posix.join(
+      "/Applications/FileSecurityTransmissionDesktop.app/Contents/Resources",
+      "runtime",
+      "tcp-client",
+      "app.jar",
+    ),
+  );
+  assert.equal(
+    runtimePaths.cryptoExecutable,
+    path.posix.join(
+      "/Applications/FileSecurityTransmissionDesktop.app/Contents/Resources",
+      "runtime",
+      "crypto-service",
+      "crypto-service",
+    ),
+  );
+  assert.equal(
+    runtimePaths.javaExecutable,
+    path.posix.join(
+      "/Applications/FileSecurityTransmissionDesktop.app/Contents/Resources",
+      "runtime",
+      "jre",
+      "bin",
+      "java",
+    ),
+  );
+  assert.equal(
+    runtimePaths.userDataDir,
+    path.posix.join("/Users/alice", "Library", "Application Support", "FileSecurityTransmission"),
+  );
+  assert.equal(
+    runtimePaths.downloadDir,
+    path.posix.join("/Users/alice", "Downloads", "FileSecurityTransmission"),
+  );
+});
+
+test("builds macOS runtime environment with POSIX paths", () => {
+  const runtimePaths = buildRuntimePaths({
+    appName: "File Security Transmission",
+    platform: "darwin",
+    isPackaged: true,
+    resourcesPath: "/Applications/FileSecurityTransmissionDesktop.app/Contents/Resources",
+    home: "/Users/alice",
+  });
+
+  const env = buildRuntimeEnv(runtimePaths, { PATH: "/usr/bin" });
+
+  assert.equal(
+    env.TRANSFER_HISTORY_PATH,
+    "/Users/alice/Library/Application Support/FileSecurityTransmission/transfer-history.json",
+  );
+  assert.equal(
+    env.PATH,
+    "/Applications/FileSecurityTransmissionDesktop.app/Contents/Resources/runtime/crypto-service:/usr/bin",
+  );
 });
 
 test("uses localhost java UI URL in packaged mode", () => {

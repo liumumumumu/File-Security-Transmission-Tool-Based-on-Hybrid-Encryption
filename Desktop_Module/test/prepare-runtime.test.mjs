@@ -7,6 +7,7 @@ const {
   findSingleFile,
   buildCopyPlan,
   listRequiredRuntimePaths,
+  resolveCryptoRuntimeName,
 } = await import(moduleUrl);
 
 test("findSingleFile rejects when no matching file exists", async () => {
@@ -17,32 +18,39 @@ test("findSingleFile rejects when no matching file exists", async () => {
 });
 
 test("buildCopyPlan maps jar, crypto runtime, config, and jre directories", () => {
-  const repoRoot = "D:\\repo";
-  const outputRoot = "D:\\repo\\Desktop_Module\\build\\runtime";
+  const repoRoot = path.resolve("repo");
+  const outputRoot = path.join(repoRoot, "Desktop_Module", "build", "runtime");
+  const jarPath = path.join(repoRoot, "TCP_Module", "target", "client.jar");
+  const cryptoDir = path.join(
+    repoRoot,
+    "Encryption_Module_OpenSSLversion",
+    "Xcode_solution",
+    "dist",
+    "crypto-service-windows-x64",
+  );
+  const javaHome = path.join(repoRoot, "jdk-21");
 
   const plan = buildCopyPlan({
     repoRoot,
     outputRoot,
-    jarPath: "D:\\repo\\TCP_Module\\target\\client.jar",
-    cryptoDir:
-      "D:\\repo\\Encryption_Module_OpenSSLversion\\Xcode_solution\\dist\\crypto-service-windows-x64",
-    javaHome: "C:\\Java\\jdk-21",
+    jarPath,
+    cryptoDir,
+    javaHome,
   });
 
   assert.deepEqual(plan, [
     {
-      from: "D:\\repo\\TCP_Module\\target\\client.jar",
-      to: path.win32.join(outputRoot, "tcp-client", "app.jar"),
+      from: jarPath,
+      to: path.join(outputRoot, "tcp-client", "app.jar"),
       type: "file",
     },
     {
-      from:
-        "D:\\repo\\Encryption_Module_OpenSSLversion\\Xcode_solution\\dist\\crypto-service-windows-x64",
-      to: path.win32.join(outputRoot, "crypto-service"),
+      from: cryptoDir,
+      to: path.join(outputRoot, "crypto-service"),
       type: "directory",
     },
     {
-      from: path.win32.join(
+      from: path.join(
         repoRoot,
         "TCP_Module",
         "src",
@@ -50,61 +58,135 @@ test("buildCopyPlan maps jar, crypto runtime, config, and jre directories", () =
         "resources",
         "application-client.yml",
       ),
-      to: path.win32.join(outputRoot, "config", "application-client.yml"),
+      to: path.join(outputRoot, "config", "application-client.yml"),
       type: "file",
     },
     {
-      from: "C:\\Java\\jdk-21",
-      to: path.win32.join(outputRoot, "jre"),
+      from: javaHome,
+      to: path.join(outputRoot, "jre"),
       type: "directory",
     },
   ]);
 });
 
 test("listRequiredRuntimePaths includes crypto binary and OpenSSL dlls", () => {
+  const repoRoot = path.resolve("repo");
+  const jarPath = path.join(repoRoot, "TCP_Module", "target", "client.jar");
+  const cryptoDir = path.join(
+    repoRoot,
+    "Encryption_Module_OpenSSLversion",
+    "Xcode_solution",
+    "dist",
+    "crypto-service-windows-x64",
+  );
+  const javaHome = path.join(repoRoot, "jdk-21");
+
   const checks = listRequiredRuntimePaths({
-    repoRoot: "D:\\repo",
-    jarPath: "D:\\repo\\TCP_Module\\target\\client.jar",
-    cryptoDir: "D:\\repo\\Encryption_Module_OpenSSLversion\\Xcode_solution\\dist\\crypto-service-windows-x64",
-    javaHome: "C:\\Java\\jdk-21",
+    repoRoot,
+    jarPath,
+    cryptoDir,
+    javaHome,
+    platform: "win32",
   });
 
   assert.deepEqual(checks, [
     {
-      path: "D:\\repo\\TCP_Module\\target\\client.jar",
+      path: jarPath,
       label: "TCP client jar",
     },
     {
-      path: "D:\\repo\\Encryption_Module_OpenSSLversion\\Xcode_solution\\dist\\crypto-service-windows-x64\\crypto-service.exe",
+      path: path.join(cryptoDir, "crypto-service.exe"),
       label: "Crypto service executable",
     },
     {
-      path: "D:\\repo\\Encryption_Module_OpenSSLversion\\Xcode_solution\\dist\\crypto-service-windows-x64\\libssl-3-x64.dll",
+      path: path.join(cryptoDir, "libssl-3-x64.dll"),
       label: "Crypto service OpenSSL runtime",
     },
     {
-      path: "D:\\repo\\Encryption_Module_OpenSSLversion\\Xcode_solution\\dist\\crypto-service-windows-x64\\libcrypto-3-x64.dll",
+      path: path.join(cryptoDir, "libcrypto-3-x64.dll"),
       label: "Crypto service libcrypto runtime",
     },
     {
-      path: "D:\\repo\\Encryption_Module_OpenSSLversion\\Xcode_solution\\dist\\crypto-service-windows-x64\\brotlicommon.dll",
+      path: path.join(cryptoDir, "brotlicommon.dll"),
       label: "Crypto service Brotli common runtime",
     },
     {
-      path: "D:\\repo\\Encryption_Module_OpenSSLversion\\Xcode_solution\\dist\\crypto-service-windows-x64\\brotlidec.dll",
+      path: path.join(cryptoDir, "brotlidec.dll"),
       label: "Crypto service Brotli decoder runtime",
     },
     {
-      path: "D:\\repo\\Encryption_Module_OpenSSLversion\\Xcode_solution\\dist\\crypto-service-windows-x64\\brotlienc.dll",
+      path: path.join(cryptoDir, "brotlienc.dll"),
       label: "Crypto service Brotli encoder runtime",
     },
     {
-      path: "D:\\repo\\TCP_Module\\src\\main\\resources\\application-client.yml",
+      path: path.join(
+        repoRoot,
+        "TCP_Module",
+        "src",
+        "main",
+        "resources",
+        "application-client.yml",
+      ),
       label: "Client profile config",
     },
     {
-      path: "C:\\Java\\jdk-21",
+      path: javaHome,
       label: "JAVA_HOME",
     },
   ]);
+});
+
+test("listRequiredRuntimePaths includes macOS crypto binary and dylibs", () => {
+  const repoRoot = path.resolve("repo");
+  const jarPath = path.join(repoRoot, "TCP_Module", "target", "client.jar");
+  const cryptoDir = path.join(
+    repoRoot,
+    "Encryption_Module_OpenSSLversion",
+    "Xcode_solution",
+    "dist",
+    "crypto-service-macos-arm64",
+  );
+  const javaHome = path.join(repoRoot, "jdk-21");
+
+  const checks = listRequiredRuntimePaths({
+    repoRoot,
+    jarPath,
+    cryptoDir,
+    javaHome,
+    platform: "darwin",
+  });
+
+  assert.deepEqual(checks.slice(0, 4), [
+    {
+      path: jarPath,
+      label: "TCP client jar",
+    },
+    {
+      path: path.join(cryptoDir, "crypto-service"),
+      label: "Crypto service executable",
+    },
+    {
+      path: path.join(cryptoDir, "libssl.3.dylib"),
+      label: "Crypto service OpenSSL runtime",
+    },
+    {
+      path: path.join(cryptoDir, "libcrypto.3.dylib"),
+      label: "Crypto service libcrypto runtime",
+    },
+  ]);
+});
+
+test("resolves platform-specific crypto runtime folder names", () => {
+  assert.equal(
+    resolveCryptoRuntimeName({ platform: "win32", arch: "x64" }),
+    "crypto-service-windows-x64",
+  );
+  assert.equal(
+    resolveCryptoRuntimeName({ platform: "darwin", arch: "arm64" }),
+    "crypto-service-macos-arm64",
+  );
+  assert.equal(
+    resolveCryptoRuntimeName({ platform: "macos", arch: "x86_64" }),
+    "crypto-service-macos-x64",
+  );
 });

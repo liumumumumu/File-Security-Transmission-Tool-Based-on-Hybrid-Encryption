@@ -10,8 +10,29 @@ function selectPathModule(platform = process.platform) {
   return platform === "win32" ? path.win32 : path.posix;
 }
 
+function selectPathDelimiter(platform = process.platform) {
+  return platform === "win32" ? ";" : ":";
+}
+
 function normalizeProjectRoot(projectRoot) {
   return projectRoot || path.resolve(__dirname, "..", "..");
+}
+
+function resolveUserDataBase({ platform, pathModule, localAppData, userProfile, home }) {
+  if (platform === "win32") {
+    return (
+      localAppData ||
+      process.env.LOCALAPPDATA ||
+      pathModule.join(userProfile || process.env.USERPROFILE || "", "AppData", "Local")
+    );
+  }
+
+  const resolvedHome = home || process.env.HOME || userProfile || process.env.USERPROFILE || "";
+  if (platform === "darwin") {
+    return pathModule.join(resolvedHome, "Library", "Application Support");
+  }
+
+  return process.env.XDG_DATA_HOME || pathModule.join(resolvedHome, ".local", "share");
 }
 
 function buildRuntimePaths(options = {}) {
@@ -26,14 +47,17 @@ function buildRuntimePaths(options = {}) {
   const runtimeRoot = isPackaged
     ? pathModule.join(resourcesPath, "runtime")
     : pathModule.join(projectRoot, "build", "runtime");
-  const localAppData =
-    options.localAppData ||
-    process.env.LOCALAPPDATA ||
-    pathModule.join(options.userProfile || process.env.USERPROFILE || "", "AppData", "Local");
+  const localAppData = resolveUserDataBase({
+    platform,
+    pathModule,
+    localAppData: options.localAppData,
+    userProfile: options.userProfile,
+    home: options.home,
+  });
+  const homeDir = options.home || process.env.HOME;
   const userProfile =
     options.userProfile ||
-    process.env.USERPROFILE ||
-    process.env.HOME ||
+    (platform === "win32" ? process.env.USERPROFILE || homeDir : homeDir) ||
     localAppData;
   const userDataDir = pathModule.join(localAppData, USER_DATA_DIRNAME);
   const keyDir = pathModule.join(userDataDir, "crypto_keys");
@@ -78,6 +102,8 @@ function buildRuntimePaths(options = {}) {
 
 function buildRuntimeEnv(runtimePaths, baseEnv = process.env) {
   const env = {};
+  const pathModule = selectPathModule(runtimePaths.platform);
+  const pathDelimiter = selectPathDelimiter(runtimePaths.platform);
   let pathKey = "PATH";
   let currentPath = "";
 
@@ -99,16 +125,16 @@ function buildRuntimeEnv(runtimePaths, baseEnv = process.env) {
   env.CLIENT_HTTP_ADDRESS = "127.0.0.1";
   env.CLIENT_HTTP_PORT = String(DEFAULT_CLIENT_HTTP_PORT);
   env.TRANSFER_RECEIVE_DIR = runtimePaths.downloadDir;
-  env.TRANSFER_HISTORY_PATH = path.join(runtimePaths.userDataDir, "transfer-history.json");
-  env.LOCAL_SQLITE_PATH = path.join(runtimePaths.userDataDir, "local-data.db");
-  env.DEVICE_ID_PATH = path.join(runtimePaths.userDataDir, "device-id");
-  env.STARTUP_STATE_PATH = path.join(runtimePaths.userDataDir, "startup-state.json");
+  env.TRANSFER_HISTORY_PATH = pathModule.join(runtimePaths.userDataDir, "transfer-history.json");
+  env.LOCAL_SQLITE_PATH = pathModule.join(runtimePaths.userDataDir, "local-data.db");
+  env.DEVICE_ID_PATH = pathModule.join(runtimePaths.userDataDir, "device-id");
+  env.STARTUP_STATE_PATH = pathModule.join(runtimePaths.userDataDir, "startup-state.json");
   env.NODE_AUTO_CONNECT = "true";
   env.CLIENT_SERVER_HOST = DEFAULT_SERVER_HOST;
   env.CLIENT_SERVER_PORT = String(DEFAULT_SERVER_PORT);
   env.APP_UI_OPEN_BROWSER = "false";
   env[pathKey] = currentPath
-    ? `${runtimePaths.cryptoDir}${path.delimiter}${currentPath}`
+    ? `${runtimePaths.cryptoDir}${pathDelimiter}${currentPath}`
     : runtimePaths.cryptoDir;
 
   return env;

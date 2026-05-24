@@ -1,10 +1,10 @@
 # Desktop Module
 
-`Desktop_Module` is the Windows desktop entrypoint for the client MSI.
+`Desktop_Module` is the Electron desktop entrypoint for the packaged client.
 
 It is responsible for:
 
-- packaging the final Electron MSI
+- packaging the final Electron installer
 - bundling the local Java client runtime
 - bundling the local crypto service runtime
 - starting both local processes before loading the UI
@@ -43,6 +43,42 @@ The packaging command copies these runtime inputs into `Desktop_Module\build\run
 - `%JAVA_HOME%`
 
 Electron Builder then emits the MSI into `Desktop_Module\release\`.
+
+## macOS packaging flow
+
+macOS installers should be built on a Mac. Build the repo artifacts first:
+
+```sh
+cd ../UI_Module
+npm install
+npm run build:static
+
+cd ../TCP_Module
+mvn clean package
+
+cd ../Encryption_Module_OpenSSLversion/Xcode_solution
+./deploy/package-macos.sh
+```
+
+Then prepare and package the desktop runtime:
+
+```sh
+cd ../../Desktop_Module
+npm install
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+npm run dist:mac
+```
+
+The packaging command copies these runtime inputs into `Desktop_Module/build/runtime/`:
+
+- `TCP_Module/target/*.jar`
+- `Encryption_Module_OpenSSLversion/Xcode_solution/dist/crypto-service-macos-arm64/` on Apple Silicon, or `crypto-service-macos-x64/` on Intel macOS
+- `TCP_Module/src/main/resources/application-client.yml`
+- `$JAVA_HOME`
+
+Electron Builder then emits the macOS `.dmg` and `.zip` into `Desktop_Module/release/`.
+
+The macOS build is unsigned by default for course/demo distribution. If Gatekeeper blocks it on first launch, right-click the app and choose **Open**.
 
 ## Development mode
 
@@ -146,9 +182,25 @@ Packaged Electron expects:
 - `resources\runtime\config\application-client.yml`
 - `resources\runtime\jre\`
 
+On macOS the equivalent layout is:
+
+- `Contents/Resources/runtime/tcp-client/app.jar`
+- `Contents/Resources/runtime/crypto-service/crypto-service`
+- `Contents/Resources/runtime/crypto-service/libssl.3.dylib`
+- `Contents/Resources/runtime/crypto-service/libcrypto.3.dylib`
+- `Contents/Resources/runtime/config/application-client.yml`
+- `Contents/Resources/runtime/jre/`
+
 Packaged runtime data is written under:
 
 - `%LOCALAPPDATA%\FileSecurityTransmission\`
 - `%LOCALAPPDATA%\FileSecurityTransmission\crypto_keys\`
 - `%LOCALAPPDATA%\FileSecurityTransmission\logs\`
 - `%USERPROFILE%\Downloads\FileSecurityTransmission\`
+
+On macOS packaged runtime data is written under:
+
+- `~/Library/Application Support/FileSecurityTransmission/`
+- `~/Library/Application Support/FileSecurityTransmission/crypto_keys/`
+- `~/Library/Application Support/FileSecurityTransmission/logs/`
+- `~/Downloads/FileSecurityTransmission/`

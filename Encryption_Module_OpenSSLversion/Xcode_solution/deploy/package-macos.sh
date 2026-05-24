@@ -31,7 +31,7 @@ if [ -n "${VCPKG_ROOT:-}" ]; then
         exit 1
     fi
 
-    "$VCPKG_ROOT/vcpkg" install "openssl:$TRIPLET" "nlohmann-json:$TRIPLET"
+    "$VCPKG_ROOT/vcpkg" install "openssl:$TRIPLET" "nlohmann-json:$TRIPLET" "cpp-httplib:$TRIPLET"
     TOOLCHAIN_ARGS="-DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN -DVCPKG_TARGET_TRIPLET=$TRIPLET"
     LIB_DIR="$VCPKG_ROOT/installed/$TRIPLET/lib"
 else
@@ -40,6 +40,10 @@ else
         echo "Install vcpkg or install OpenSSL with: brew install openssl@3" >&2
         exit 1
     fi
+
+    brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
+    brew list nlohmann-json >/dev/null 2>&1 || brew install nlohmann-json
+    brew list cpp-httplib >/dev/null 2>&1 || brew install cpp-httplib
 
     OPENSSL_PREFIX=$(brew --prefix openssl@3)
     TOOLCHAIN_ARGS="-DOPENSSL_ROOT_DIR=$OPENSSL_PREFIX"
