@@ -1,0 +1,46 @@
+{
+  "name": "file-security-transmission-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Windows Electron desktop launcher for File Security Transmission.",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "test": "node --test",
+    "prepare-runtime": "node scripts/prepare-runtime.mjs",
+    "build:win": "npm run prepare-runtime",
+    "dist:win-msi": "npm run prepare-runtime && electron-builder --win msi"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.filesecuritytransmission.desktop",
+    "productName": "FileSecurityTransmissionDesktop",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/runtime",
+        "to": "runtime"
+      }
+    ],
+    "win": {
+      "icon": "src/assets/app-icon.ico",
+      "target": [
+        "msi"
+      ]
+    },
+    "msi": {
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "perMachine": false
+    }
+  }
+}

@@ -397,10 +397,10 @@ private final HttpClient httpClient = HttpClient.newBuilder()
 下一轮继续 UI 时，需要带上这些结论：
 
 ```text
-1. UI 是 Vue CDN 静态 App Shell。
+1. UI 已从 Vue CDN 静态 App Shell 重构为 Vite + Vue 工程，入口是 UI_Module/src/App.vue。
 2. Java client 后端当前默认在 20201。
 3. Qt crypto service 当前默认在 20202。
 4. UI 不直接访问 20202，只访问 Java 后端。
-5. 后续 UI 已对齐 `/api/system/*` 和 `/api/send/*`。
-6. 后续 UI 可继续补“系统状态 / 密钥状态 / 发送任务”面板。
+5. Vite 开发时通过代理访问 Java；生产构建后同步到 TCP_Module/src/main/resources/static。
+6. UI 已对齐 `/api/system/*` 和 `/api/send/*`。
 ```

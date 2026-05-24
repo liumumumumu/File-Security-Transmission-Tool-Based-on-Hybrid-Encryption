@@ -66,6 +66,28 @@ mvn clean package
 target/FileSecurityTransmissionToolBasedonHybridEncryption_TCPModule-1.0-SNAPSHOT.jar
 ```
 
+## Windows MSI 打包
+
+MSI 需要在 Windows PowerShell 中生成，要求本机已经安装 Java 21 JDK，并且 `jpackage`、`java`、`mvn` 可以在命令行直接运行。如果 `jpackage` 提示缺少 WiX，需要先安装 WiX Toolset 后再重新执行脚本。
+
+在 Windows 进入 `TCP_Module` 目录后执行：
+
+```powershell
+.\scripts\package-windows-msi.ps1
+```
+
+生成结果默认位于：
+
+```text
+TCP_Module\dist\
+```
+
+安装后的程序会以客户端模式启动，并自动打开内置 UI。需要保留控制台窗口查看日志时，可以使用：
+
+```powershell
+.\scripts\package-windows-msi.ps1 -Console
+```
+
 ## 启动客户端
 
 macOS / Linux：
@@ -80,7 +102,17 @@ Windows：
 scripts\start-client.bat
 ```
 
-客户端启动后会自动连接默认服务器 `82.156.228.71:9000`，并同时启动本地 HTTP 服务 `127.0.0.1:20201`。
+客户端启动后会自动连接默认服务器 `82.156.228.71:9000`，同时启动本地 HTTP 服务 `127.0.0.1:20201`，并自动打开内置 UI：
+
+```text
+http://127.0.0.1:20201/
+```
+
+如果只想在后台运行客户端，不希望自动弹出浏览器，可以追加参数：
+
+```bash
+--app.ui.open-browser=false
+```
 
 也可以直接使用 jar 启动：
 
