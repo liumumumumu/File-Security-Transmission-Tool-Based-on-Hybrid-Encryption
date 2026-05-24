@@ -1,5 +1,6 @@
 package com.client;
 
+import com.client.language.ConsoleMessages;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -19,9 +20,11 @@ import org.springframework.stereotype.Component;
 public class ClientAutoConnectRunner
 {
     private final ClientStartupCoordinator clientStartupCoordinator;
+    private final ConsoleMessages messages;
 
-    public ClientAutoConnectRunner(ClientStartupCoordinator clientStartupCoordinator) {
+    public ClientAutoConnectRunner(ClientStartupCoordinator clientStartupCoordinator, ConsoleMessages messages) {
         this.clientStartupCoordinator = clientStartupCoordinator;
+        this.messages = messages;
     }
 
     //当Spring Boot 应用完全启动后，调用autoConnect函数
@@ -32,8 +35,8 @@ public class ClientAutoConnectRunner
             clientStartupCoordinator.handleApplicationReady();
         } catch (Exception ex) {
             log.warn("Client startup coordination failed.", ex);
-            System.out.println("Startup check failed: " + ex.getMessage());
-            System.out.println("Console is still available. Try: key-info");
+            System.out.println(messages.format(ConsoleMessages.Key.STARTUP_CHECK_FAILED, ex.getMessage()));
+            System.out.println(messages.text(ConsoleMessages.Key.CONSOLE_AVAILABLE_TRY_KEY_INFO));
         }
     }
 }

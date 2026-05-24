@@ -1,5 +1,6 @@
 package com.client;
 
+import com.client.language.ConsoleMessages;
 import com.common.config.ClientProperties;
 import com.common.config.LocalStorageProperties;
 import com.common.config.NodeProperties;
@@ -36,6 +37,7 @@ public class ClientStartupCoordinator
     private final NodeProperties nodeProperties;//读取节点配置
     private final CryptoSupport cryptoSupport;//访问加密服务，负责检查密钥，生成密钥，导入密钥等
     private final ClientConnectionManager clientConnectionManager;//负责连接服务器和认证
+    private final ConsoleMessages messages;
     private final Path startupStatePath;//启动状态文件路径；用来判断启动的时候是否提示用户设置密钥
     private final Gson gson = new Gson();//把启动状态写成JSON，并从JSON读回来
 
@@ -50,13 +52,15 @@ public class ClientStartupCoordinator
             NodeProperties nodeProperties,
             CryptoSupport cryptoSupport,
             ClientConnectionManager clientConnectionManager,
-            LocalStorageProperties localStorageProperties
+            LocalStorageProperties localStorageProperties,
+            ConsoleMessages messages
     )
     {
         this.clientProperties = clientProperties;
         this.nodeProperties = nodeProperties;
         this.cryptoSupport = cryptoSupport;
         this.clientConnectionManager = clientConnectionManager;
+        this.messages = messages;
         this.startupStatePath = Path.of(localStorageProperties.getStartupStatePath()).toAbsolutePath();
     }
 
@@ -182,8 +186,8 @@ public class ClientStartupCoordinator
                     .get(clientProperties.getAuthTimeoutSeconds(), TimeUnit.SECONDS);
         } catch (Exception ex) {
             log.warn("Client auto-connect failed. Console remains available; use 'connect <host> <port>' to retry.", ex);
-            System.out.println("Auto-connect failed: " + ex.getMessage());
-            System.out.println("Console is still available. Try: connect <host> <port>");
+            System.out.println(messages.format(ConsoleMessages.Key.AUTO_CONNECT_FAILED, ex.getMessage()));
+            System.out.println(messages.text(ConsoleMessages.Key.CONSOLE_AVAILABLE_TRY_CONNECT));
         }
     }
 

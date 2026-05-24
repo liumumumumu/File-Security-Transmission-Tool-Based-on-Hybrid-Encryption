@@ -36,15 +36,16 @@ public class ReceiveController {
 
     @GetMapping({"/incoming", "/api/receive/incoming"})
     public ResponseEntity<List<Map<String, Object>>> listIncomingRequests() {
-        Map<String, IncomingTransferRequestPacket> requests = clientTransferService.pendingIncomingTransferRequests();
-        List<Map<String, Object>> result = requests.values().stream()
+        List<Map<String, Object>> result = clientTransferService.pendingIncomingTransferRequestsDetailed().stream()
                 .map(request -> {
+                    IncomingTransferRequestPacket packet = request.packet();
                     Map<String, Object> item = new LinkedHashMap<>();
-                    item.put("transferId", request.getTransferId());
-                    item.put("senderDeviceId", request.getSenderDeviceId());
-                    item.put("fileName", request.getFileName());
-                    item.put("fileSize", request.getFileSize());
-                    item.put("totalBlocks", request.getTotalBlocks());
+                    item.put("receivedAt", request.receivedAt());
+                    item.put("transferId", packet.getTransferId());
+                    item.put("senderDeviceId", packet.getSenderDeviceId());
+                    item.put("fileName", packet.getFileName());
+                    item.put("fileSize", packet.getFileSize());
+                    item.put("totalBlocks", packet.getTotalBlocks());
                     return item;
                 })
                 .toList();

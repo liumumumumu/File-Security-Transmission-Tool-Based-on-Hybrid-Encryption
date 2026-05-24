@@ -6,6 +6,10 @@ import com.common.codec.encoder.auth.AuthRequestEncoder;
 import com.common.codec.encoder.auth.AuthResponseEncoder;
 import com.common.codec.encoder.auth.AuthResultEncoder;
 import com.common.codec.encoder.auth.ChallengeEncoder;
+import com.common.codec.encoder.direct.DirectSessionAcceptedEncoder;
+import com.common.codec.encoder.direct.DirectSessionChallengeEncoder;
+import com.common.codec.encoder.direct.DirectSessionHelloEncoder;
+import com.common.codec.encoder.direct.DirectSessionProofEncoder;
 import com.common.codec.encoder.file.*;
 import com.common.codec.encoder.heartbeat.PingEncoder;
 import com.common.codec.encoder.heartbeat.PongEncoder;
@@ -16,6 +20,10 @@ import com.common.protocol.auth.AuthRequestPacket;
 import com.common.protocol.auth.AuthResponsePacket;
 import com.common.protocol.auth.AuthResultPacket;
 import com.common.protocol.auth.ChallengePacket;
+import com.common.protocol.direct.DirectSessionAcceptedPacket;
+import com.common.protocol.direct.DirectSessionChallengePacket;
+import com.common.protocol.direct.DirectSessionHelloPacket;
+import com.common.protocol.direct.DirectSessionProofPacket;
 import com.common.protocol.file.*;
 import com.common.protocol.heartbeat.PingPacket;
 import com.common.protocol.heartbeat.PongPacket;
@@ -107,6 +115,18 @@ public class PacketByteBufEncoder extends MessageToMessageEncoder<Packet>
         }
         if (packet instanceof RetransmitAckPacket) {
             return new RetransmitAckEncoder();
+        }
+        if (packet instanceof DirectSessionHelloPacket) {
+            return new DirectSessionHelloEncoder();
+        }
+        if (packet instanceof DirectSessionChallengePacket) {
+            return new DirectSessionChallengeEncoder();
+        }
+        if (packet instanceof DirectSessionProofPacket) {
+            return new DirectSessionProofEncoder();
+        }
+        if (packet instanceof DirectSessionAcceptedPacket) {
+            return new DirectSessionAcceptedEncoder();
         }
         //心跳
         else if(packet instanceof PingPacket)

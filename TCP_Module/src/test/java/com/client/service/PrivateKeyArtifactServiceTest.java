@@ -1,0 +1,110 @@
+package com.client.service;
+
+import com.client.direct.qr.QrArtifact;
+import com.client.direct.qr.QrArtifactService;
+import com.common.config.CryptoServiceProperties;
+import com.common.config.LocalStorageProperties;
+import com.crypto.CryptoSupport;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+public class PrivateKeyArtifactServiceTest
+{
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    @Test
+    public void exportPrivateKeyCreatesQrArtifacts() throws Exception
+    {
+        FakeCryptoSupport cryptoSupport = new FakeCryptoSupport("private-key-text");
+        PrivateKeyArtifactService service = service(cryptoSupport);
+
+        PrivateKeyArtifactService.ExportedPrivateKey exported = service.exportPrivateKey();
+
+        assertEquals("private-key-text", exported.privateKeyText());
+        assertTrue(Files.exists(exported.artifact().getPngPath()));
+        assertTrue(Files.exists(exported.artifact().getFst1Path()));
+        assertTrue(Files.exists(exported.artifact().getAsciiPath()));
+    }
+
+    @Test
+    public void importPrivateKeyReadsPrivateKeyFromPng() throws Exception
+    {
+        FakeCryptoSupport cryptoSupport = new FakeCryptoSupport("private-key-text");
+        PrivateKeyArtifactService service = service(cryptoSupport);
+        QrArtifact artifact = service.exportPrivateKey().artifact();
+
+        service.importPrivateKey(artifact.getPngPath());
+
+        assertEquals("private-key-text", cryptoSupport.importedPrivateKeyText);
+    }
+
+    @Test
+    public void importPrivateKeyReadsExistingTextFilePath() throws Exception
+    {
+        FakeCryptoSupport cryptoSupport = new FakeCryptoSupport("private-key-text");
+        PrivateKeyArtifactService service = service(cryptoSupport);
+        Path path = temporaryFolder.getRoot().toPath().resolve("private-key.txt");
+        Files.writeString(path, "file-private-key");
+
+        service.importPrivateKey(path);
+
+        assertEquals(path.toAbsolutePath().normalize(), cryptoSupport.importedPrivateKeyFile);
+    }
+
+    @Test
+    public void importPrivateKeyTreatsNonPathInputAsRawText()
+    {
+        FakeCryptoSupport cryptoSupport = new FakeCryptoSupport("private-key-text");
+        PrivateKeyArtifactService service = service(cryptoSupport);
+
+        service.importPrivateKey("plain-private-key");
+
+        assertEquals("plain-private-key", cryptoSupport.importedPrivateKeyText);
+    }
+
+    private PrivateKeyArtifactService service(FakeCryptoSupport cryptoSupport)
+    {
+        LocalStorageProperties properties = new LocalStorageProperties();
+        properties.setQrOutputDir(temporaryFolder.getRoot().toPath().resolve("qr-output").toString());
+        return new PrivateKeyArtifactService(cryptoSupport, new QrArtifactService(properties));
+    }
+
+    private static class FakeCryptoSupport extends CryptoSupport
+    {
+        private final String privateKeyText;
+        private String importedPrivateKeyText;
+        private Path importedPrivateKeyFile;
+
+        private FakeCryptoSupport(String privateKeyText)
+        {
+            super(new CryptoServiceProperties());
+            this.privateKeyText = privateKeyText;
+        }
+
+        @Override
+        public String getEncodedPrivateKey()
+        {
+            return privateKeyText;
+        }
+
+        @Override
+        public synchronized void importPrivateKeyText(String privateKeyText)
+        {
+            this.importedPrivateKeyText = privateKeyText;
+        }
+
+        @Override
+        public synchronized void importPrivateKeyFile(Path privateKeyPath)
+        {
+            this.importedPrivateKeyFile = privateKeyPath;
+        }
+    }
+}
