@@ -22,9 +22,16 @@ public final class MessageType
     public static final byte Retransmit_Request=22;
     public static final byte Retransmit_Ack=23;
 
+    public static final byte Direct_Session_Hello=30;
+    public static final byte Direct_Session_Challenge=31;
+    public static final byte Direct_Session_Proof=32;
+    public static final byte Direct_Session_Accepted=33;
+
     public static final byte Ping=80;
     public static final byte Pong=81;
     public static final byte Error=99;
 }
 
-//消息编号表
+/*
+消息编号表
+ */

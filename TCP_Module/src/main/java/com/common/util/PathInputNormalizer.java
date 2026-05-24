@@ -30,8 +30,14 @@ public final class PathInputNormalizer
         }
 
         String normalized = input.trim();//去掉前后空白
+        if (normalized.regionMatches(true, 0, "file ", 0, "file ".length())) {
+            normalized = normalized.substring("file ".length()).trim();
+        }
         while (isWrapped(normalized, '"') || isWrapped(normalized, '\'')) {     //去掉包裹路径的引号
             normalized = normalized.substring(1, normalized.length() - 1).trim();
+        }
+        if (normalized.startsWith("file:///") && normalized.length() > "file:///".length() && normalized.charAt("file:///".length()) == '\\') {
+            normalized = "file:///" + normalized.substring("file:///".length()).replace('\\', '/');
         }
         return normalized;
     }

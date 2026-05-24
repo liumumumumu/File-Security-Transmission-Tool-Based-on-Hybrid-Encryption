@@ -5,6 +5,10 @@ import com.common.codec.decoder.ProtocolDecodingLayer.auth.AuthRequestDecoder;
 import com.common.codec.decoder.ProtocolDecodingLayer.auth.AuthResponseDecoder;
 import com.common.codec.decoder.ProtocolDecodingLayer.auth.AuthResultDecoder;
 import com.common.codec.decoder.ProtocolDecodingLayer.auth.ChallengeDecoder;
+import com.common.codec.decoder.ProtocolDecodingLayer.direct.DirectSessionAcceptedDecoder;
+import com.common.codec.decoder.ProtocolDecodingLayer.direct.DirectSessionChallengeDecoder;
+import com.common.codec.decoder.ProtocolDecodingLayer.direct.DirectSessionHelloDecoder;
+import com.common.codec.decoder.ProtocolDecodingLayer.direct.DirectSessionProofDecoder;
 import com.common.codec.decoder.ProtocolDecodingLayer.file.*;
 import com.common.codec.decoder.ProtocolDecodingLayer.heartbeat.PingDecoder;
 import com.common.codec.decoder.ProtocolDecodingLayer.heartbeat.PongDecoder;
@@ -74,6 +78,10 @@ public class PacketByteBufDecoder extends MessageToMessageDecoder<ByteBuf>
             case MessageType.Transfer_Cancel_Ack -> new TransferCancelAckDecoder();
             case MessageType.Retransmit_Request -> new RetransmitRequestDecoder();
             case MessageType.Retransmit_Ack -> new RetransmitAckDecoder();
+            case MessageType.Direct_Session_Hello -> new DirectSessionHelloDecoder();
+            case MessageType.Direct_Session_Challenge -> new DirectSessionChallengeDecoder();
+            case MessageType.Direct_Session_Proof -> new DirectSessionProofDecoder();
+            case MessageType.Direct_Session_Accepted -> new DirectSessionAcceptedDecoder();
 
             //心跳
             case MessageType.Ping ->    new PingDecoder();
