@@ -1,6 +1,6 @@
 {
   "name": "file-security-transmission-desktop",
-  "version": "0.1.0",
+  "version": "1.0.2",
   "private": true,
   "description": "Windows Electron desktop launcher for File Security Transmission.",
   "main": "src/main.js",

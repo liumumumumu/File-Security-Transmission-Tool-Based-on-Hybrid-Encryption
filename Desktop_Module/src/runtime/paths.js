@@ -77,9 +77,20 @@ function buildRuntimePaths(options = {}) {
 }
 
 function buildRuntimeEnv(runtimePaths, baseEnv = process.env) {
-  const env = { ...baseEnv };
-  const pathKey = Object.keys(env).find((key) => key.toUpperCase() === "PATH") || "PATH";
-  const currentPath = env[pathKey] || "";
+  const env = {};
+  let pathKey = "PATH";
+  let currentPath = "";
+
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (key.toUpperCase() === "PATH") {
+      if (!currentPath) {
+        currentPath = value || "";
+        pathKey = key;
+      }
+      continue;
+    }
+    env[key] = value;
+  }
 
   env.CRYPTO_SERVICE_ADDRESS = "127.0.0.1";
   env.CRYPTO_SERVICE_HOST = "127.0.0.1";

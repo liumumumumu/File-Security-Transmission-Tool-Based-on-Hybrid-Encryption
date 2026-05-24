@@ -81,6 +81,18 @@ export function listRequiredRuntimePaths({
       label: "Crypto service libcrypto runtime",
     },
     {
+      path: path.join(cryptoDir, "brotlicommon.dll"),
+      label: "Crypto service Brotli common runtime",
+    },
+    {
+      path: path.join(cryptoDir, "brotlidec.dll"),
+      label: "Crypto service Brotli decoder runtime",
+    },
+    {
+      path: path.join(cryptoDir, "brotlienc.dll"),
+      label: "Crypto service Brotli encoder runtime",
+    },
+    {
       path: path.join(
         rootDir,
         "TCP_Module",

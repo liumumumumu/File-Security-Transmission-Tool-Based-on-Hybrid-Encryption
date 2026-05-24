@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(OpenSSL REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(httplib CONFIG REQUIRED)
 
 add_executable(FileSecurityTransferTool_CryptoTest
     ../FileSecurityTransferTool_CryptoTest/main.cpp
@@ -25,6 +26,7 @@ target_link_libraries(FileSecurityTransferTool_CryptoTest PRIVATE
     OpenSSL::SSL
     OpenSSL::Crypto
     nlohmann_json::nlohmann_json
+    httplib::httplib
 )
 
 if(WIN32)

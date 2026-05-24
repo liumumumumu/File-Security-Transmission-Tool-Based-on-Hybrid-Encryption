@@ -3,6 +3,7 @@ const test = require("node:test");
 
 const {
   buildJavaArguments,
+  buildJavaProcessOptions,
   waitForServiceReady,
 } = require("../src/runtime/launcher");
 
@@ -14,6 +15,19 @@ test("builds fixed java client launch arguments", () => {
     "--spring.profiles.active=client",
     "--server.tcp.enabled=false",
   ]);
+});
+
+test("keeps Java stdin open for the bundled console loop", () => {
+  const runtimePaths = {
+    tcpClientDir: "C:\\runtime\\tcp-client",
+  };
+  const env = { NODE_AUTO_CONNECT: "true" };
+
+  assert.deepEqual(buildJavaProcessOptions(runtimePaths, env), {
+    cwd: "C:\\runtime\\tcp-client",
+    env,
+    stdio: ["pipe", "ignore", "ignore"],
+  });
 });
 
 test("waits until health endpoint reports UP", async () => {

@@ -87,6 +87,18 @@ test("listRequiredRuntimePaths includes crypto binary and OpenSSL dlls", () => {
       label: "Crypto service libcrypto runtime",
     },
     {
+      path: "D:\\repo\\Encryption_Module_OpenSSLversion\\Xcode_solution\\dist\\crypto-service-windows-x64\\brotlicommon.dll",
+      label: "Crypto service Brotli common runtime",
+    },
+    {
+      path: "D:\\repo\\Encryption_Module_OpenSSLversion\\Xcode_solution\\dist\\crypto-service-windows-x64\\brotlidec.dll",
+      label: "Crypto service Brotli decoder runtime",
+    },
+    {
+      path: "D:\\repo\\Encryption_Module_OpenSSLversion\\Xcode_solution\\dist\\crypto-service-windows-x64\\brotlienc.dll",
+      label: "Crypto service Brotli encoder runtime",
+    },
+    {
       path: "D:\\repo\\TCP_Module\\src\\main\\resources\\application-client.yml",
       label: "Client profile config",
     },

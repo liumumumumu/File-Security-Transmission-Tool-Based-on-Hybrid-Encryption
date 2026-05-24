@@ -94,6 +94,27 @@ test("builds runtime environment overrides for java and crypto services", () => 
   assert.match(env.PATH, /crypto-service/i);
 });
 
+test("deduplicates case-variant PATH entries in runtime environment", () => {
+  const runtimePaths = buildRuntimePaths({
+    appName: "File Security Transmission",
+    isPackaged: true,
+    resourcesPath: "C:\\app\\resources",
+    localAppData: "C:\\Users\\Alice\\AppData\\Local",
+    userProfile: "C:\\Users\\Alice",
+  });
+
+  const env = buildRuntimeEnv(runtimePaths, {
+    PATH: "C:\\Windows\\System32",
+    Path: "C:\\Tools",
+  });
+
+  assert.deepEqual(
+    Object.keys(env).filter((key) => key.toUpperCase() === "PATH"),
+    ["PATH"],
+  );
+  assert.match(env.PATH, /crypto-service/i);
+});
+
 test("uses localhost java UI URL in packaged mode", () => {
   assert.equal(
     getRendererUrlForMode({

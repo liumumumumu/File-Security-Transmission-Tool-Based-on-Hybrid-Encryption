@@ -5,6 +5,7 @@ const {
 } = require("./runtime/paths");
 const {
   buildJavaArguments,
+  buildJavaProcessOptions,
   ensureRuntimeDirectories,
   spawnManagedProcess,
   stopManagedProcess,
@@ -123,10 +124,7 @@ async function startDesktopRuntime() {
   const javaProcess = spawnManagedProcess(
     getJavaLaunchCommand(runtimePaths),
     buildJavaArguments(runtimePaths.jarPath),
-    {
-      cwd: runtimePaths.tcpClientDir,
-      env,
-    },
+    buildJavaProcessOptions(runtimePaths, env),
   );
 
   await waitForServiceReady({

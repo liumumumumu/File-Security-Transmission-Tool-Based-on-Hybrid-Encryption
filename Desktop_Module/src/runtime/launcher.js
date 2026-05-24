@@ -11,6 +11,16 @@ function buildJavaArguments(jarPath) {
   ];
 }
 
+function buildJavaProcessOptions(runtimePaths, env) {
+  return {
+    cwd: runtimePaths.tcpClientDir,
+    env,
+    // Keep stdin open so the bundled Java console loop does not treat
+    // Electron startup as a closed terminal and shut Spring down.
+    stdio: ["pipe", "ignore", "ignore"],
+  };
+}
+
 async function ensureRuntimeDirectories(runtimePaths) {
   await Promise.all([
     fs.mkdir(runtimePaths.userDataDir, { recursive: true }),
@@ -93,6 +103,7 @@ async function stopManagedProcess(childProcess) {
 
 module.exports = {
   buildJavaArguments,
+  buildJavaProcessOptions,
   ensureRuntimeDirectories,
   spawnManagedProcess,
   stopManagedProcess,
