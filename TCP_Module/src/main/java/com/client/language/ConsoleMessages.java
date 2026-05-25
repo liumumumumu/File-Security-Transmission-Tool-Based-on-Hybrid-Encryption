@@ -305,15 +305,14 @@ public class ConsoleMessages
         put(en, zh, Key.USAGE, "Usage: %s", "用法: %s");
         put(en, zh, Key.ROLE_PROMPT, "Role [sender/receiver]> ", "角色 [sender/receiver]> ");
         put(en, zh, Key.INVALID_ROLE, "Invalid role. Choose sender or receiver.", "角色无效。请选择 sender 或 receiver。");
-        put(en, zh, Key.SEND_QR_TO_RECEIVER, "Send this QR/FST1 text to the receiver.", "请将此二维码/FST1文本发送给接收方。");
-        put(en, zh, Key.PASTE_RECEIVER_FST1, "Paste receiver FST1 text or type a FST1/PNG file path:", "粘贴接收方FST1文本，或输入FST1/PNG文件路径:");
+        put(en, zh, Key.SEND_QR_TO_RECEIVER, "Send this QR/FST1 file to the receiver.", "请将此二维码/FST1文件发送给接收方。");
+        put(en, zh, Key.PASTE_RECEIVER_FST1, "Type receiver .fst1 or .png file path:", "输入接收方 .fst1 或 .png 文件路径:");
         put(en, zh, Key.HANDSHAKE_CANCEL_HINT, "Leave blank or type 'cancel' to stop this handshake step.", "留空或输入 'cancel' 可停止当前握手步骤。");
-        put(en, zh, Key.FST1_MULTILINE_HINT, "For FST1 text, paste all wrapped lines, then enter a single '.' line to finish.", "粘贴FST1文本时，可以粘贴多行，最后单独输入一行 '.' 结束。");
         put(en, zh, Key.DIRECT_SESSION_CONNECTED, "Direct session connected: %s", "直连会话已连接: %s");
         put(en, zh, Key.FILE_PATH_TO_SEND, "File path to send> ", "要发送的文件路径> ");
         put(en, zh, Key.SEND_TASK_CREATED, "Send task created: %s", "发送任务已创建: %s");
-        put(en, zh, Key.PASTE_SENDER_FST1, "Paste sender FST1 text or type a FST1/PNG file path:", "粘贴发送方FST1文本，或输入FST1/PNG文件路径:");
-        put(en, zh, Key.SEND_QR_TO_SENDER_WAITING, "Send this QR/FST1 text to the sender. Waiting for incoming transfer request.", "请将此二维码/FST1文本发送给发送方。正在等待传输请求。");
+        put(en, zh, Key.PASTE_SENDER_FST1, "Type sender .fst1 or .png file path:", "输入发送方 .fst1 或 .png 文件路径:");
+        put(en, zh, Key.SEND_QR_TO_SENDER_WAITING, "Send this QR/FST1 file to the sender. Waiting for incoming transfer request.", "请将此二维码/FST1文件发送给发送方。正在等待传输请求。");
         put(en, zh, Key.QR_PNG, "QR PNG: %s", "二维码PNG: %s");
         put(en, zh, Key.QR_FST1, "QR FST1 file: %s", "二维码FST1文件: %s");
         put(en, zh, Key.QR_ASCII, "QR ASCII file: %s", "二维码ASCII文件: %s");
@@ -472,7 +471,6 @@ public class ConsoleMessages
         SEND_QR_TO_RECEIVER,
         PASTE_RECEIVER_FST1,
         HANDSHAKE_CANCEL_HINT,
-        FST1_MULTILINE_HINT,
         DIRECT_SESSION_CONNECTED,
         FILE_PATH_TO_SEND,
         SEND_TASK_CREATED,

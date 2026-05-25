@@ -75,7 +75,6 @@ public class ConsoleCommandRunner
     private static final int PROGRESS_BAR_WIDTH = 30;
     private static final int WINDOWS_DEFAULT_TERMINAL_COLUMNS = 80;
     private static final int DEFAULT_TERMINAL_COLUMNS = 120;
-    private static final int FST1_TERMINAL_WRAP_WIDTH = 96;
     private static final long TASK_WATCH_INTERVAL_MILLIS = 1000L;
 
     private final ClientConnectionManager clientConnectionManager;//负责客户端连接服务器，认证，断开连接
@@ -469,9 +468,13 @@ public class ConsoleCommandRunner
         while (isApplicationActive()) {
             System.out.println(messages.text(ConsoleMessages.Key.PASTE_RECEIVER_FST1));
             System.out.println(messages.text(ConsoleMessages.Key.HANDSHAKE_CANCEL_HINT));
-            System.out.println(messages.text(ConsoleMessages.Key.FST1_MULTILINE_HINT));
-            String receiverInput = readFst1ConsoleInput(reader, "receiver-fst1> ");
+            System.out.print("receiver-fst1> ");
+            String receiverInput = reader.readLine();
             if(receiverInput == null) {
+                handleConsoleInputClosed();
+                return null;
+            }
+            if(isHandshakeAbortInput(receiverInput)) {
                 return null;
             }
             try {
@@ -489,9 +492,13 @@ public class ConsoleCommandRunner
         while (isApplicationActive()) {
             System.out.println(messages.text(ConsoleMessages.Key.PASTE_SENDER_FST1));
             System.out.println(messages.text(ConsoleMessages.Key.HANDSHAKE_CANCEL_HINT));
-            System.out.println(messages.text(ConsoleMessages.Key.FST1_MULTILINE_HINT));
-            String senderInput = readFst1ConsoleInput(reader, "sender-fst1> ");
+            System.out.print("sender-fst1> ");
+            String senderInput = reader.readLine();
             if(senderInput == null) {
+                handleConsoleInputClosed();
+                return null;
+            }
+            if(isHandshakeAbortInput(senderInput)) {
                 return null;
             }
             try {
@@ -502,40 +509,6 @@ public class ConsoleCommandRunner
             }
         }
         return null;
-    }
-
-    private String readFst1ConsoleInput(BufferedReader reader, String prompt) throws IOException
-    {
-        System.out.print(prompt);
-        String firstLine = reader.readLine();
-        if(firstLine == null) {
-            handleConsoleInputClosed();
-            return null;
-        }
-        if(isHandshakeAbortInput(firstLine)) {
-            return null;
-        }
-        String trimmed = firstLine.trim();
-        if(!trimmed.startsWith("FST1:")) {
-            return firstLine;
-        }
-
-        List<String> lines = new ArrayList<>();
-        lines.add(firstLine);
-        while (true) {
-            String line = reader.readLine();
-            if(line == null) {
-                handleConsoleInputClosed();
-                return null;
-            }
-            if(".".equals(line.trim())) {
-                return joinFst1PasteLines(lines);
-            }
-            if(isHandshakeAbortInput(line)) {
-                return null;
-            }
-            lines.add(line);
-        }
     }
 
     private String promptDirectFileSend(BufferedReader reader, DirectSessionInfo session) throws IOException
@@ -576,34 +549,11 @@ public class ConsoleCommandRunner
         System.out.println(messages.format(ConsoleMessages.Key.QR_PNG, artifact.getPngPath()));
         System.out.println(messages.format(ConsoleMessages.Key.QR_FST1, artifact.getFst1Path()));
         System.out.println(messages.format(ConsoleMessages.Key.QR_ASCII, artifact.getAsciiPath()));
+        if(text != null && text.startsWith("FST1:")) {
+            return;
+        }
         System.out.println(messages.text(ConsoleMessages.Key.QR_TEXT));
-        System.out.println(wrapLongText(text, FST1_TERMINAL_WRAP_WIDTH));
-    }
-
-    static String wrapLongText(String text, int width)
-    {
-        if(text == null || text.isEmpty() || width <= 0) {
-            return text;
-        }
-        StringBuilder wrapped = new StringBuilder(text.length() + text.length() / width);
-        for(int index = 0; index < text.length(); index += width) {
-            if(index > 0) {
-                wrapped.append(System.lineSeparator());
-            }
-            wrapped.append(text, index, Math.min(index + width, text.length()));
-        }
-        return wrapped.toString();
-    }
-
-    static String joinFst1PasteLines(List<String> lines)
-    {
-        StringBuilder joined = new StringBuilder();
-        for(String line : lines) {
-            if(line != null) {
-                joined.append(line.trim());
-            }
-        }
-        return joined.toString();
+        System.out.println(text);
     }
 
     private boolean confirm(BufferedReader reader, String prompt) throws IOException

@@ -260,6 +260,21 @@ public class SystemController
         return ResponseEntity.ok(clientConnectionManager.currentStatus());
     }
 
+    @GetMapping("/user-status")
+    public ResponseEntity<Map<String, Object>> userStatus()
+    {
+        Map<String, Object> connectionStatus = clientConnectionManager.currentStatus();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("deviceId", connectionStatus.get("deviceId"));
+        payload.put("accountId", connectionStatus.get("accountId"));
+        payload.put("status", connectionStatus.get("status"));
+        payload.put("connected", connectionStatus.get("connected"));
+        payload.put("authenticated", connectionStatus.get("authenticated"));
+        payload.put("connectedHost", connectionStatus.get("connectedHost"));
+        payload.put("connectedPort", connectionStatus.get("connectedPort"));
+        return ResponseEntity.ok(payload);
+    }
+
     @GetMapping("/public-key")
     public ResponseEntity<Map<String, String>> publicKey()
     {
@@ -289,6 +304,7 @@ public class SystemController
         system.put("POST /api/system/disconnect", "Disconnect from server");
         system.put("POST /api/system/shutdown", "Request client application shutdown");
         system.put("GET /api/system/connection-status", "Show detailed connection status");
+        system.put("GET /api/system/user-status", "Show current user connection status");
         system.put("GET /api/system/public-key", "Show local public key");
         system.put("GET /api/system/startup-status", "Show startup key setup and auto-connect gate status");
         system.put("POST /api/system/startup/key/generate", "Generate key for startup flow and continue auto-connect if blocked");
