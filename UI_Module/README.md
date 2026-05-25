@@ -14,6 +14,14 @@
 
 ## 如何预览
 
+正式联调时推荐先启动 Java 后端，然后直接打开：
+
+```text
+http://127.0.0.1:20201/
+```
+
+这个地址会读取 `TCP_Module/src/main/resources/static/` 中的内置 UI，和后端接口同源，不会出现 `file://` 跨域问题。
+
 在 WSL 里进入本目录：
 
 ```bash
@@ -92,25 +100,26 @@ Vue 不直接调用加密函数，也不直接处理 TCP socket。LQH 的 Java �
 当前 UI 已经对接这些 Java 接口：
 
 ```http
-GET  http://127.0.0.1:8081/api/system/status
-GET  http://127.0.0.1:8081/api/system/key
-POST http://127.0.0.1:8081/api/system/key/generate
-POST http://127.0.0.1:8081/api/system/key/delete
+GET  http://127.0.0.1:20201/api/system/status
+GET  http://127.0.0.1:20201/api/system/key
+POST http://127.0.0.1:20201/api/system/key/generate
+POST http://127.0.0.1:20201/api/system/key/delete
 ```
 
 关闭“演示模式”后，前端会尝试调用：
 
 ```http
-POST http://127.0.0.1:8081/api/transfers
-GET  http://127.0.0.1:8081/api/transfers/{task_id}
+POST http://127.0.0.1:20201/api/send
+GET  http://127.0.0.1:20201/api/send/tasks/{task_id}
 ```
 
 后端需要注意：
 
-- 接收 `multipart/form-data`，其中 `metadata` 是 JSON 字符串，`files` 是上传文件。
-- 返回 JSON，至少包含 `task_id` 和 `status`。
-- 状态查询接口返回 `progress`、`speed_mbps`、`eta_seconds`、`acked_chunks`。
-- 本次联调 Spring Boot HTTP 端口为 `8081`，TCP 传输服务端口为 `9000`，Qt crypto service 推荐端口为 `9081`。
+- `POST /api/send` 接收 JSON：`filePath` 是发送方本机路径，`targetAccountId` 是接收方账号指纹。
+- 浏览器选文件后通常只能拿到文件名或相对路径，真实联调时建议把 `filePath` 手动改成 Java 后端能访问的绝对路径。
+- 返回 JSON，至少包含 `taskId` 和 `success`。
+- 状态查询接口返回 `status`、`progress`、`transferredBlocks`、`speedMegabytesPerSecond`。
+- 当前仓库默认 Spring Boot HTTP 端口为 `20201`，TCP 传输服务端口为 `9000`，Qt crypto service 默认端口为 `20202`。
 - 如果前端从 `file://` 打开页面，Java 后端需要允许 CORS。
 
 ## 你现在优先学习

@@ -8,6 +8,8 @@
 - 缺点：Vue 和 Lucide 图标来自 CDN，浏览器需要能访问互联网；代码暂时没有 `.vue` 单文件组件。
 - 后续升级：安装 Node.js 后，可以迁移到 Vite + Vue，拆成组件和模块。
 
+当前已把 `index.html`、`app.js`、`styles.css` 同步到 `TCP_Module/src/main/resources/static/`。启动 Java 后端后访问 `http://127.0.0.1:20201/`，浏览器页面和 REST API 同源，能避开双击 `file://` 打开时的 CORS 问题。
+
 新版 UI 的设计目标是“更像应用，而不是网页宣传页”：
 
 - 固定左侧导航：对应真实 App 常见的信息架构。
@@ -111,9 +113,9 @@ UI 使用这些状态表示传输过程：
 
 ```text
 UI_Module(Vue)
-  -> TCP_Module(Java Spring Boot REST API, HTTP 8081)
+  -> TCP_Module(Java Spring Boot REST API, HTTP 20201)
   -> TCP_Module(Netty TCP, TCP 9000)
-  -> Crypto Service(Qt/C++ + OpenSSL, HTTP 9081)
+  -> Crypto Service(Qt/C++ + OpenSSL, HTTP 20202)
 ```
 
 Crypto service 负责 RSA、签名、AES 密钥包裹、AES-256-GCM 数据块加解密。`TCP_Module` 负责调用这些能力，Vue 不直接调用加密函数。
@@ -131,44 +133,31 @@ POST /api/system/key/import-private
 这些接口已经接入 UI 的“系统状态 / 密钥状态”面板。页面默认 Java API 为：
 
 ```text
-http://127.0.0.1:8081
+http://127.0.0.1:20201
 ```
 
-还需要补给 UI 使用的传输接口，建议如下。
+当前 Java 传输接口建议直接按后端实现来对齐，而不是继续沿用旧的 `/api/transfers` 设计。
 
 ### 创建传输任务
 
 ```http
-POST /api/transfers
-Content-Type: multipart/form-data
+POST /api/send
+Content-Type: application/json
 ```
 
 字段：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `metadata` | JSON 字符串 | 传输模式、服务器、端口、算法、分块大小 |
-| `files` | 文件 | 一个或多个上传文件 |
+| `filePath` | 字符串 | 发送方本机文件路径 |
+| `targetAccountId` | 字符串 | 接收方账号指纹 |
 
-`metadata` 示例：
+`request` 示例：
 
 ```json
 {
-  "mode": "send",
-  "server_host": "127.0.0.1",
-  "server_port": 9000,
-  "key_exchange": "RSA-2048",
-  "cipher": "AES-256-GCM",
-  "chunk_size_mb": 1,
-  "resume_enabled": true,
-  "receive_code": "",
-  "files": [
-    {
-      "name": "demo.zip",
-      "chunks": 10,
-      "sizeText": "10 MB"
-    }
-  ]
+  "filePath": "C:\\Users\\15328\\Desktop\\demo.zip",
+  "targetAccountId": "eae3cb046c283e9426e074a743efcd9a2abcb3e7e3b5cb50a0b5084c3ee8e911"
 }
 ```
 
@@ -176,27 +165,30 @@ Content-Type: multipart/form-data
 
 ```json
 {
-  "task_id": "task_001",
-  "status": "key_exchange"
+  "success": true,
+  "taskId": "task_001",
+  "targetAccountId": "eae3cb046c283e9426e074a743efcd9a2abcb3e7e3b5cb50a0b5084c3ee8e911",
+  "message": "Send task created"
 }
 ```
 
 ### 查询任务状态
 
 ```http
-GET /api/transfers/{task_id}
+GET /api/send/tasks/{task_id}
 ```
 
 响应示例：
 
 ```json
 {
-  "task_id": "task_001",
-  "status": "encrypting_chunks",
+  "taskId": "task_001",
+  "status": "TRANSFERRING",
   "progress": 62,
-  "speed_mbps": 11.8,
-  "eta_seconds": 14,
-  "acked_chunks": 620
+  "speedMegabytesPerSecond": 11.8,
+  "speedText": "11.80 mb/s",
+  "transferredBlocks": 620,
+  "totalBlocks": 1000
 }
 ```
 
@@ -212,16 +204,17 @@ GET /api/transfers/{task_id}
 
 ```js
 // 浏览器里不能直接这样调用 Java/Qt/C++ 函数
-start_transfer(file_path, host, port);
+start_transfer(filePath, targetAccountId);
 ```
 
 正确结构：
 
 ```text
-Vue 页面 -> fetch/FormData -> Java Spring Boot 接口 -> Java 调用 TCP/加密模块
+Vue 页面 -> fetch/JSON -> Java Spring Boot 接口 -> Java 调用 TCP/加密模块
 ```
 
-本项目中的 `createBackendTransfer()` 就是这个入口。后端同学只要实现 `POST /api/transfers`，你就可以关闭演示模式试着联调。
+本项目中的 `createBackendTransfer()` 就是这个入口。当前 Vue 版已经改成对接 `POST /api/send` 和 `GET /api/send/tasks/{task_id}`；如果只保留浏览器版，就还需要给用户一个可输入的本地文件路径。
+浏览器文件选择器通常拿不到稳定的绝对路径，所以前端只能帮你预填文件名或相对路径，真实联调时最好手动改成 Java 后端能访问的路径。
 
 ## 7. 你需要补的知识
 
