@@ -120,6 +120,9 @@ public class ConsoleMessages
                     "  connect [host] [port]             连接服务器并完成认证",
                     "  disconnect                        断开服务器连接",
                     "  send <filePath> <targetAccountId> 向目标账号发送文件",
+                    "  message-send <accountId|contact-N> 发送加密文本消息",
+                    "  messages                          查看消息会话摘要",
+                    "  message <accountId|contact-N>     查看与账号的完整消息对话",
                     "  incoming                          查看待接收的传输请求",
                     "  accept <transferId>               在本设备接受一个传输请求",
                     "  reject <transferId>               拒绝并取消一个传输请求",
@@ -164,6 +167,9 @@ public class ConsoleMessages
                 "  connect [host] [port]             Connect and authenticate with server",
                 "  disconnect                        Disconnect from server",
                 "  send <filePath> <targetAccountId> Send a file to target account",
+                "  message-send <accountId|contact-N> Send encrypted text message",
+                "  messages                          List message conversation summaries",
+                "  message <accountId|contact-N>     Show full message conversation with account",
                 "  incoming                          List incoming transfer requests",
                 "  accept <transferId>               Accept an incoming transfer on this device",
                 "  reject <transferId>               Reject and cancel an incoming transfer",
@@ -211,6 +217,9 @@ public class ConsoleMessages
                     "  language                          切换控制台语言",
                     "  status                            查看直连设置和任务状态",
                     "  handshake                         启动发送方/接收方二维码握手向导",
+                    "  message-send                      向当前直连对端发送加密文本消息",
+                    "  messages                          查看消息会话摘要",
+                    "  message [peerAccountId]           查看当前直连对端或指定账号的消息对话",
                     "  port-mode                         查看直连监听端口模式",
                     "  port-mode random                  使用随机临时监听端口",
                     "  port-mode fixed <port>            使用固定监听端口",
@@ -243,6 +252,9 @@ public class ConsoleMessages
                 "  language                          Change console language",
                 "  status                            Show direct settings and task status",
                 "  handshake                         Start sender/receiver QR handshake wizard",
+                "  message-send                      Send encrypted text message to active direct peer",
+                "  messages                          List message conversation summaries",
+                "  message [peerAccountId]           Show active direct peer or account message conversation",
                 "  port-mode                         Show direct listen port mode",
                 "  port-mode random                  Use a random temporary listen port",
                 "  port-mode fixed <port>            Use a fixed listen port",
@@ -371,6 +383,17 @@ public class ConsoleMessages
         put(en, zh, Key.CONSOLE_AVAILABLE_TRY_CONNECT, "Console is still available. Try: connect <host> <port>", "控制台仍可使用。可尝试: connect <host> <port>");
         put(en, zh, Key.STARTUP_CHECK_FAILED, "Startup check failed: %s", "启动检查失败: %s");
         put(en, zh, Key.CONSOLE_AVAILABLE_TRY_KEY_INFO, "Console is still available. Try: key-info", "控制台仍可使用。可尝试: key-info");
+        put(en, zh, Key.INCOMING_TEXT_MESSAGE_NOTIFICATION, "New message from %s. Use message %s to view it.", "收到来自 %s 的新消息。输入 message %s 查看。");
+        put(en, zh, Key.MESSAGE_EDIT_HINT, "Enter message text. Type ':q' on its own line to finish editing.", "请输入消息文本。单独输入一行 ':q' 结束编辑。");
+        put(en, zh, Key.MESSAGE_CURRENT_DRAFT, "Current draft:", "当前草稿:");
+        put(en, zh, Key.MESSAGE_PREVIEW, "Message preview:", "消息预览:");
+        put(en, zh, Key.MESSAGE_REVIEW_HINT, "Press Enter to send, i to edit again, or q to cancel.", "按 Enter 发送，按 i 重新编辑，按 q 取消。");
+        put(en, zh, Key.MESSAGE_REVIEW_INVALID, "Invalid choice. Press Enter, i, or q.", "选择无效。请按 Enter、i 或 q。");
+        put(en, zh, Key.MESSAGE_EMPTY, "Message cannot be empty.", "消息不能为空。");
+        put(en, zh, Key.MESSAGE_TOO_LARGE, "Message exceeds 16 KiB.", "消息超过16 KiB。");
+        put(en, zh, Key.MESSAGE_CANCELED, "Message canceled.", "消息已取消。");
+        put(en, zh, Key.MESSAGE_SENT, "Message sent: %s", "消息已发送: %s");
+        put(en, zh, Key.NO_MESSAGES, "No messages.", "没有消息。");
 
         messages.put(UiLanguage.ENGLISH, en);
         messages.put(UiLanguage.CHINESE, zh);
@@ -428,6 +451,8 @@ public class ConsoleMessages
                 Map.entry("listenPortMode", "监听端口模式"),
                 Map.entry("fixedListenPort", "固定监听端口"),
                 Map.entry("settingsPath", "设置路径")
+                , Map.entry("unread", "未读")
+                , Map.entry("lastMessageTime", "最后消息时间")
         );
     }
 
@@ -533,6 +558,17 @@ public class ConsoleMessages
         AUTO_CONNECT_FAILED,
         CONSOLE_AVAILABLE_TRY_CONNECT,
         STARTUP_CHECK_FAILED,
-        CONSOLE_AVAILABLE_TRY_KEY_INFO
+        CONSOLE_AVAILABLE_TRY_KEY_INFO,
+        INCOMING_TEXT_MESSAGE_NOTIFICATION,
+        MESSAGE_EDIT_HINT,
+        MESSAGE_CURRENT_DRAFT,
+        MESSAGE_PREVIEW,
+        MESSAGE_REVIEW_HINT,
+        MESSAGE_REVIEW_INVALID,
+        MESSAGE_EMPTY,
+        MESSAGE_TOO_LARGE,
+        MESSAGE_CANCELED,
+        MESSAGE_SENT,
+        NO_MESSAGES
     }
 }

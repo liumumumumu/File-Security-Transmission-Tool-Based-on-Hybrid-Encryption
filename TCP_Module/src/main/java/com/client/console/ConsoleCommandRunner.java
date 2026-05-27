@@ -13,6 +13,9 @@ import com.client.direct.qr.QrArtifact;
 import com.client.language.ConsoleMessages;
 import com.client.language.LanguageSettingsService;
 import com.client.language.UiLanguage;
+import com.client.message.ClientMessageService;
+import com.client.message.ConversationSummary;
+import com.client.message.TextMessageRecord;
 import com.common.config.ClientProperties;
 import com.common.protocol.file.IncomingTransferRequestPacket;
 import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
@@ -91,6 +94,7 @@ public class ConsoleCommandRunner
     private final DirectSettingsService directSettingsService;
     private final DirectPeerConnectionManager directPeerConnectionManager;
     private final LanguageSettingsService languageSettingsService;
+    private final ClientMessageService clientMessageService;
     private final ConsoleMessages messages;
     private Runnable notificationSubscription;
     private int lastProgressLineLength;
@@ -110,6 +114,7 @@ public class ConsoleCommandRunner
             DirectSettingsService directSettingsService,
             DirectPeerConnectionManager directPeerConnectionManager,
             LanguageSettingsService languageSettingsService,
+            ClientMessageService clientMessageService,
             ConsoleMessages messages
     )
     {
@@ -127,6 +132,7 @@ public class ConsoleCommandRunner
         this.directSettingsService = directSettingsService;
         this.directPeerConnectionManager = directPeerConnectionManager;
         this.languageSettingsService = languageSettingsService;
+        this.clientMessageService = clientMessageService;
         this.messages = messages;
     }
 
@@ -291,6 +297,9 @@ public class ConsoleCommandRunner
                 case "connect" -> connect(args);                //用于连接服务器并完成认证，connect [host] [port]
                 case "disconnect" -> disconnect();              //断开当前连接
                 case "send" -> sendFile(args);                  //发送文件，send <filePath> <targetAccountId>     //filePath可以是绝对路径也可以是相对路径（相对程序运行的位置），accountId就是公钥指纹(64 位)
+                case "message-send" -> sendRelayMessage(reader, args);
+                case "messages" -> printMessageSummaries();
+                case "message" -> printRelayConversation(args);
                 case "incoming" -> printIncomingRequests();     //列出当前待处理的文件接收请求
                 case "accept" -> acceptIncomingRequest(args);   //接收指定的incoming transfer任务， accept <transferId>
                 case "reject" -> rejectIncomingRequest(args);   //拒绝指定的incoming transfer任务， reject <transferId>
@@ -344,6 +353,9 @@ public class ConsoleCommandRunner
                 case "language" -> changeLanguage(reader);
                 case "status" -> printDirectStatus();
                 case "handshake" -> directHandshake(reader);
+                case "message-send" -> sendDirectMessage(reader, args);
+                case "messages" -> printMessageSummaries();
+                case "message" -> printDirectConversation(args);
                 case "port-mode" -> directPortMode(args);
                 case "qr-clean" -> System.out.println(messages.format(ConsoleMessages.Key.EXPIRED_QR_GROUPS_REMOVED, directHandshakeService.cleanupExpiredQr()));
                 case "incoming" -> printIncomingRequests();
@@ -614,6 +626,9 @@ public class ConsoleCommandRunner
         if ("transfer-retransmit-request-received".equals(type)) {
             printRetransmitRequestNotification(payload);
         }
+        if ("incoming-text-message".equals(type)) {
+            printIncomingTextMessageNotification(payload);
+        }
     }
 
     //打印待处理的传输请求的通知
@@ -652,6 +667,18 @@ public class ConsoleCommandRunner
                 values.get("reason"),
                 values.get("transferId"),
                 values.get("transferId")
+        ));
+    }
+
+    private void printIncomingTextMessageNotification(Object payload)
+    {
+        if (!(notificationPayload(payload) instanceof Map<?, ?> values)) {
+            return;
+        }
+        printConsoleNotice(messages.format(
+                ConsoleMessages.Key.INCOMING_TEXT_MESSAGE_NOTIFICATION,
+                values.get("senderAccountId"),
+                values.get("senderAccountId")
         ));
     }
 
@@ -710,6 +737,179 @@ public class ConsoleCommandRunner
         String targetAccountId = localContactBookService.resolveAccountId(args.get(args.size() - 1));
         String taskId = clientTransferService.sendFile(PathInputNormalizer.toPath(filePath), targetAccountId);//处理发送文件的函数，对于文件路径进行规格化操作
         System.out.println(messages.format(ConsoleMessages.Key.SEND_TASK_CREATED, taskId));
+    }
+
+    private void sendRelayMessage(BufferedReader reader, List<String> args) throws IOException
+    {
+        if (!ensureKeyPresent()) {
+            return;
+        }
+        if(args.size() < 2)
+        {
+            System.out.println(messages.usage("message-send <accountId|contact-N>"));
+            return;
+        }
+        String body = promptMessageBody(reader);
+        if(body == null)
+        {
+            return;
+        }
+        TextMessageRecord record = clientMessageService.sendRelay(args.get(1), body);
+        System.out.println(messages.format(ConsoleMessages.Key.MESSAGE_SENT, record.getMessageId()));
+    }
+
+    private void sendDirectMessage(BufferedReader reader, List<String> args) throws IOException
+    {
+        if (!ensureKeyPresent()) {
+            return;
+        }
+        if(args.size() > 1)
+        {
+            System.out.println(messages.usage("message-send"));
+            return;
+        }
+        String body = promptMessageBody(reader);
+        if(body == null)
+        {
+            return;
+        }
+        TextMessageRecord record = clientMessageService.sendDirect(body, clientMessageService.requireSingleActiveDirectSession());
+        System.out.println(messages.format(ConsoleMessages.Key.MESSAGE_SENT, record.getMessageId()));
+    }
+
+    private String promptMessageBody(BufferedReader reader) throws IOException
+    {
+        List<String> lines = new ArrayList<>();
+        while(isApplicationActive())
+        {
+            System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_EDIT_HINT));
+            if(!lines.isEmpty())
+            {
+                System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_CURRENT_DRAFT));
+                System.out.println(String.join(System.lineSeparator(), lines));
+            }
+            while(isApplicationActive())
+            {
+                System.out.print("message> ");
+                String line = reader.readLine();
+                if(line == null)
+                {
+                    handleConsoleInputClosed();
+                    return null;
+                }
+                if(":q".equals(line))
+                {
+                    break;
+                }
+                lines.add(line);
+            }
+            String body = String.join(System.lineSeparator(), lines);
+            if(body.trim().isEmpty())
+            {
+                System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_EMPTY));
+                continue;
+            }
+            if(body.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > ClientMessageService.MAX_MESSAGE_BYTES)
+            {
+                System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_TOO_LARGE));
+                continue;
+            }
+            System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_PREVIEW));
+            System.out.println(body);
+            System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_REVIEW_HINT));
+            System.out.print("message-review> ");
+            String action = reader.readLine();
+            if(action == null)
+            {
+                handleConsoleInputClosed();
+                return null;
+            }
+            if(action.isBlank())
+            {
+                return body;
+            }
+            if("i".equalsIgnoreCase(action.trim()))
+            {
+                continue;
+            }
+            if("q".equalsIgnoreCase(action.trim()))
+            {
+                System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_CANCELED));
+                return null;
+            }
+            System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_REVIEW_INVALID));
+        }
+        return null;
+    }
+
+    private void printMessageSummaries()
+    {
+        List<ConversationSummary> summaries = clientMessageService.summaries();
+        if(summaries.isEmpty())
+        {
+            System.out.println(messages.text(ConsoleMessages.Key.NO_MESSAGES));
+            return;
+        }
+        System.out.println(messages.tableHeader("accountId", "alias", "unread", "lastMessageTime", "direction", "status", "mode"));
+        for(ConversationSummary summary : summaries)
+        {
+            System.out.printf(
+                    "%s | %s | %d | %s | %s | %s | %s%n",
+                    summary.peerAccountId(),
+                    displayNullable(summary.alias()),
+                    summary.unreadCount(),
+                    summary.lastMessageTime(),
+                    summary.lastDirection(),
+                    summary.lastStatus(),
+                    summary.lastMode()
+            );
+        }
+    }
+
+    private void printRelayConversation(List<String> args)
+    {
+        if(args.size() < 2)
+        {
+            System.out.println(messages.usage("message <accountId|contact-N>"));
+            return;
+        }
+        printConversation(clientMessageService.conversation(args.get(1), true));
+    }
+
+    private void printDirectConversation(List<String> args)
+    {
+        if(args.size() < 2)
+        {
+            printConversation(clientMessageService.directActiveConversation(true));
+            return;
+        }
+        printConversation(clientMessageService.conversation(args.get(1), true));
+    }
+
+    private void printConversation(List<TextMessageRecord> records)
+    {
+        if(records.isEmpty())
+        {
+            System.out.println(messages.text(ConsoleMessages.Key.NO_MESSAGES));
+            return;
+        }
+        for(TextMessageRecord record : records)
+        {
+            String direction = record.getDirection() == com.client.message.MessageDirection.OUTGOING ? "me -> peer" : "peer -> me";
+            System.out.printf(
+                    "%s | %s | %s%s%n",
+                    direction,
+                    record.getCreatedAt(),
+                    record.getStatus(),
+                    record.getReadAt() == null ? "" : " | readAt=" + record.getReadAt()
+            );
+            if(record.getErrorMessage() != null)
+            {
+                System.out.println("error=" + record.getErrorMessage());
+            }
+            System.out.println(record.getBody());
+            System.out.println();
+        }
     }
 
     private void printTasks()//任务查询命令，打印所有任务

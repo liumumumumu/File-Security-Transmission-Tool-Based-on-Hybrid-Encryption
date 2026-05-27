@@ -7,8 +7,12 @@ import com.common.protocol.auth.ChallengePacket;
 import com.common.protocol.file.*;
 import com.common.protocol.heartbeat.PingPacket;
 import com.common.protocol.heartbeat.PongPacket;
+import com.common.protocol.message.TextMessageAckPacket;
+import com.common.protocol.message.TextMessagePacket;
+import com.common.protocol.message.TextMessageReadReceiptPacket;
 import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
 import com.client.service.ClientTransferService;
+import com.client.message.ClientMessageService;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -29,11 +33,15 @@ public class ClientPacketHandler extends SimpleChannelInboundHandler<Packet>
 {
     private final ClientConnectionManager clientConnectionManager;
     private final ClientTransferService clientTransferService;
+    private final ClientMessageService clientMessageService;
 
-    public ClientPacketHandler(@Lazy ClientConnectionManager clientConnectionManager, @Lazy ClientTransferService clientTransferService)//延迟加载注解，不要在容器启动时立刻创建这个依赖对象，而是在真正用到它的时候再创建。
+    public ClientPacketHandler(@Lazy ClientConnectionManager clientConnectionManager,
+                               @Lazy ClientTransferService clientTransferService,
+                               @Lazy ClientMessageService clientMessageService)//延迟加载注解，不要在容器启动时立刻创建这个依赖对象，而是在真正用到它的时候再创建。
     {
         this.clientConnectionManager = clientConnectionManager;
         this.clientTransferService = clientTransferService;
+        this.clientMessageService = clientMessageService;
     }
 
     @Override
@@ -82,6 +90,21 @@ public class ClientPacketHandler extends SimpleChannelInboundHandler<Packet>
         if(msg instanceof OnlineUserSearchResultPacket onlineUserSearchResultPacket)
         {
             clientTransferService.handleOnlineUserSearchResult(onlineUserSearchResultPacket);
+            return;
+        }
+        if(msg instanceof TextMessagePacket textMessagePacket)
+        {
+            clientMessageService.handleIncomingRelay(textMessagePacket);
+            return;
+        }
+        if(msg instanceof TextMessageAckPacket textMessageAckPacket)
+        {
+            clientMessageService.handleAck(textMessageAckPacket);
+            return;
+        }
+        if(msg instanceof TextMessageReadReceiptPacket readReceiptPacket)
+        {
+            clientMessageService.handleReadReceipt(readReceiptPacket);
             return;
         }
         if(msg instanceof FileBlockPacket fileBlockPacket)

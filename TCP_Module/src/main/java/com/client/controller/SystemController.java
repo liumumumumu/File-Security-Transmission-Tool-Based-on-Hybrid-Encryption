@@ -4,6 +4,8 @@ import com.client.ApplicationShutdownService;
 import com.client.ClientConnectionManager;
 import com.client.ClientStartupCoordinator;
 import com.client.controller.dto.ConnectRequest;
+import com.client.language.LanguageSettingsService;
+import com.client.language.UiLanguage;
 import com.common.config.ClientProperties;
 import com.common.config.CryptoServiceProperties;
 import com.common.config.NodeProperties;
@@ -37,6 +39,7 @@ public class SystemController
     private final ClientConnectionManager clientConnectionManager;
     private final ApplicationShutdownService applicationShutdownService;
     private final PrivateKeyArtifactService privateKeyArtifactService;
+    private final LanguageSettingsService languageSettingsService;
 
     public SystemController(
             ClientProperties clientProperties,
@@ -49,7 +52,8 @@ public class SystemController
             LocalTransferHistoryService localTransferHistoryService,
             ClientConnectionManager clientConnectionManager,
             ApplicationShutdownService applicationShutdownService,
-            PrivateKeyArtifactService privateKeyArtifactService
+            PrivateKeyArtifactService privateKeyArtifactService,
+            LanguageSettingsService languageSettingsService
     )
     {
         this.clientProperties = clientProperties;
@@ -63,6 +67,7 @@ public class SystemController
         this.clientConnectionManager = clientConnectionManager;
         this.applicationShutdownService = applicationShutdownService;
         this.privateKeyArtifactService = privateKeyArtifactService;
+        this.languageSettingsService = languageSettingsService;
     }
 
     @GetMapping("/status")
@@ -154,6 +159,40 @@ public class SystemController
                 "fingerprint", accountId,
                 "accountId", accountId
         ));
+    }
+
+    @GetMapping("/language")
+    public ResponseEntity<Map<String, Object>> language()
+    {
+        UiLanguage language = languageSettingsService.current();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("language", language.name());
+        payload.put("value", language.name().toLowerCase());
+        payload.put("settingsPath", languageSettingsService.settingsPath().toString());
+        return ResponseEntity.ok(payload);
+    }
+
+    @PostMapping("/language")
+    public ResponseEntity<Map<String, Object>> updateLanguage(@RequestBody Map<String, String> request)
+    {
+        String value = request == null ? null : request.get("language");
+        UiLanguage language = UiLanguage.fromUserSelection(value);
+        if(language == null)
+        {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("success", false);
+            error.put("message", "language must be one of: english, en, 1, chinese, zh, cn, 2");
+            return ResponseEntity.badRequest().body(error);
+        }
+
+        languageSettingsService.save(language);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("success", true);
+        payload.put("language", language.name());
+        payload.put("value", language.name().toLowerCase());
+        payload.put("settingsPath", languageSettingsService.settingsPath().toString());
+        payload.put("message", "Language updated");
+        return ResponseEntity.ok(payload);
     }
 
     @PostMapping("/key/import-private-file")
@@ -300,6 +339,8 @@ public class SystemController
         system.put("POST /api/system/key/fingerprint", "Calculate fingerprint for a public key, or local public key when body is empty");
         system.put("GET /api/system/account-id", "Show local accountId");
         system.put("POST /api/system/account-id", "Calculate accountId for a public key, or local public key when body is empty");
+        system.put("GET /api/system/language", "Show current console language setting");
+        system.put("POST /api/system/language", "Update console language setting (body: {language})");
         system.put("POST /api/system/connect", "Connect to server (optional body: {host, port})");
         system.put("POST /api/system/disconnect", "Disconnect from server");
         system.put("POST /api/system/shutdown", "Request client application shutdown");
@@ -321,6 +362,11 @@ public class SystemController
                 "GET /api/send/tasks/{taskIdOrTransferId}", "Get a specific task details",
                 "POST /api/send/tasks/{taskIdOrTransferId}/cancel", "Cancel an active transfer task",
                 "GET /api/send/tasks/{taskIdOrTransferId}/events", "Watch a task progress stream with Server-Sent Events"
+        ));
+        payload.put("messages", Map.of(
+                "POST /api/messages/send", "Send an encrypted relay text message (body: {targetAccountId, text})",
+                "GET /api/messages", "List in-memory message conversation summaries",
+                "GET /api/messages/{accountId}", "Show one in-memory conversation and mark displayed incoming messages as read"
         ));
         payload.put("receive", Map.of(
                 "GET /incoming", "List incoming transfer requests",

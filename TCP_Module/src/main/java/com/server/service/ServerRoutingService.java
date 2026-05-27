@@ -10,6 +10,9 @@ import com.common.protocol.auth.ChallengePacket;
 import com.common.protocol.file.*;
 import com.common.protocol.heartbeat.PingPacket;
 import com.common.protocol.heartbeat.PongPacket;
+import com.common.protocol.message.TextMessageAckPacket;
+import com.common.protocol.message.TextMessagePacket;
+import com.common.protocol.message.TextMessageReadReceiptPacket;
 import com.common.protocol.searchUser.OnlineUserSearchRequestPacket;
 import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
 import com.common.service.PushNotificationService;
@@ -26,6 +29,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.GeneralSecurityException;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +67,8 @@ public class ServerRoutingService
     private final Map<Channel, String> deviceIdByChannel=new ConcurrentHashMap<>();//根据当前TCP连接反查这个连接属于那个设备
     private final Map<String, Set<String>> deviceIdsByAccountId=new ConcurrentHashMap<>();
     private final Map<String, PendingTransferRequest> pendingTransferRequests = new ConcurrentHashMap<>();
+    private final Map<String, PendingRelayTextMessage> pendingRelayTextMessages = new ConcurrentHashMap<>();
+    private final Map<String, RelayTextMessageRoute> relayTextMessageRoutes = new ConcurrentHashMap<>();
     private final Set<String> forwardedCancelTransferIds = ConcurrentHashMap.newKeySet();
     private final Set<String> forwardedCancelAckTransferIds = ConcurrentHashMap.newKeySet();
 
@@ -124,6 +130,21 @@ public class ServerRoutingService
             }
             if (packet instanceof ReceiverDeviceSelectionPacket receiverDeviceSelectionPacket) {
                 handleReceiverDeviceSelection(ctx.channel(), deviceId, receiverDeviceSelectionPacket);
+                return;
+            }
+            if(packet instanceof TextMessagePacket textMessagePacket)
+            {
+                handleTextMessage(ctx.channel(), deviceId, textMessagePacket);
+                return;
+            }
+            if(packet instanceof TextMessageAckPacket textMessageAckPacket)
+            {
+                handleTextMessageAck(deviceId, textMessageAckPacket);
+                return;
+            }
+            if(packet instanceof TextMessageReadReceiptPacket readReceiptPacket)
+            {
+                handleTextMessageReadReceipt(readReceiptPacket);
                 return;
             }
             if(packet instanceof OnlineUserSearchRequestPacket onlineUserSearchRequestPacket)
@@ -530,6 +551,132 @@ public class ServerRoutingService
                         "onlineDeviceCount", onlineSessions.size()
                 )
         );
+    }
+
+    private void handleTextMessage(Channel senderChannel, String senderDeviceId, TextMessagePacket packet)
+    {
+        cleanupExpiredRelayTextMessageRoutes();
+        ServerClientSession sender = sessionsByDeviceId.get(senderDeviceId);
+        if(sender == null)
+        {
+            return;
+        }
+        Set<String> receiverDeviceIds = deviceIdsByAccountId.get(packet.getReceiverAccountId());
+        if(receiverDeviceIds == null || receiverDeviceIds.isEmpty())
+        {
+            senderChannel.writeAndFlush(new TextMessageAckPacket(
+                    packet.getMessageId(),
+                    false,
+                    "Target account has no online devices",
+                    packet.getSenderAccountId(),
+                    packet.getReceiverAccountId(),
+                    "",
+                    Instant.now().toString()
+            ));
+            return;
+        }
+
+        List<ServerClientSession> receivers = new ArrayList<>();
+        for(String receiverDeviceId : receiverDeviceIds)
+        {
+            ServerClientSession receiver = sessionsByDeviceId.get(receiverDeviceId);
+            if(receiver != null)
+            {
+                receivers.add(receiver);
+            }
+        }
+
+        if(receivers.isEmpty())
+        {
+            senderChannel.writeAndFlush(new TextMessageAckPacket(
+                    packet.getMessageId(),
+                    false,
+                    "Target account has no active sessions",
+                    packet.getSenderAccountId(),
+                    packet.getReceiverAccountId(),
+                    "",
+                    Instant.now().toString()
+            ));
+            return;
+        }
+
+        pendingRelayTextMessages.put(packet.getMessageId(), new PendingRelayTextMessage(
+                packet.getMessageId(),
+                senderDeviceId,
+                senderChannel,
+                packet.getSenderAccountId(),
+                packet.getReceiverAccountId(),
+                receivers.size()
+        ));
+        relayTextMessageRoutes.put(packet.getMessageId(), new RelayTextMessageRoute(
+                packet.getMessageId(),
+                senderDeviceId,
+                Instant.now().plus(Duration.ofHours(12))
+        ));
+        for(ServerClientSession receiver : receivers)
+        {
+            receiver.getChannel().writeAndFlush(packet);
+        }
+    }
+
+    private void handleTextMessageAck(String receiverDeviceId, TextMessageAckPacket packet)
+    {
+        PendingRelayTextMessage pending = pendingRelayTextMessages.get(packet.getMessageId());
+        if(pending == null || pending.completed())
+        {
+            return;
+        }
+        if(packet.isSuccess())
+        {
+            pending.complete();
+            pending.senderChannel().writeAndFlush(new TextMessageAckPacket(
+                    packet.getMessageId(),
+                    true,
+                    "Message delivered",
+                    pending.senderAccountId(),
+                    pending.receiverAccountId(),
+                    receiverDeviceId,
+                    Instant.now().toString()
+            ));
+            pendingRelayTextMessages.remove(packet.getMessageId());
+            return;
+        }
+        if(pending.recordFailure() <= 0)
+        {
+            pending.complete();
+            pending.senderChannel().writeAndFlush(new TextMessageAckPacket(
+                    packet.getMessageId(),
+                    false,
+                    packet.getMessage(),
+                    pending.senderAccountId(),
+                    pending.receiverAccountId(),
+                    receiverDeviceId,
+                    Instant.now().toString()
+            ));
+            pendingRelayTextMessages.remove(packet.getMessageId());
+        }
+    }
+
+    private void handleTextMessageReadReceipt(TextMessageReadReceiptPacket packet)
+    {
+        cleanupExpiredRelayTextMessageRoutes();
+        RelayTextMessageRoute route = relayTextMessageRoutes.get(packet.getMessageId());
+        if(route == null)
+        {
+            return;
+        }
+        ServerClientSession sender = sessionsByDeviceId.get(route.senderDeviceId());
+        if(sender == null)
+        {
+            return;
+        }
+        sender.getChannel().writeAndFlush(packet);
+    }
+
+    private void cleanupExpiredRelayTextMessageRoutes()
+    {
+        Instant now = Instant.now();
+        relayTextMessageRoutes.entrySet().removeIf(entry -> !entry.getValue().expiresAt().isAfter(now));
     }
 
     private void handleReceiverDeviceSelection(Channel channel, String receiverDeviceId, ReceiverDeviceSelectionPacket packet)
@@ -1066,6 +1213,57 @@ public class ServerRoutingService
                 ));
             }
         }
+    }
+
+    private static final class PendingRelayTextMessage
+    {
+        private final String messageId;
+        private final String senderDeviceId;
+        private final Channel senderChannel;
+        private final String senderAccountId;
+        private final String receiverAccountId;
+        private int remainingDevices;
+        private boolean completed;
+
+        private PendingRelayTextMessage(String messageId,
+                                        String senderDeviceId,
+                                        Channel senderChannel,
+                                        String senderAccountId,
+                                        String receiverAccountId,
+                                        int remainingDevices)
+        {
+            this.messageId = messageId;
+            this.senderDeviceId = senderDeviceId;
+            this.senderChannel = senderChannel;
+            this.senderAccountId = senderAccountId;
+            this.receiverAccountId = receiverAccountId;
+            this.remainingDevices = remainingDevices;
+        }
+
+        synchronized int recordFailure()
+        {
+            remainingDevices--;
+            return remainingDevices;
+        }
+
+        synchronized void complete()
+        {
+            completed = true;
+        }
+
+        synchronized boolean completed()
+        {
+            return completed;
+        }
+
+        Channel senderChannel() { return senderChannel; }
+        String senderAccountId() { return senderAccountId; }
+        String receiverAccountId() { return receiverAccountId; }
+    }
+
+    private record RelayTextMessageRoute(String messageId,
+                                         String senderDeviceId,
+                                         Instant expiresAt) {
     }
 }
 
