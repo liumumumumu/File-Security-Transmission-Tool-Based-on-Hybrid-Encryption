@@ -3,15 +3,22 @@ package com.common.protocol.message;
 import com.common.protocol.MessageType;
 import com.common.protocol.Packet;
 
+/**
+ * Author: LQH
+ * Date: 2026-05-27
+ * Purpose: 短信发送模式下的确认数据包
+ *
+ * */
+
 public class TextMessageAckPacket extends Packet
 {
-    private final String messageId;
-    private final boolean success;
+    private final String messageId;//消息ID用来标识每一条消息
+    private final boolean success;//消息是否发送成功
     private final String message;
-    private final String senderAccountId;
-    private final String receiverAccountId;
-    private final String ackDeviceId;
-    private final String ackAt;
+    private final String senderAccountId;//发送方公钥指纹
+    private final String receiverAccountId;//接收方公钥指纹
+    private final String ackDeviceId;//确认接收的设备
+    private final String ackAt;//确认于
 
     public TextMessageAckPacket(String messageId,
                                 boolean success,

@@ -27,17 +27,35 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Author: LQH
+ * Date: 2026-05-27
+ * Purpose: 短信功能的核心业务服务。负责将发消息，收消息，已读回执连接起来。
+ * 1.发送中继消息
+ * 2.发送直连消息
+ * 3.检验消息(非空，单条16Kb的长度限制，黑名单)
+ * 4.生成messageId
+ * 5.使用文件传输的同款加密方式,AES-GCM加密正文，RSA加密AES密钥
+ * 6.等待ACK result，更新SENDING/ SENT/ FAILED
+ * 7.接收消息后解密，写入内存历史，回复ACK
+ * 8.处理重复的messageId
+ * 9.处理已读回执，将自己发出的消息更新为READ
+ * 10.用户查看完整对话后，将收到的未读消息标记为READ，并发送read receipt
+ * 11.为直连模式查找active peer会话
+ *
+ * */
+
 @Service
 public class ClientMessageService
 {
     public static final int MAX_MESSAGE_BYTES = 16 * 1024;
 
-    private final ClientConnectionManager clientConnectionManager;
+    private final ClientConnectionManager clientConnectionManager;//负责在Relay模式下的连接，认证和发送包
     private final CryptoSupport cryptoSupport;
     private final LocalContactBookService localContactBookService;
     private final MessageHistoryService messageHistoryService;
     private final PushNotificationService pushNotificationService;
-    private final DirectPeerConnectionManager directPeerConnectionManager;
+    private final DirectPeerConnectionManager directPeerConnectionManager;//负责Direct模式下的会话管理
     private final ClientTransferService clientTransferService;
     private final com.common.config.ClientProperties clientProperties;
     private final com.common.config.NodeProperties nodeProperties;
@@ -64,6 +82,7 @@ public class ClientMessageService
         this.nodeProperties = nodeProperties;
     }
 
+    //Relay模式下的发送消息处理函数
     public TextMessageRecord sendRelay(String targetToken, String text)
     {
         validateText(text);
@@ -79,6 +98,7 @@ public class ClientMessageService
         return sendWithAck(target.accountId(), target.publicKey(), text, TransportMode.SERVER_RELAY, clientConnectionManager::send);
     }
 
+    //Direct模式下发送消息的处理函数
     public TextMessageRecord sendDirect(String text, DirectPeerConnectionManager.DirectPeerSession session)
     {
         validateText(text);

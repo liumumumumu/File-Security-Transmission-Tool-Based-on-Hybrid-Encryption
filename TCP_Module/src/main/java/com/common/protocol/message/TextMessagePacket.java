@@ -3,6 +3,13 @@ package com.common.protocol.message;
 import com.common.protocol.MessageType;
 import com.common.protocol.Packet;
 
+/**
+ * Author: LQH
+ * Date: 2026-05-27
+ * Purpose: 短信发送模式下的短信正文数据包
+ *
+ * */
+
 public class TextMessagePacket extends Packet
 {
     private final String messageId;
@@ -12,6 +19,8 @@ public class TextMessagePacket extends Packet
     private final String receiverPublicKey;
     private final String createdAt;
     private final String encryptedSessionKey;
+
+    //短信正文的密文
     private final byte[] nonce;
     private final byte[] ciphertext;
     private final byte[] tag;

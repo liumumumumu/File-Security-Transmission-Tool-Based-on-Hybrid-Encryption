@@ -3,6 +3,13 @@ package com.common.protocol.message;
 import com.common.protocol.MessageType;
 import com.common.protocol.Packet;
 
+/**
+ * Author: LQH
+ * Date: 2026-05-27
+ * Purpose: 短信发送模式下的短信回执数据包
+ *
+ * */
+
 public class TextMessageReadReceiptPacket extends Packet
 {
     private final String messageId;

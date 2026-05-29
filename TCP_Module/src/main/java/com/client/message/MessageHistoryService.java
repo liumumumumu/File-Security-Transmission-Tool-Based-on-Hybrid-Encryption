@@ -11,6 +11,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Author: LQH
+ * Date: 2026-05-27
+ * Purpose: 将短信消息存储在内存里，如果用户退出了程序，短信记录随之消失
+ * 1.把消息记录保存在内存里
+ * 2.按messageId去重，避免重复消息写入两次
+ * 3.查询某个账号的完整对话
+ * 4.生成messsages命令需要的会话摘要
+ * 5.标记某个会话的收到消息为READ
+ * 6.更新自己发出的消息状态: SENT, FAILED, READ
+ * 7.控制最多5000条消息，超过了就删除最久的消息
+ *
+ * */
+
 @Service
 public class MessageHistoryService
 {

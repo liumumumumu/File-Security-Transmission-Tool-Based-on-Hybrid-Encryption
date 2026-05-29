@@ -76,4 +76,29 @@ public class SystemControllerTest
         assertEquals(true, updateResponse.getBody().get("success"));
         assertEquals(UiLanguage.CHINESE.name(), readResponse.getBody().get("language"));
     }
+
+    @Test
+    public void autoConnectSettingsRejectsMissingEnabled()
+    {
+        SystemController controller = new SystemController(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        ResponseEntity<Map<String, Object>> response = controller.saveAutoConnectSettings(Map.of());
+
+        assertEquals(400, response.getStatusCode().value());
+        assertEquals(false, response.getBody().get("success"));
+        assertEquals("enabled is required", response.getBody().get("message"));
+    }
 }

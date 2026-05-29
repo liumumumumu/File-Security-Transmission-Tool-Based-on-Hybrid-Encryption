@@ -225,6 +225,39 @@ public class SystemController
         return ResponseEntity.ok(clientStartupCoordinator.startupStatus());
     }
 
+    @GetMapping("/auto-connect/status")
+    public ResponseEntity<Map<String, Object>> autoConnectStatus()
+    {
+        return ResponseEntity.ok(clientStartupCoordinator.autoConnectStatus());
+    }
+
+    @PostMapping("/auto-connect")
+    public ResponseEntity<Map<String, Object>> autoConnect()
+    {
+        return ResponseEntity.ok(clientStartupCoordinator.triggerAutoConnect());
+    }
+
+    @PostMapping("/auto-connect/settings")
+    public ResponseEntity<Map<String, Object>> saveAutoConnectSettings(@RequestBody Map<String, Object> request)
+    {
+        if(request == null || !request.containsKey("enabled"))
+        {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("success", false);
+            error.put("message", "enabled is required");
+            return ResponseEntity.badRequest().body(error);
+        }
+        Object enabled = request.get("enabled");
+        if(!(enabled instanceof Boolean))
+        {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("success", false);
+            error.put("message", "enabled must be a boolean");
+            return ResponseEntity.badRequest().body(error);
+        }
+        return ResponseEntity.ok(clientStartupCoordinator.saveAutoConnectSettings((Boolean) enabled));
+    }
+
     @PostMapping("/startup/key/generate")
     public ResponseEntity<Map<String, Object>> startupGenerateKey()
     {
@@ -348,6 +381,9 @@ public class SystemController
         system.put("GET /api/system/user-status", "Show current user connection status");
         system.put("GET /api/system/public-key", "Show local public key");
         system.put("GET /api/system/startup-status", "Show startup key setup and auto-connect gate status");
+        system.put("GET /api/system/auto-connect/status", "Show auto-connect configuration and current gate status");
+        system.put("POST /api/system/auto-connect", "Trigger configured auto-connect now");
+        system.put("POST /api/system/auto-connect/settings", "Save auto-connect setting (body: {enabled})");
         system.put("POST /api/system/startup/key/generate", "Generate key for startup flow and continue auto-connect if blocked");
         system.put("POST /api/system/startup/key/skip", "Mark startup key setup as skipped");
         system.put("POST /api/system/startup/key/import-private", "Import private key for startup flow from raw text, file, or PNG QR");
@@ -367,6 +403,10 @@ public class SystemController
                 "POST /api/messages/send", "Send an encrypted relay text message (body: {targetAccountId, text})",
                 "GET /api/messages", "List in-memory message conversation summaries",
                 "GET /api/messages/{accountId}", "Show one in-memory conversation and mark displayed incoming messages as read"
+        ));
+        payload.put("notifications", Map.of(
+                "GET /api/events", "Subscribe to local notification events with Server-Sent Events",
+                "GET /api/notifications/events", "Alias of GET /api/events"
         ));
         payload.put("receive", Map.of(
                 "GET /incoming", "List incoming transfer requests",
