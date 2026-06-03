@@ -200,6 +200,11 @@ public class ClientConnectionManager
         return status == ClientConnectionStatus.AUTHENTICATED && channel!=null && channel.isActive();
     }
 
+    public boolean isConnected()
+    {
+        return channel != null && channel.isActive();
+    }
+
     //返回客户端当前连接状态信息
     public Map<String, Object> currentStatus()
     {
@@ -210,6 +215,8 @@ public class ClientConnectionManager
                     "deviceId", nodeProperties.getDeviceId(),
                     "accountId", accountId,
                     "status", status.name(),
+                    "connected", isConnected(),
+                    "authenticated", isAuthenticated(),
                     "connectedHost", connectedHost == null ? "" : connectedHost,
                     "connectedPort", connectedPort
             );

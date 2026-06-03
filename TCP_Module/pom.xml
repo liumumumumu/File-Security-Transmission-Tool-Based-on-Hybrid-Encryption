@@ -95,9 +95,21 @@
         </dependency>
 
         <dependency>
+<<<<<<< HEAD
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+            <version>3.5.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>javase</artifactId>
+            <version>3.5.3</version>
+=======
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+>>>>>>> origin/main
         </dependency>
 
         <dependency>
@@ -106,6 +118,8 @@
             <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
+<<<<<<< HEAD
+=======
 
         <dependency>
             <groupId>org.junit.vintage</groupId>
@@ -114,6 +128,7 @@
             <scope>test</scope>
         </dependency>
 
+>>>>>>> origin/main
 
     </dependencies>
 

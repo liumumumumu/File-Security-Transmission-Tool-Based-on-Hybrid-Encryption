@@ -5,6 +5,8 @@ public class ImportPrivateKeyRequest
     private String privateKey;
     private String privateKeyPath;
 
+    public ImportPrivateKeyRequest() {}
+
     public ImportPrivateKeyRequest(String privateKey, String privateKeyPath) {
         this.privateKey = privateKey;
         this.privateKeyPath = privateKeyPath;

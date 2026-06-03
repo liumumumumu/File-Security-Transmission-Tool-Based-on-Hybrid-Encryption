@@ -13,6 +13,9 @@ import com.common.codec.encoder.direct.DirectSessionProofEncoder;
 import com.common.codec.encoder.file.*;
 import com.common.codec.encoder.heartbeat.PingEncoder;
 import com.common.codec.encoder.heartbeat.PongEncoder;
+import com.common.codec.encoder.message.TextMessageAckEncoder;
+import com.common.codec.encoder.message.TextMessageEncoder;
+import com.common.codec.encoder.message.TextMessageReadReceiptEncoder;
 import com.common.codec.encoder.searchUser.OnlineUserSearchRequestEncoder;
 import com.common.codec.encoder.searchUser.OnlineUserSearchResultEncoder;
 import com.common.protocol.Packet;
@@ -27,6 +30,9 @@ import com.common.protocol.direct.DirectSessionProofPacket;
 import com.common.protocol.file.*;
 import com.common.protocol.heartbeat.PingPacket;
 import com.common.protocol.heartbeat.PongPacket;
+import com.common.protocol.message.TextMessageAckPacket;
+import com.common.protocol.message.TextMessagePacket;
+import com.common.protocol.message.TextMessageReadReceiptPacket;
 import com.common.protocol.searchUser.OnlineUserSearchRequestPacket;
 import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
 import io.netty.channel.ChannelHandlerContext;
@@ -128,6 +134,18 @@ public class PacketByteBufEncoder extends MessageToMessageEncoder<Packet>
         if (packet instanceof DirectSessionAcceptedPacket) {
             return new DirectSessionAcceptedEncoder();
         }
+<<<<<<< HEAD
+        if (packet instanceof TextMessagePacket) {
+            return new TextMessageEncoder();
+        }
+        if (packet instanceof TextMessageAckPacket) {
+            return new TextMessageAckEncoder();
+        }
+        if (packet instanceof TextMessageReadReceiptPacket) {
+            return new TextMessageReadReceiptEncoder();
+        }
+=======
+>>>>>>> origin/main
         //心跳
         else if(packet instanceof PingPacket)
         {

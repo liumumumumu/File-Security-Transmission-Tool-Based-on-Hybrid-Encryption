@@ -44,6 +44,7 @@ public class ClientStartupCoordinator
     private boolean initialized;//标识启动状态是否已经刷新过
     private boolean autoConnectBlocked;//标识自动连接是否被暂停
     private String autoConnectBlockReason = "";//自动连接被停止的原因
+    private boolean currentAutoConnectEnabled;
     private boolean lastKeyMissing = true;//标识最近一次检查得到的密钥状态
     private Map<String, Object> lastKeyStatus = Map.of();//缓存cryptoSupport返回的完整密钥状态
 
@@ -79,6 +80,52 @@ public class ClientStartupCoordinator
     public synchronized Map<String, Object> startupStatus()
     {
         return refreshStartupStatus();
+    }
+
+    public synchronized Map<String, Object> autoConnectStatus()
+    {
+        Map<String, Object> startupStatus = refreshStartupStatus();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("enabled", currentAutoConnectEnabled);
+        payload.put("autoConnectConfigured", currentAutoConnectEnabled);
+        payload.put("defaultAutoConnectConfigured", nodeProperties.isAutoConnect());
+        payload.put("autoConnectBlocked", autoConnectBlocked);
+        payload.put("autoConnectBlockReason", autoConnectBlockReason);
+        payload.put("defaultHost", clientProperties.getServerHost());
+        payload.put("defaultPort", clientProperties.getServerPort());
+        payload.put("connected", clientConnectionManager.isConnected());
+        payload.put("authenticated", clientConnectionManager.isAuthenticated());
+        payload.put("startupStatus", startupStatus);
+        return payload;
+    }
+
+    public synchronized Map<String, Object> saveAutoConnectSettings(boolean enabled)
+    {
+        StartupState state = readStartupState();
+        state.autoConnectEnabled = enabled;
+        writeStartupState(state);
+        return autoConnectStatus();
+    }
+
+    public synchronized Map<String, Object> triggerAutoConnect()
+    {
+        Map<String, Object> startupStatus = refreshStartupStatus();
+        if(!currentAutoConnectEnabled)
+        {
+            return autoConnectResult(false, "Auto-connect is disabled by configuration", startupStatus);
+        }
+        if(lastKeyMissing)
+        {
+            return autoConnectResult(false, "Auto-connect is blocked because private key is missing", startupStatus);
+        }
+        if(clientConnectionManager.isAuthenticated())
+        {
+            return autoConnectResult(true, "Already connected and authenticated", startupStatus);
+        }
+        continueAutoConnect();
+        return autoConnectResult(clientConnectionManager.isAuthenticated(),
+                clientConnectionManager.isAuthenticated() ? "Connected and authenticated" : "Auto-connect attempted but authentication is not active",
+                refreshStartupStatus());
     }
 
     //用于启动阶段生成密钥，并尝试继续自动连接
@@ -140,9 +187,14 @@ public class ClientStartupCoordinator
         }
 
         //处理自动连接阻塞
-        if (lastKeyMissing && nodeProperties.isAutoConnect()) {
+        currentAutoConnectEnabled = effectiveAutoConnect(state);
+
+        if (lastKeyMissing && currentAutoConnectEnabled) {
             autoConnectBlocked = true;
             autoConnectBlockReason = BLOCK_REASON_KEY_MISSING;
+        } else if (!currentAutoConnectEnabled && BLOCK_REASON_KEY_MISSING.equals(autoConnectBlockReason)) {
+            autoConnectBlocked = false;
+            autoConnectBlockReason = "";
         } else if (!lastKeyMissing && BLOCK_REASON_KEY_MISSING.equals(autoConnectBlockReason)) {
             autoConnectBlocked = false;
             autoConnectBlockReason = "";
@@ -156,7 +208,7 @@ public class ClientStartupCoordinator
     private boolean shouldAutoConnectNow()
     {
         return initialized  //完成初始化
-                && nodeProperties.isAutoConnect()//设置里面开启自动连接
+                && currentAutoConnectEnabled
                 && !lastKeyMissing//不缺密钥
                 && !clientConnectionManager.isAuthenticated();//当前还没有完成认证
     }
@@ -174,7 +226,7 @@ public class ClientStartupCoordinator
     //真正发起自动连接的方法
     private void continueAutoConnect()
     {
-        if (!nodeProperties.isAutoConnect()) {  //没有开启自动连接，就直接返回
+        if (!currentAutoConnectEnabled) {  //没有开启自动连接，就直接返回
             return;
         }
         try {
@@ -198,13 +250,38 @@ public class ClientStartupCoordinator
         payload.put("keyMissing", lastKeyMissing);
         payload.put("keySetupPrompted", state.keySetupPrompted);
         payload.put("shouldPromptKeySetup", lastKeyMissing && !state.keySetupPrompted);
-        payload.put("autoConnectConfigured", nodeProperties.isAutoConnect());
+        payload.put("autoConnectConfigured", currentAutoConnectEnabled);
+        payload.put("autoConnectEnabled", currentAutoConnectEnabled);
+        payload.put("defaultAutoConnectConfigured", nodeProperties.isAutoConnect());
         payload.put("autoConnectBlocked", autoConnectBlocked);
         payload.put("autoConnectBlockReason", autoConnectBlockReason);
         payload.put("recommendedAction", recommendedAction(state));
         payload.put("keyStatus", lastKeyStatus);
         payload.put("startupStatePath", startupStatePath.toString());
         return payload;
+    }
+
+    private Map<String, Object> autoConnectResult(boolean success, String message, Map<String, Object> startupStatus)
+    {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("success", success);
+        payload.put("message", message);
+        payload.put("enabled", currentAutoConnectEnabled);
+        payload.put("autoConnectConfigured", currentAutoConnectEnabled);
+        payload.put("defaultAutoConnectConfigured", nodeProperties.isAutoConnect());
+        payload.put("autoConnectBlocked", autoConnectBlocked);
+        payload.put("autoConnectBlockReason", autoConnectBlockReason);
+        payload.put("defaultHost", clientProperties.getServerHost());
+        payload.put("defaultPort", clientProperties.getServerPort());
+        payload.put("connected", clientConnectionManager.isConnected());
+        payload.put("authenticated", clientConnectionManager.isAuthenticated());
+        payload.put("startupStatus", startupStatus);
+        return payload;
+    }
+
+    private boolean effectiveAutoConnect(StartupState state)
+    {
+        return state.autoConnectEnabled == null ? nodeProperties.isAutoConnect() : state.autoConnectEnabled;
     }
 
     private String recommendedAction(StartupState state)
@@ -268,5 +345,6 @@ public class ClientStartupCoordinator
     private static class StartupState
     {
         private boolean keySetupPrompted;
+        private Boolean autoConnectEnabled;
     }
 }

@@ -1,8 +1,17 @@
 package com.client.controller;
 
 import com.client.ApplicationShutdownService;
+<<<<<<< HEAD
+import com.client.language.LanguageSettingsService;
+import com.client.language.UiLanguage;
+import com.client.service.PrivateKeyArtifactService;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+=======
 import com.client.service.PrivateKeyArtifactService;
 import org.junit.Test;
+>>>>>>> origin/main
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.http.ResponseEntity;
 
@@ -13,6 +22,12 @@ import static org.junit.Assert.assertTrue;
 
 public class SystemControllerTest
 {
+<<<<<<< HEAD
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+=======
+>>>>>>> origin/main
     @Test
     public void shutdownReturnsAcceptedResponse() throws Exception
     {
@@ -30,6 +45,10 @@ public class SystemControllerTest
                 null,
                 null,
                 shutdownService,
+<<<<<<< HEAD
+                null,
+=======
+>>>>>>> origin/main
                 null
         );
 
@@ -39,4 +58,61 @@ public class SystemControllerTest
         assertTrue(Boolean.TRUE.equals(response.getBody().get("accepted")));
         assertEquals("Shutdown requested", response.getBody().get("message"));
     }
+<<<<<<< HEAD
+
+    @Test
+    public void languageEndpointsReadAndUpdateSetting()
+    {
+        LanguageSettingsService languageSettingsService = new LanguageSettingsService(
+                temporaryFolder.getRoot().toPath().resolve("language-settings.json")
+        );
+        SystemController controller = new SystemController(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                languageSettingsService
+        );
+
+        ResponseEntity<Map<String, Object>> updateResponse = controller.updateLanguage(Map.of("language", "zh"));
+        ResponseEntity<Map<String, Object>> readResponse = controller.language();
+
+        assertEquals(200, updateResponse.getStatusCode().value());
+        assertEquals(true, updateResponse.getBody().get("success"));
+        assertEquals(UiLanguage.CHINESE.name(), readResponse.getBody().get("language"));
+    }
+
+    @Test
+    public void autoConnectSettingsRejectsMissingEnabled()
+    {
+        SystemController controller = new SystemController(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        ResponseEntity<Map<String, Object>> response = controller.saveAutoConnectSettings(Map.of());
+
+        assertEquals(400, response.getStatusCode().value());
+        assertEquals(false, response.getBody().get("success"));
+        assertEquals("enabled is required", response.getBody().get("message"));
+    }
+=======
+>>>>>>> origin/main
 }
