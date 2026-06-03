@@ -197,8 +197,8 @@ public class ClientTransferService
         }
 
 
-        String transferId= UUID.randomUUID().toString();
-        String taskId= UUID.randomUUID().toString();
+        String transferId= UUID.randomUUID().toString();//生成随机的传输Id
+        String taskId= UUID.randomUUID().toString();//生成随机的任务Id
 
         try
         {
@@ -1138,6 +1138,7 @@ public class ClientTransferService
         }
     }
 
+    //发送文件块的函数
     private void sendBlocksFrom(TransferTask task, Path filePath, SecretKey secretKey, OutboundTransferContext context, int startBlockId) throws Exception
     {
         try(InputStream inputStream=Files.newInputStream(filePath))

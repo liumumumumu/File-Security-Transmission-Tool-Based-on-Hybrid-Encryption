@@ -1,17 +1,15 @@
 package com.client.controller;
 
 import com.client.ApplicationShutdownService;
-<<<<<<< HEAD
 import com.client.language.LanguageSettingsService;
 import com.client.language.UiLanguage;
 import com.client.service.PrivateKeyArtifactService;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-=======
 import com.client.service.PrivateKeyArtifactService;
 import org.junit.Test;
->>>>>>> origin/main
+
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.http.ResponseEntity;
 
@@ -22,12 +20,7 @@ import static org.junit.Assert.assertTrue;
 
 public class SystemControllerTest
 {
-<<<<<<< HEAD
-    @Rule
-    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-=======
->>>>>>> origin/main
     @Test
     public void shutdownReturnsAcceptedResponse() throws Exception
     {
@@ -45,10 +38,7 @@ public class SystemControllerTest
                 null,
                 null,
                 shutdownService,
-<<<<<<< HEAD
-                null,
-=======
->>>>>>> origin/main
+
                 null
         );
 
@@ -58,7 +48,6 @@ public class SystemControllerTest
         assertTrue(Boolean.TRUE.equals(response.getBody().get("accepted")));
         assertEquals("Shutdown requested", response.getBody().get("message"));
     }
-<<<<<<< HEAD
 
     @Test
     public void languageEndpointsReadAndUpdateSetting()
@@ -113,6 +102,5 @@ public class SystemControllerTest
         assertEquals(false, response.getBody().get("success"));
         assertEquals("enabled is required", response.getBody().get("message"));
     }
-=======
->>>>>>> origin/main
+
 }

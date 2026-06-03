@@ -62,10 +62,8 @@ public class DirectPeerConnectionManager
     private final EventLoopGroup bossGroup = new NioEventLoopGroup(1);//处理接收连接
     private final EventLoopGroup workerGroup = new NioEventLoopGroup();//处理连接读写
     private final Map<Channel, DirectPeerTransport> transportsByChannel = new ConcurrentHashMap<>();//保存已经认证成功的直连通道
-<<<<<<< HEAD
     private final Map<Channel, DirectPeerSession> sessionsByChannel = new ConcurrentHashMap<>();
-=======
->>>>>>> origin/main
+    private final Map<Channel, DirectPeerSession> sessionsByChannel = new ConcurrentHashMap<>();
     private final Map<String, PendingReceiver> pendingReceivers = new ConcurrentHashMap<>();//接收方等待中的邀请
     private final Map<String, PendingSender> pendingSenders = new ConcurrentHashMap<>();//发送方等待中的连接
     private final Map<String, ChallengeState> challenges = new ConcurrentHashMap<>();//接收方发出的挑战
@@ -217,11 +215,7 @@ public class DirectPeerConnectionManager
         }
         //连接通过就生成一个随机Challenge
         String challenge = UUID.randomUUID().toString();
-<<<<<<< HEAD
-        challenges.put(packet.getSessionId(), new ChallengeState(packet.getInviteId(), packet.getSessionId(), packet.getSenderAccountId(), packet.getSenderDeviceId(), packet.getSenderPublicKey(), challenge));//保存challenge状态
-=======
         challenges.put(packet.getSessionId(), new ChallengeState(packet.getInviteId(), packet.getSessionId(), packet.getSenderDeviceId(), packet.getSenderPublicKey(), challenge));//保存challenge状态
->>>>>>> origin/main
         channel.writeAndFlush(new DirectSessionChallengePacket(packet.getInviteId(), packet.getSessionId(), challenge));//发回challenge
     }
 
@@ -263,15 +257,13 @@ public class DirectPeerConnectionManager
         //创建直连transport
         DirectPeerTransport transport = new DirectPeerTransport(channel, challenge.senderDeviceId());
         transportsByChannel.put(channel, transport);//登记这个transport
-<<<<<<< HEAD
         sessionsByChannel.put(channel, new DirectPeerSession(
                 challenge.senderAccountId(),
                 challenge.senderDeviceId(),
                 challenge.senderPublicKey(),
                 transport
         ));
-=======
->>>>>>> origin/main
+
         pendingReceivers.remove(packet.getInviteId());//清理连接状态
         qrArtifactService.deleteInvite(packet.getInviteId());//删除本地二维码文件
         if(listenerChannel != null)//关闭监听端口
@@ -309,15 +301,13 @@ public class DirectPeerConnectionManager
         //接收方接受连接，则创建直连transport
         DirectPeerTransport transport = new DirectPeerTransport(channel, packet.getReceiverDeviceId());
         transportsByChannel.put(channel, transport);//将通道登记起来
-<<<<<<< HEAD
         sessionsByChannel.put(channel, new DirectPeerSession(
                 packet.getReceiverAccountId(),
                 packet.getReceiverDeviceId(),
                 packet.getReceiverPublicKey(),
                 transport
         ));
-=======
->>>>>>> origin/main
+
 
         //完成future
         pending.future().complete(new DirectSessionInfo(
@@ -337,7 +327,6 @@ public class DirectPeerConnectionManager
         return Optional.ofNullable(transportsByChannel.get(channel));
     }
 
-<<<<<<< HEAD
     public List<DirectPeerSession> activeSessions()
     {
         return sessionsByChannel.values().stream()
@@ -367,16 +356,12 @@ public class DirectPeerConnectionManager
         return activeSessions().size();
     }
 
-=======
->>>>>>> origin/main
+
     //处理断开连接的情况，当某条直连TCP连接断开时，从transportByChannel里删除对应的transport记录
     public void handleChannelInactive(Channel channel)
     {
         transportsByChannel.remove(channel);
-<<<<<<< HEAD
-        sessionsByChannel.remove(channel);
-=======
->>>>>>> origin/main
+
     }
 
     //停止接收方正在监听的IPv6直连端口，并清空等待中的接收方邀请状态
@@ -430,21 +415,16 @@ public class DirectPeerConnectionManager
     //接收方发给发送方的Challenge,以及验证这个Challenge所需要的信息
     private record ChallengeState(String inviteId,
                                   String sessionId,
-<<<<<<< HEAD
-                                  String senderAccountId,
-=======
->>>>>>> origin/main
+
                                   String senderDeviceId,
                                   String senderPublicKey,
                                   String challenge) {
     }
-<<<<<<< HEAD
 
     public record DirectPeerSession(String peerAccountId,
                                     String peerDeviceId,
                                     String peerPublicKey,
                                     PacketTransport transport) {
     }
-=======
->>>>>>> origin/main
+
 }

@@ -81,7 +81,6 @@ public class ConsoleCommandRunner
     private static final int PROGRESS_BAR_WIDTH = 30;
     private static final int WINDOWS_DEFAULT_TERMINAL_COLUMNS = 80;
     private static final int DEFAULT_TERMINAL_COLUMNS = 120;
-    private static final int FST1_TERMINAL_WRAP_WIDTH = 96;
     private static final long TASK_WATCH_INTERVAL_MILLIS = 1000L;
 
     private final ClientConnectionManager clientConnectionManager;//负责客户端连接服务器，认证，断开连接

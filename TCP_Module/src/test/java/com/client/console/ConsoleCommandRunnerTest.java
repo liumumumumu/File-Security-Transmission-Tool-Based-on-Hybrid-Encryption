@@ -9,12 +9,10 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.springframework.context.support.GenericApplicationContext;
 
-<<<<<<< HEAD
-=======
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
->>>>>>> origin/main
+
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -43,10 +41,7 @@ public class ConsoleCommandRunnerTest
                 null,
                 null,
                 null,
-<<<<<<< HEAD
-                null,
-=======
->>>>>>> origin/main
+
                 messages()
         );
 
@@ -76,10 +71,7 @@ public class ConsoleCommandRunnerTest
                 null,
                 null,
                 null,
-<<<<<<< HEAD
-                null,
-=======
->>>>>>> origin/main
+
                 messages()
         );
 
@@ -88,8 +80,6 @@ public class ConsoleCommandRunnerTest
         assertTrue(!applicationContext.isActive());
     }
 
-<<<<<<< HEAD
-=======
     @Test
     public void wrapLongTextSplitsTextIntoTerminalSafeLines()
     {
@@ -110,7 +100,7 @@ public class ConsoleCommandRunnerTest
         assertEquals("FST1:abcdefghi", joined);
     }
 
->>>>>>> origin/main
+
     private ConsoleMessages messages()
     {
         return new ConsoleMessages(new LanguageSettingsService(
