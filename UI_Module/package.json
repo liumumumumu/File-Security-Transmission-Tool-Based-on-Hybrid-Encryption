@@ -1,0 +1,22 @@
+{
+  "name": "file-security-transmission-ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "test": "node --test src/ui-state.test.js",
+    "preview": "vite preview --host 0.0.0.0",
+    "sync:static": "node scripts/sync-static.mjs",
+    "build:static": "npm run build && npm run sync:static"
+  },
+  "dependencies": {
+    "lucide": "^0.468.0",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.4",
+    "vite": "^5.4.11"
+  }
+}

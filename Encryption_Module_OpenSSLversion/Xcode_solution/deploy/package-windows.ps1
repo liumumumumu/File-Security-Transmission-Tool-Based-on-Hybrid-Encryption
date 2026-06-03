@@ -2,7 +2,8 @@ param(
     [string]$BuildDir = "cross_platform\build\windows-release",
     [string]$DistName = "crypto-service-windows-x64",
     [string]$Config = "Release",
-    [string]$Triplet = "x64-windows"
+    [string]$Triplet = "x64-windows",
+    [string]$Generator = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,10 +29,22 @@ if (-not (Test-Path $vcpkgExe)) {
     throw "vcpkg.exe not found: $vcpkgExe"
 }
 
-& $vcpkgExe install "openssl:$Triplet" "nlohmann-json:$Triplet"
+& $vcpkgExe install "openssl:$Triplet" "nlohmann-json:$Triplet" "cpp-httplib:$Triplet"
+
+if (-not $Generator) {
+    $cmakeHelp = cmake --help | Out-String
+    if ($cmakeHelp -match "Visual Studio 18 2026") {
+        $Generator = "Visual Studio 18 2026"
+    }
+    else {
+        $Generator = "Visual Studio 17 2022"
+    }
+}
+
+Write-Host "Using CMake generator: $Generator"
 
 cmake -S (Join-Path $rootDir "cross_platform") -B $buildPath `
-    -G "Visual Studio 17 2022" `
+    -G "$Generator" `
     -A x64 `
     -DCMAKE_TOOLCHAIN_FILE="$toolchain" `
     -DVCPKG_TARGET_TRIPLET="$Triplet"
@@ -45,6 +58,7 @@ New-Item -ItemType Directory -Force $distDir | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $distDir "crypto_keys") | Out-Null
 
 Copy-Item (Join-Path $buildPath "$Config\crypto-service.exe") $distDir
+Copy-Item (Join-Path $buildPath "$Config\*.dll") $distDir
 Copy-Item (Join-Path $rootDir "deploy\runtime\start.bat") $distDir
 Copy-Item (Join-Path $rootDir "deploy\runtime\install-windows-service.ps1") $distDir
 Copy-Item (Join-Path $rootDir "deploy\README.md") $distDir

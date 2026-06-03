@@ -1,0 +1,59 @@
+{
+  "name": "file-security-transmission-desktop",
+  "version": "1.0.3",
+  "private": true,
+  "description": "Electron desktop launcher for File Security Transmission.",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "test": "node --test",
+    "prepare-runtime": "node scripts/prepare-runtime.mjs",
+    "build:win": "npm run prepare-runtime",
+    "build:mac": "npm run prepare-runtime -- --platform=darwin",
+    "dist:win-msi": "npm run prepare-runtime && electron-builder --win msi",
+    "dist:mac": "npm run prepare-runtime -- --platform=darwin && electron-builder --mac dmg zip"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.filesecuritytransmission.desktop",
+    "productName": "FileSecurityTransmissionDesktop",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/runtime",
+        "to": "runtime"
+      }
+    ],
+    "win": {
+      "icon": "src/assets/app-icon.ico",
+      "target": [
+        "msi"
+      ]
+    },
+    "mac": {
+      "category": "public.app-category.utilities",
+      "identity": null,
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "dmg": {
+      "artifactName": "${productName}.${version}.${arch}.${ext}"
+    },
+    "msi": {
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "perMachine": false
+    }
+  }
+}

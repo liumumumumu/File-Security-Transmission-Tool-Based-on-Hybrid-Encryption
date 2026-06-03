@@ -1,0 +1,201 @@
+const assert = require("node:assert/strict");
+const path = require("node:path");
+const test = require("node:test");
+
+const {
+  DEFAULT_CLIENT_HTTP_PORT,
+  DEFAULT_CRYPTO_SERVICE_PORT,
+  buildRuntimePaths,
+  buildRuntimeEnv,
+  getRendererUrlForMode,
+  getJavaLaunchCommand,
+} = require("../src/runtime/paths");
+
+test("builds packaged runtime paths under resources and LocalAppData", () => {
+  const runtimePaths = buildRuntimePaths({
+    appName: "File Security Transmission",
+    platform: "win32",
+    isPackaged: true,
+    resourcesPath: "C:\\Program Files\\FileSecurityTransmissionDesktop\\resources",
+    localAppData: "C:\\Users\\Alice\\AppData\\Local",
+    userProfile: "C:\\Users\\Alice",
+  });
+
+  assert.equal(
+    runtimePaths.jarPath,
+    path.win32.join(
+      "C:\\Program Files\\FileSecurityTransmissionDesktop\\resources",
+      "runtime",
+      "tcp-client",
+      "app.jar",
+    ),
+  );
+  assert.equal(
+    runtimePaths.cryptoExecutable,
+    path.win32.join(
+      "C:\\Program Files\\FileSecurityTransmissionDesktop\\resources",
+      "runtime",
+      "crypto-service",
+      "crypto-service.exe",
+    ),
+  );
+  assert.equal(
+    runtimePaths.userDataDir,
+    path.win32.join("C:\\Users\\Alice\\AppData\\Local", "FileSecurityTransmission"),
+  );
+  assert.equal(
+    runtimePaths.downloadDir,
+    path.win32.join("C:\\Users\\Alice", "Downloads", "FileSecurityTransmission"),
+  );
+});
+
+test("prefers bundled java runtime when packaged", () => {
+  const runtimePaths = buildRuntimePaths({
+    appName: "File Security Transmission",
+    platform: "win32",
+    isPackaged: true,
+    resourcesPath: "C:\\app\\resources",
+    localAppData: "C:\\Users\\Alice\\AppData\\Local",
+    userProfile: "C:\\Users\\Alice",
+  });
+
+  assert.equal(
+    getJavaLaunchCommand(runtimePaths),
+    path.win32.join("C:\\app\\resources", "runtime", "jre", "bin", "java.exe"),
+  );
+});
+
+test("uses system java during development", () => {
+  const runtimePaths = buildRuntimePaths({
+    appName: "File Security Transmission",
+    platform: "win32",
+    isPackaged: false,
+    projectRoot: "D:\\repo\\Desktop_Module",
+    localAppData: "C:\\Users\\Alice\\AppData\\Local",
+    userProfile: "C:\\Users\\Alice",
+  });
+
+  assert.equal(getJavaLaunchCommand(runtimePaths), "java");
+});
+
+test("builds runtime environment overrides for java and crypto services", () => {
+  const runtimePaths = buildRuntimePaths({
+    appName: "File Security Transmission",
+    platform: "win32",
+    isPackaged: true,
+    resourcesPath: "C:\\app\\resources",
+    localAppData: "C:\\Users\\Alice\\AppData\\Local",
+    userProfile: "C:\\Users\\Alice",
+  });
+
+  const env = buildRuntimeEnv(runtimePaths, { PATH: "C:\\Windows\\System32" });
+
+  assert.equal(env.CRYPTO_SERVICE_PORT, String(DEFAULT_CRYPTO_SERVICE_PORT));
+  assert.equal(env.CLIENT_HTTP_PORT, String(DEFAULT_CLIENT_HTTP_PORT));
+  assert.equal(env.CLIENT_SERVER_HOST, "82.156.228.71");
+  assert.equal(env.NODE_AUTO_CONNECT, "true");
+  assert.equal(env.APP_UI_OPEN_BROWSER, "false");
+  assert.match(env.PATH, /crypto-service/i);
+});
+
+test("deduplicates case-variant PATH entries in runtime environment", () => {
+  const runtimePaths = buildRuntimePaths({
+    appName: "File Security Transmission",
+    platform: "win32",
+    isPackaged: true,
+    resourcesPath: "C:\\app\\resources",
+    localAppData: "C:\\Users\\Alice\\AppData\\Local",
+    userProfile: "C:\\Users\\Alice",
+  });
+
+  const env = buildRuntimeEnv(runtimePaths, {
+    PATH: "C:\\Windows\\System32",
+    Path: "C:\\Tools",
+  });
+
+  assert.deepEqual(
+    Object.keys(env).filter((key) => key.toUpperCase() === "PATH"),
+    ["PATH"],
+  );
+  assert.match(env.PATH, /crypto-service/i);
+});
+
+test("builds packaged runtime paths under macOS Application Support", () => {
+  const runtimePaths = buildRuntimePaths({
+    appName: "File Security Transmission",
+    platform: "darwin",
+    isPackaged: true,
+    resourcesPath: "/Applications/FileSecurityTransmissionDesktop.app/Contents/Resources",
+    home: "/Users/alice",
+  });
+
+  assert.equal(
+    runtimePaths.jarPath,
+    path.posix.join(
+      "/Applications/FileSecurityTransmissionDesktop.app/Contents/Resources",
+      "runtime",
+      "tcp-client",
+      "app.jar",
+    ),
+  );
+  assert.equal(
+    runtimePaths.cryptoExecutable,
+    path.posix.join(
+      "/Applications/FileSecurityTransmissionDesktop.app/Contents/Resources",
+      "runtime",
+      "crypto-service",
+      "crypto-service",
+    ),
+  );
+  assert.equal(
+    runtimePaths.javaExecutable,
+    path.posix.join(
+      "/Applications/FileSecurityTransmissionDesktop.app/Contents/Resources",
+      "runtime",
+      "jre",
+      "bin",
+      "java",
+    ),
+  );
+  assert.equal(
+    runtimePaths.userDataDir,
+    path.posix.join("/Users/alice", "Library", "Application Support", "FileSecurityTransmission"),
+  );
+  assert.equal(
+    runtimePaths.downloadDir,
+    path.posix.join("/Users/alice", "Downloads", "FileSecurityTransmission"),
+  );
+});
+
+test("builds macOS runtime environment with POSIX paths", () => {
+  const runtimePaths = buildRuntimePaths({
+    appName: "File Security Transmission",
+    platform: "darwin",
+    isPackaged: true,
+    resourcesPath: "/Applications/FileSecurityTransmissionDesktop.app/Contents/Resources",
+    home: "/Users/alice",
+  });
+
+  const env = buildRuntimeEnv(runtimePaths, { PATH: "/usr/bin" });
+
+  assert.equal(
+    env.TRANSFER_HISTORY_PATH,
+    "/Users/alice/Library/Application Support/FileSecurityTransmission/transfer-history.json",
+  );
+  assert.equal(
+    env.PATH,
+    "/Applications/FileSecurityTransmissionDesktop.app/Contents/Resources/runtime/crypto-service:/usr/bin",
+  );
+});
+
+test("uses localhost java UI URL in packaged mode", () => {
+  assert.equal(
+    getRendererUrlForMode({
+      isPackaged: true,
+      env: {},
+      clientHttpPort: DEFAULT_CLIENT_HTTP_PORT,
+    }),
+    `http://127.0.0.1:${DEFAULT_CLIENT_HTTP_PORT}/`,
+  );
+});
+
