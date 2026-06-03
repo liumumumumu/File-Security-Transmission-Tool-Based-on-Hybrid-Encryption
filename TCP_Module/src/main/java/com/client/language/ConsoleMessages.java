@@ -120,12 +120,9 @@ public class ConsoleMessages
                     "  connect [host] [port]             连接服务器并完成认证",
                     "  disconnect                        断开服务器连接",
                     "  send <filePath> <targetAccountId> 向目标账号发送文件",
-<<<<<<< HEAD
                     "  message-send <accountId|contact-N> 发送加密文本消息",
                     "  messages                          查看消息会话摘要",
                     "  message <accountId|contact-N>     查看与账号的完整消息对话",
-=======
->>>>>>> origin/main
                     "  incoming                          查看待接收的传输请求",
                     "  accept <transferId>               在本设备接受一个传输请求",
                     "  reject <transferId>               拒绝并取消一个传输请求",
@@ -170,12 +167,9 @@ public class ConsoleMessages
                 "  connect [host] [port]             Connect and authenticate with server",
                 "  disconnect                        Disconnect from server",
                 "  send <filePath> <targetAccountId> Send a file to target account",
-<<<<<<< HEAD
                 "  message-send <accountId|contact-N> Send encrypted text message",
                 "  messages                          List message conversation summaries",
                 "  message <accountId|contact-N>     Show full message conversation with account",
-=======
->>>>>>> origin/main
                 "  incoming                          List incoming transfer requests",
                 "  accept <transferId>               Accept an incoming transfer on this device",
                 "  reject <transferId>               Reject and cancel an incoming transfer",
@@ -223,12 +217,9 @@ public class ConsoleMessages
                     "  language                          切换控制台语言",
                     "  status                            查看直连设置和任务状态",
                     "  handshake                         启动发送方/接收方二维码握手向导",
-<<<<<<< HEAD
                     "  message-send                      向当前直连对端发送加密文本消息",
                     "  messages                          查看消息会话摘要",
                     "  message [peerAccountId]           查看当前直连对端或指定账号的消息对话",
-=======
->>>>>>> origin/main
                     "  port-mode                         查看直连监听端口模式",
                     "  port-mode random                  使用随机临时监听端口",
                     "  port-mode fixed <port>            使用固定监听端口",
@@ -261,12 +252,9 @@ public class ConsoleMessages
                 "  language                          Change console language",
                 "  status                            Show direct settings and task status",
                 "  handshake                         Start sender/receiver QR handshake wizard",
-<<<<<<< HEAD
                 "  message-send                      Send encrypted text message to active direct peer",
                 "  messages                          List message conversation summaries",
                 "  message [peerAccountId]           Show active direct peer or account message conversation",
-=======
->>>>>>> origin/main
                 "  port-mode                         Show direct listen port mode",
                 "  port-mode random                  Use a random temporary listen port",
                 "  port-mode fixed <port>            Use a fixed listen port",
@@ -329,7 +317,6 @@ public class ConsoleMessages
         put(en, zh, Key.USAGE, "Usage: %s", "用法: %s");
         put(en, zh, Key.ROLE_PROMPT, "Role [sender/receiver]> ", "角色 [sender/receiver]> ");
         put(en, zh, Key.INVALID_ROLE, "Invalid role. Choose sender or receiver.", "角色无效。请选择 sender 或 receiver。");
-<<<<<<< HEAD
         put(en, zh, Key.SEND_QR_TO_RECEIVER, "Send this QR/FST1 file to the receiver.", "请将此二维码/FST1文件发送给接收方。");
         put(en, zh, Key.PASTE_RECEIVER_FST1, "Type receiver .fst1 or .png file path:", "输入接收方 .fst1 或 .png 文件路径:");
         put(en, zh, Key.HANDSHAKE_CANCEL_HINT, "Leave blank or type 'cancel' to stop this handshake step.", "留空或输入 'cancel' 可停止当前握手步骤。");
@@ -338,17 +325,6 @@ public class ConsoleMessages
         put(en, zh, Key.SEND_TASK_CREATED, "Send task created: %s", "发送任务已创建: %s");
         put(en, zh, Key.PASTE_SENDER_FST1, "Type sender .fst1 or .png file path:", "输入发送方 .fst1 或 .png 文件路径:");
         put(en, zh, Key.SEND_QR_TO_SENDER_WAITING, "Send this QR/FST1 file to the sender. Waiting for incoming transfer request.", "请将此二维码/FST1文件发送给发送方。正在等待传输请求。");
-=======
-        put(en, zh, Key.SEND_QR_TO_RECEIVER, "Send this QR/FST1 text to the receiver.", "请将此二维码/FST1文本发送给接收方。");
-        put(en, zh, Key.PASTE_RECEIVER_FST1, "Paste receiver FST1 text or type a FST1/PNG file path:", "粘贴接收方FST1文本，或输入FST1/PNG文件路径:");
-        put(en, zh, Key.HANDSHAKE_CANCEL_HINT, "Leave blank or type 'cancel' to stop this handshake step.", "留空或输入 'cancel' 可停止当前握手步骤。");
-        put(en, zh, Key.FST1_MULTILINE_HINT, "For FST1 text, paste all wrapped lines, then enter a single '.' line to finish.", "粘贴FST1文本时，可以粘贴多行，最后单独输入一行 '.' 结束。");
-        put(en, zh, Key.DIRECT_SESSION_CONNECTED, "Direct session connected: %s", "直连会话已连接: %s");
-        put(en, zh, Key.FILE_PATH_TO_SEND, "File path to send> ", "要发送的文件路径> ");
-        put(en, zh, Key.SEND_TASK_CREATED, "Send task created: %s", "发送任务已创建: %s");
-        put(en, zh, Key.PASTE_SENDER_FST1, "Paste sender FST1 text or type a FST1/PNG file path:", "粘贴发送方FST1文本，或输入FST1/PNG文件路径:");
-        put(en, zh, Key.SEND_QR_TO_SENDER_WAITING, "Send this QR/FST1 text to the sender. Waiting for incoming transfer request.", "请将此二维码/FST1文本发送给发送方。正在等待传输请求。");
->>>>>>> origin/main
         put(en, zh, Key.QR_PNG, "QR PNG: %s", "二维码PNG: %s");
         put(en, zh, Key.QR_FST1, "QR FST1 file: %s", "二维码FST1文件: %s");
         put(en, zh, Key.QR_ASCII, "QR ASCII file: %s", "二维码ASCII文件: %s");
@@ -407,7 +383,6 @@ public class ConsoleMessages
         put(en, zh, Key.CONSOLE_AVAILABLE_TRY_CONNECT, "Console is still available. Try: connect <host> <port>", "控制台仍可使用。可尝试: connect <host> <port>");
         put(en, zh, Key.STARTUP_CHECK_FAILED, "Startup check failed: %s", "启动检查失败: %s");
         put(en, zh, Key.CONSOLE_AVAILABLE_TRY_KEY_INFO, "Console is still available. Try: key-info", "控制台仍可使用。可尝试: key-info");
-<<<<<<< HEAD
         put(en, zh, Key.INCOMING_TEXT_MESSAGE_NOTIFICATION, "New message from %s. Use message %s to view it.", "收到来自 %s 的新消息。输入 message %s 查看。");
         put(en, zh, Key.MESSAGE_EDIT_HINT, "Enter message text. Type ':q' on its own line to finish editing.", "请输入消息文本。单独输入一行 ':q' 结束编辑。");
         put(en, zh, Key.MESSAGE_CURRENT_DRAFT, "Current draft:", "当前草稿:");
@@ -419,8 +394,6 @@ public class ConsoleMessages
         put(en, zh, Key.MESSAGE_CANCELED, "Message canceled.", "消息已取消。");
         put(en, zh, Key.MESSAGE_SENT, "Message sent: %s", "消息已发送: %s");
         put(en, zh, Key.NO_MESSAGES, "No messages.", "没有消息。");
-=======
->>>>>>> origin/main
 
         messages.put(UiLanguage.ENGLISH, en);
         messages.put(UiLanguage.CHINESE, zh);
@@ -478,11 +451,8 @@ public class ConsoleMessages
                 Map.entry("listenPortMode", "监听端口模式"),
                 Map.entry("fixedListenPort", "固定监听端口"),
                 Map.entry("settingsPath", "设置路径")
-<<<<<<< HEAD
                 , Map.entry("unread", "未读")
                 , Map.entry("lastMessageTime", "最后消息时间")
-=======
->>>>>>> origin/main
         );
     }
 
@@ -526,10 +496,6 @@ public class ConsoleMessages
         SEND_QR_TO_RECEIVER,
         PASTE_RECEIVER_FST1,
         HANDSHAKE_CANCEL_HINT,
-<<<<<<< HEAD
-=======
-        FST1_MULTILINE_HINT,
->>>>>>> origin/main
         DIRECT_SESSION_CONNECTED,
         FILE_PATH_TO_SEND,
         SEND_TASK_CREATED,
@@ -592,7 +558,6 @@ public class ConsoleMessages
         AUTO_CONNECT_FAILED,
         CONSOLE_AVAILABLE_TRY_CONNECT,
         STARTUP_CHECK_FAILED,
-<<<<<<< HEAD
         CONSOLE_AVAILABLE_TRY_KEY_INFO,
         INCOMING_TEXT_MESSAGE_NOTIFICATION,
         MESSAGE_EDIT_HINT,
@@ -605,8 +570,5 @@ public class ConsoleMessages
         MESSAGE_CANCELED,
         MESSAGE_SENT,
         NO_MESSAGES
-=======
-        CONSOLE_AVAILABLE_TRY_KEY_INFO
->>>>>>> origin/main
     }
 }

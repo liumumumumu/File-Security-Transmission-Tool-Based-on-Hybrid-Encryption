@@ -134,7 +134,6 @@ public class PacketByteBufEncoder extends MessageToMessageEncoder<Packet>
         if (packet instanceof DirectSessionAcceptedPacket) {
             return new DirectSessionAcceptedEncoder();
         }
-<<<<<<< HEAD
         if (packet instanceof TextMessagePacket) {
             return new TextMessageEncoder();
         }
@@ -144,8 +143,6 @@ public class PacketByteBufEncoder extends MessageToMessageEncoder<Packet>
         if (packet instanceof TextMessageReadReceiptPacket) {
             return new TextMessageReadReceiptEncoder();
         }
-=======
->>>>>>> origin/main
         //心跳
         else if(packet instanceof PingPacket)
         {

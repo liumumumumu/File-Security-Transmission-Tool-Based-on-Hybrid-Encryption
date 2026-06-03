@@ -39,10 +39,7 @@ public class SystemController
     private final ClientConnectionManager clientConnectionManager;
     private final ApplicationShutdownService applicationShutdownService;
     private final PrivateKeyArtifactService privateKeyArtifactService;
-<<<<<<< HEAD
     private final LanguageSettingsService languageSettingsService;
-=======
->>>>>>> origin/main
 
     public SystemController(
             ClientProperties clientProperties,
@@ -55,12 +52,8 @@ public class SystemController
             LocalTransferHistoryService localTransferHistoryService,
             ClientConnectionManager clientConnectionManager,
             ApplicationShutdownService applicationShutdownService,
-<<<<<<< HEAD
             PrivateKeyArtifactService privateKeyArtifactService,
             LanguageSettingsService languageSettingsService
-=======
-            PrivateKeyArtifactService privateKeyArtifactService
->>>>>>> origin/main
     )
     {
         this.clientProperties = clientProperties;
@@ -74,10 +67,7 @@ public class SystemController
         this.clientConnectionManager = clientConnectionManager;
         this.applicationShutdownService = applicationShutdownService;
         this.privateKeyArtifactService = privateKeyArtifactService;
-<<<<<<< HEAD
         this.languageSettingsService = languageSettingsService;
-=======
->>>>>>> origin/main
     }
 
     @GetMapping("/status")

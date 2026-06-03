@@ -10,10 +10,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 
 import static org.junit.Assert.assertEquals;
-<<<<<<< HEAD
 import static org.junit.Assert.assertThrows;
-=======
->>>>>>> origin/main
 
 public class QrArtifactServiceTest
 {
@@ -44,7 +41,6 @@ public class QrArtifactServiceTest
     }
 
     @Test
-<<<<<<< HEAD
     public void writeArtifactsWritesFst1TextAsSingleLine() throws Exception
     {
         QrArtifactService service = service();
@@ -77,15 +73,6 @@ public class QrArtifactServiceTest
         String value = service.readFst1Text(fst1.toString());
 
         assertEquals("FST1:test valuewrapped", value);
-=======
-    public void readFst1TextSupportsWrappedPastedText()
-    {
-        QrArtifactService service = service();
-
-        String value = service.readFst1Text("FST1:test-\n value\twrapped");
-
-        assertEquals("FST1:test-valuewrapped", value);
->>>>>>> origin/main
     }
 
     private QrArtifactService service()
