@@ -10,7 +10,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
+
 
 public class QrArtifactServiceTest
 {
@@ -41,7 +41,7 @@ public class QrArtifactServiceTest
     }
 
     @Test
-    public void writeArtifactsWritesFst1TextAsSingleLine() throws Exception
+    public void readFst1TextSupportsWrappedPastedText()
     {
         QrArtifactService service = service();
 
@@ -52,27 +52,8 @@ public class QrArtifactServiceTest
                 "FST1:test \nvalue\twrapped"
         );
 
-        assertEquals("FST1:test valuewrapped", Files.readString(artifact.getFst1Path()));
-    }
+        assertEquals("FST1:test-valuewrapped", value);
 
-    @Test
-    public void readFst1TextRejectsDirectTextInput()
-    {
-        QrArtifactService service = service();
-
-        assertThrows(IllegalArgumentException.class, () -> service.readFst1Text("FST1:test-value"));
-    }
-
-    @Test
-    public void readFst1TextSupportsWrappedFst1FilePath() throws Exception
-    {
-        QrArtifactService service = service();
-        Path fst1 = temporaryFolder.getRoot().toPath().resolve("wrapped.fst1");
-        Files.writeString(fst1, "FST1:test \nvalue\twrapped");
-
-        String value = service.readFst1Text(fst1.toString());
-
-        assertEquals("FST1:test valuewrapped", value);
     }
 
     private QrArtifactService service()

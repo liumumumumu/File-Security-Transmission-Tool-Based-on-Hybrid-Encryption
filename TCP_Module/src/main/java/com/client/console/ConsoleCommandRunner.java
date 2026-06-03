@@ -1,6 +1,7 @@
 package com.client.console;
 
 import com.client.ApplicationShutdownService;
+import com.client.ApplicationShutdownService;
 import com.client.ClientConnectionManager;
 import com.client.ClientStartupCoordinator;
 import com.client.direct.DirectHandshakeService;
@@ -25,6 +26,7 @@ import com.client.service.LocalContactBookService;
 import com.common.service.PushNotificationService;
 import com.common.util.PathInputNormalizer;
 import com.client.service.TransferTaskRegistry;
+import com.client.service.PrivateKeyArtifactService;
 import com.client.service.PrivateKeyArtifactService;
 import com.persistence.local.model.contactsRecord.BlacklistRecord;
 import com.persistence.local.model.contactsRecord.ContactRecord;
@@ -68,6 +70,7 @@ import java.util.concurrent.TimeUnit;
  * 13. key-info / generate-key / delete-key：查看、生成或删除本地密钥
  * 14. import-private-key / import-private-key-file / import-private-key-paste：导入私钥
  * 15. language：切换客户端控制台语言
+ * 15. language：切换客户端控制台语言
  * 16. exit / quit：退出客户端程序
  *
  * */
@@ -86,6 +89,7 @@ public class ConsoleCommandRunner
     private final ClientProperties clientProperties;//负责读取客户端配置
     private final CryptoSupport cryptoSupport;//负责访问本地的加密服务，管理密钥，获取密钥状态，生成密钥，导入密钥
     private final TransferTaskRegistry transferTaskRegistry;//负责保持传输任务状态，用于对tasks, task的命令查询
+    private final ApplicationShutdownService applicationShutdownService;//负责统一关闭整个客户端应用
     private final ApplicationShutdownService applicationShutdownService;//负责统一关闭整个客户端应用
     private final PushNotificationService pushNotificationService;//监听本地通知
     private final LocalContactBookService localContactBookService;//负责本地联系人和黑名单
@@ -107,6 +111,7 @@ public class ConsoleCommandRunner
             CryptoSupport cryptoSupport,
             TransferTaskRegistry transferTaskRegistry,
             ApplicationShutdownService applicationShutdownService,
+            ApplicationShutdownService applicationShutdownService,
             PushNotificationService pushNotificationService,
             LocalContactBookService localContactBookService,
             PrivateKeyArtifactService privateKeyArtifactService,
@@ -124,6 +129,7 @@ public class ConsoleCommandRunner
         this.clientProperties = clientProperties;
         this.cryptoSupport = cryptoSupport;
         this.transferTaskRegistry = transferTaskRegistry;
+        this.applicationShutdownService = applicationShutdownService;
         this.applicationShutdownService = applicationShutdownService;
         this.pushNotificationService = pushNotificationService;
         this.localContactBookService = localContactBookService;
@@ -238,6 +244,83 @@ public class ConsoleCommandRunner
                 continue;
             }
             handleDirectCommand(reader, trimmed);
+            while (isApplicationActive()) {//进入大循环
+                printModeMenu();
+                String selected = reader.readLine();
+                if (selected == null) {
+                    handleConsoleInputClosed();
+                    return;
+                }
+                switch (selected.trim().toLowerCase(Locale.ROOT)) {
+                    case "1", "relay" -> runRelayConsole(reader);
+                    case "2", "direct" -> runDirectConsole(reader);
+                    case "language" -> changeLanguage(reader);
+                    case "0", "exit", "quit" -> {
+                        exit();
+                        return;
+                    }
+                    default -> System.out.println(messages.text(ConsoleMessages.Key.UNKNOWN_MODE));
+                }
+            }
+        } catch (IOException ex) {
+            System.out.println(messages.format(ConsoleMessages.Key.CONSOLE_STOPPED, ex.getMessage()));
+        }
+    }
+
+    //模式选择，中继服务器/ IPv6直连
+    private void printModeMenu()
+    {
+        System.out.println();
+        System.out.println(messages.text(ConsoleMessages.Key.MODE_TITLE));
+        System.out.println(messages.text(ConsoleMessages.Key.MODE_RELAY_OPTION));
+        System.out.println(messages.text(ConsoleMessages.Key.MODE_DIRECT_OPTION));
+        System.out.println(messages.text(ConsoleMessages.Key.MODE_EXIT_OPTION));
+        System.out.print("mode> ");
+    }
+
+    //使用中继服务器传输模式
+    private void runRelayConsole(BufferedReader reader) throws IOException
+    {
+        System.out.println(messages.text(ConsoleMessages.Key.RELAY_CONSOLE_READY));
+        while (isApplicationActive()) {
+            System.out.print("fst-relay> ");
+            String line = reader.readLine();
+            if (line == null) {
+                handleConsoleInputClosed();
+                return;
+            }
+            String trimmed = line.trim();
+            if ("back".equalsIgnoreCase(trimmed) || "mode".equalsIgnoreCase(trimmed)) {
+                if(confirm(reader, messages.text(ConsoleMessages.Key.CONFIRM_RETURN_MODE_DISCONNECT_RELAY))) {
+                    disconnect();
+                    return;
+                }
+                continue;
+            }
+            handleCommand(reader, trimmed);
+        }
+    }
+
+    //使用IPv6直连模式
+    private void runDirectConsole(BufferedReader reader) throws IOException
+    {
+        System.out.println(messages.text(ConsoleMessages.Key.DIRECT_CONSOLE_READY));
+        while (isApplicationActive()) {
+            System.out.print("fst-direct> ");
+            String line = reader.readLine();
+            if (line == null) {
+                handleConsoleInputClosed();
+                return;
+            }
+            String trimmed = line.trim();
+            if ("back".equalsIgnoreCase(trimmed) || "mode".equalsIgnoreCase(trimmed)) {
+                if(confirm(reader, messages.text(ConsoleMessages.Key.CONFIRM_RETURN_MODE_CLOSE_DIRECT))) {
+                    directPeerConnectionManager.stopListener();
+                    return;
+                }
+                continue;
+            }
+            handleDirectCommand(reader, trimmed);
         }
     }
 
@@ -251,6 +334,8 @@ public class ConsoleCommandRunner
 
             System.out.println(messages.text(ConsoleMessages.Key.STARTUP_NO_KEY_PAUSED));
             System.out.print(messages.text(ConsoleMessages.Key.STARTUP_GENERATE_PROMPT));
+            System.out.println(messages.text(ConsoleMessages.Key.STARTUP_NO_KEY_PAUSED));
+            System.out.print(messages.text(ConsoleMessages.Key.STARTUP_GENERATE_PROMPT));
             String answer = reader.readLine();
             if (answer != null && ("y".equalsIgnoreCase(answer.trim()) || "yes".equalsIgnoreCase(answer.trim()))) {
                 Map<String, Object> result = clientStartupCoordinator.generateStartupKeyAndContinue();
@@ -259,13 +344,17 @@ public class ConsoleCommandRunner
                     printAnyMap(keyMap);
                 }
                 System.out.println(messages.text(ConsoleMessages.Key.STARTUP_KEY_GENERATED));
+                System.out.println(messages.text(ConsoleMessages.Key.STARTUP_KEY_GENERATED));
                 return;
             }
 
             clientStartupCoordinator.skipStartupKeySetup();
             System.out.println(messages.text(ConsoleMessages.Key.STARTUP_SKIPPED));
+            System.out.println(messages.text(ConsoleMessages.Key.STARTUP_SKIPPED));
             printMissingKeyReminder();
         } catch (Exception ex) {
+            System.out.println(messages.format(ConsoleMessages.Key.STARTUP_UNABLE_HANDLE, ex.getMessage()));
+            System.out.println(messages.text(ConsoleMessages.Key.RUN_KEY_INFO_AFTER_CRYPTO));
             System.out.println(messages.format(ConsoleMessages.Key.STARTUP_UNABLE_HANDLE, ex.getMessage()));
             System.out.println(messages.text(ConsoleMessages.Key.RUN_KEY_INFO_AFTER_CRYPTO));
         }
@@ -292,6 +381,7 @@ public class ConsoleCommandRunner
         try {
             switch (command) {
                 case "help" -> printHelp();                     //打印所有可用命令
+                case "language" -> changeLanguage(reader);      //切换控制台语言
                 case "language" -> changeLanguage(reader);      //切换控制台语言
                 case "status" -> printStatus();                 //把当前客户端连接状态逐项打印出来
                 case "connect" -> connect(args);                //用于连接服务器并完成认证，connect [host] [port]
@@ -326,13 +416,16 @@ public class ConsoleCommandRunner
                 case "generate-key" -> generateKey();           //请求Python加密服务生成密钥
                 case "delete-key" -> deleteKey();               //请求Python加密服务删除密钥
                 case "export-private-key" -> exportPrivateKey();//导出私钥文本和二维码文件
+                case "export-private-key" -> exportPrivateKey();//导出私钥文本和二维码文件
                 case "import-private-key" -> importPrivateKey(args);                //以文本的方式导入私钥，import-private-key <keyText>
                 case "import-private-key-file" -> importPrivateKeyFile(args);       //从文件导入私钥，import-private-key-file <path>
                 case "import-private-key-paste" -> importPrivateKeyPaste(reader);   //进入多行粘贴模式，用户可以粘贴多行私钥内容，最后一行只输入一个'.'标识结束， import-private-key-paste
                 case "exit", "quit" -> exit();                  //推出程序， exit或者quit
                 default -> System.out.println(messages.format(ConsoleMessages.Key.UNKNOWN_COMMAND, command));
+                default -> System.out.println(messages.format(ConsoleMessages.Key.UNKNOWN_COMMAND, command));
             }
         } catch (Exception ex) {
+            System.out.println(messages.format(ConsoleMessages.Key.COMMAND_FAILED, ex.getMessage()));
             System.out.println(messages.format(ConsoleMessages.Key.COMMAND_FAILED, ex.getMessage()));
         }
     }
@@ -384,6 +477,30 @@ public class ConsoleCommandRunner
         }
     }
 
+    private void printDirectHelp()
+    {
+        messages.directHelpLines().forEach(System.out::println);
+    }
+
+    private void printDirectStatus()
+    {
+        DirectSettings settings = directSettingsService.current();
+        System.out.println(messages.format(ConsoleMessages.Key.DIRECT_LISTEN_PORT_MODE, settings.getListenPortMode()));
+        if(settings.getListenPortMode() == com.client.direct.DirectListenPortMode.FIXED) {
+            System.out.println(messages.format(ConsoleMessages.Key.FIXED_LISTEN_PORT, settings.getFixedListenPort()));
+        }
+        System.out.println(messages.format(ConsoleMessages.Key.QR_OUTPUT_CLEANED, directHandshakeService.cleanupExpiredQr()));
+        System.out.println(messages.format(ConsoleMessages.Key.TASK_COUNT, transferTaskRegistry.allTasks().size()));
+    }
+
+    private void directPortMode(List<String> args)
+    {
+        if(args.size() == 1)
+        {
+            DirectSettings settings = directSettingsService.current();
+            System.out.println(messages.label("listenPortMode") + "=" + settings.getListenPortMode());
+            System.out.println(messages.label("fixedListenPort") + "=" + settings.getFixedListenPort());
+            System.out.println(messages.label("settingsPath") + "=" + directSettingsService.settingsPath());
     private void printDirectHelp()
     {
         messages.directHelpLines().forEach(System.out::println);
@@ -589,7 +706,9 @@ public class ConsoleCommandRunner
 
     //处理切换语言的函数
     private void changeLanguage(BufferedReader reader) throws IOException
+    private void changeLanguage(BufferedReader reader) throws IOException
     {
+        System.out.println(messages.text(ConsoleMessages.Key.SELECT_LANGUAGE));//目前先只支持这两个语言
         System.out.println(messages.text(ConsoleMessages.Key.SELECT_LANGUAGE));//目前先只支持这两个语言
         System.out.println("  1. English");
         System.out.println("  2. Chinese");
@@ -598,10 +717,24 @@ public class ConsoleCommandRunner
         String selected = reader.readLine();
         if (selected == null) {
             handleConsoleInputClosed();
+            handleConsoleInputClosed();
             return;
         }
 
         //切换语言
+        UiLanguage language = UiLanguage.fromUserSelection(selected);
+        if(language == null)
+        {
+            System.out.println(messages.text(ConsoleMessages.Key.INVALID_LANGUAGE));
+            return;
+        }
+        languageSettingsService.save(language);
+        if(language == UiLanguage.CHINESE)
+        {
+            System.out.println(messages.text(ConsoleMessages.Key.LANGUAGE_CHANGED_CHINESE));
+            return;
+        }
+        System.out.println(messages.text(ConsoleMessages.Key.LANGUAGE_CHANGED_ENGLISH));
         UiLanguage language = UiLanguage.fromUserSelection(selected);
         if(language == null)
         {
@@ -636,9 +769,12 @@ public class ConsoleCommandRunner
     {
         if (!(notificationPayload(payload) instanceof Map<?, ?> values)) {
             printConsoleNotice(messages.text(ConsoleMessages.Key.INCOMING_NOTIFICATION_SIMPLE));
+            printConsoleNotice(messages.text(ConsoleMessages.Key.INCOMING_NOTIFICATION_SIMPLE));
             return;
         }
 
+        printConsoleNotice(messages.format(
+                ConsoleMessages.Key.INCOMING_NOTIFICATION,
         printConsoleNotice(messages.format(
                 ConsoleMessages.Key.INCOMING_NOTIFICATION,
                 values.get("transferId"),
@@ -656,9 +792,12 @@ public class ConsoleCommandRunner
     {
         if (!(notificationPayload(payload) instanceof Map<?, ?> values)) {
             printConsoleNotice(messages.text(ConsoleMessages.Key.RETRANSMISSION_NOTIFICATION_SIMPLE));
+            printConsoleNotice(messages.text(ConsoleMessages.Key.RETRANSMISSION_NOTIFICATION_SIMPLE));
             return;
         }
 
+        printConsoleNotice(messages.format(
+                ConsoleMessages.Key.RETRANSMISSION_NOTIFICATION,
         printConsoleNotice(messages.format(
                 ConsoleMessages.Key.RETRANSMISSION_NOTIFICATION,
                 values.get("transferId"),
@@ -715,11 +854,13 @@ public class ConsoleCommandRunner
         clientConnectionManager.connectAndAuthenticate(host, port)
                 .get(clientProperties.getAuthTimeoutSeconds(), TimeUnit.SECONDS);//通过该方法连接服务器并完成身份认证
         System.out.println(messages.format(ConsoleMessages.Key.CONNECTED_AUTHENTICATED, host, port));
+        System.out.println(messages.format(ConsoleMessages.Key.CONNECTED_AUTHENTICATED, host, port));
     }
 
     private void disconnect()
     {
         clientConnectionManager.disconnect();
+        System.out.println(messages.text(ConsoleMessages.Key.DISCONNECTED));
         System.out.println(messages.text(ConsoleMessages.Key.DISCONNECTED));
     }
 
@@ -729,6 +870,7 @@ public class ConsoleCommandRunner
             return;
         }
         if (args.size() < 3) {  //校验参数
+            System.out.println(messages.usage("send <filePath> <targetAccountId>"));
             System.out.println(messages.usage("send <filePath> <targetAccountId>"));
             return;
         }
@@ -917,14 +1059,18 @@ public class ConsoleCommandRunner
         List<TransferTask> tasks = transferTaskRegistry.allTasks();
         if (tasks.isEmpty()) {
             System.out.println(messages.text(ConsoleMessages.Key.NO_TRANSFER_TASKS));
+            System.out.println(messages.text(ConsoleMessages.Key.NO_TRANSFER_TASKS));
             return;
         }
+        System.out.println(messages.tableHeader("taskId", "direction", "mode", "status", "progress", "fileName", "message"));
         System.out.println(messages.tableHeader("taskId", "direction", "mode", "status", "progress", "fileName", "message"));
         for (TransferTask task : tasks) {
             System.out.printf(
                     "%s | %s | %s | %s | %.2f%% | %s | %s%n",
+                    "%s | %s | %s | %s | %.2f%% | %s | %s%n",
                     task.getTaskId(),
                     task.getDirection(),
+                    task.getTransportMode(),
                     task.getTransportMode(),
                     task.getStatus(),
                     task.getProgress() * 100D,
@@ -937,14 +1083,26 @@ public class ConsoleCommandRunner
     private void printIncomingRequests()//打印所有待处理的接收请求
     {
         List<ClientTransferService.PendingIncomingTransferRequest> requests = clientTransferService.pendingIncomingTransferRequestsDetailed();
+        List<ClientTransferService.PendingIncomingTransferRequest> requests = clientTransferService.pendingIncomingTransferRequestsDetailed();
         if (requests.isEmpty()) {
+            System.out.println(messages.text(ConsoleMessages.Key.NO_INCOMING_REQUESTS));
             System.out.println(messages.text(ConsoleMessages.Key.NO_INCOMING_REQUESTS));
             return;
         }
         System.out.println(messages.tableHeader("receivedAt", "transferId", "sender", "file", "bytes", "blocks"));
         for (ClientTransferService.PendingIncomingTransferRequest request : requests) {
             IncomingTransferRequestPacket packet = request.packet();
+        System.out.println(messages.tableHeader("receivedAt", "transferId", "sender", "file", "bytes", "blocks"));
+        for (ClientTransferService.PendingIncomingTransferRequest request : requests) {
+            IncomingTransferRequestPacket packet = request.packet();
             System.out.printf(
+                    "%s | %s | %s | %s | %d | %d%n",
+                    request.receivedAt(),
+                    packet.getTransferId(),
+                    packet.getSenderDeviceId(),
+                    packet.getFileName(),
+                    packet.getFileSize(),
+                    packet.getTotalBlocks()
                     "%s | %s | %s | %s | %d | %d%n",
                     request.receivedAt(),
                     packet.getTransferId(),
@@ -960,9 +1118,11 @@ public class ConsoleCommandRunner
     {
         if (args.size() < 2) {
             System.out.println(messages.usage("accept <transferId>"));
+            System.out.println(messages.usage("accept <transferId>"));
             return;
         }
         clientTransferService.acceptIncomingTransfer(args.get(1));//参数是任务Id
+        System.out.println(messages.format(ConsoleMessages.Key.ACCEPTED_INCOMING, args.get(1)));
         System.out.println(messages.format(ConsoleMessages.Key.ACCEPTED_INCOMING, args.get(1)));
     }
 
@@ -970,9 +1130,11 @@ public class ConsoleCommandRunner
     {
         if (args.size() < 2) {
             System.out.println(messages.usage("reject <transferId>"));
+            System.out.println(messages.usage("reject <transferId>"));
             return;
         }
         clientTransferService.rejectIncomingTransfer(args.get(1));//参数是任务Id
+        System.out.println(messages.format(ConsoleMessages.Key.REJECTED_INCOMING, args.get(1)));
         System.out.println(messages.format(ConsoleMessages.Key.REJECTED_INCOMING, args.get(1)));
     }
 
@@ -981,9 +1143,11 @@ public class ConsoleCommandRunner
     {
         if (args.size() < 2) {
             System.out.println(messages.usage("cancel <taskId|transferId>"));
+            System.out.println(messages.usage("cancel <taskId|transferId>"));
             return;
         }
         clientTransferService.cancelTransfer(args.get(1));
+        System.out.println(messages.format(ConsoleMessages.Key.TRANSFER_CANCELED, args.get(1)));
         System.out.println(messages.format(ConsoleMessages.Key.TRANSFER_CANCELED, args.get(1)));
     }
 
@@ -991,9 +1155,11 @@ public class ConsoleCommandRunner
     {
         if (args.size() < 2) {
             System.out.println(messages.usage("retransmit <taskId|transferId>"));
+            System.out.println(messages.usage("retransmit <taskId|transferId>"));
             return;
         }
         clientTransferService.requestRetransmission(args.get(1));
+        System.out.println(messages.format(ConsoleMessages.Key.RETRANSMISSION_REQUESTED, args.get(1)));
         System.out.println(messages.format(ConsoleMessages.Key.RETRANSMISSION_REQUESTED, args.get(1)));
     }
 
@@ -1001,9 +1167,11 @@ public class ConsoleCommandRunner
     {
         if (args.size() < 2) {
             System.out.println(messages.usage("retransmit-accept <transferId>"));
+            System.out.println(messages.usage("retransmit-accept <transferId>"));
             return;
         }
         clientTransferService.acceptRetransmission(args.get(1));
+        System.out.println(messages.format(ConsoleMessages.Key.RETRANSMISSION_ACCEPTED, args.get(1)));
         System.out.println(messages.format(ConsoleMessages.Key.RETRANSMISSION_ACCEPTED, args.get(1)));
     }
 
@@ -1011,9 +1179,11 @@ public class ConsoleCommandRunner
     {
         if (args.size() < 2) {
             System.out.println(messages.usage("retransmit-reject <transferId>"));
+            System.out.println(messages.usage("retransmit-reject <transferId>"));
             return;
         }
         clientTransferService.rejectRetransmission(args.get(1));
+        System.out.println(messages.format(ConsoleMessages.Key.RETRANSMISSION_REJECTED, args.get(1)));
         System.out.println(messages.format(ConsoleMessages.Key.RETRANSMISSION_REJECTED, args.get(1)));
     }
 
@@ -1022,9 +1192,11 @@ public class ConsoleCommandRunner
         List<ContactRecord> contacts = localContactBookService.listContacts();
         if (contacts.isEmpty()) {
             System.out.println(messages.text(ConsoleMessages.Key.NO_CONTACTS));
+            System.out.println(messages.text(ConsoleMessages.Key.NO_CONTACTS));
             return;
         }
 
+        System.out.println(messages.tableHeader("contact", "alias", "accountId", "publicKey"));
         System.out.println(messages.tableHeader("contact", "alias", "accountId", "publicKey"));
         for (ContactRecord contact : contacts) {
             System.out.printf(
@@ -1043,6 +1215,7 @@ public class ConsoleCommandRunner
     {
         if (args.size() < 2) {
             System.out.println(messages.usage("contact-add <accountId> [alias]"));
+            System.out.println(messages.usage("contact-add <accountId> [alias]"));
             return;
         }
 
@@ -1051,10 +1224,13 @@ public class ConsoleCommandRunner
         ContactRecord contact = localContactBookService.addContact(args.get(1), publicKey, alias);
         System.out.println(messages.format(
                 ConsoleMessages.Key.CONTACT_SAVED,
+        System.out.println(messages.format(
+                ConsoleMessages.Key.CONTACT_SAVED,
                 contact.getContactIndex(),
                 displayNullable(contact.getAlias()),
                 contact.getAccountId(),
                 abbreviate(contact.getPublicKey(), 32)
+        ));
         ));
     }
 
@@ -1068,7 +1244,9 @@ public class ConsoleCommandRunner
                 return result.getPublicKey();
             }
             System.out.println(messages.text(ConsoleMessages.Key.ONLINE_USER_NOT_FOUND_CONTACT_EMPTY));
+            System.out.println(messages.text(ConsoleMessages.Key.ONLINE_USER_NOT_FOUND_CONTACT_EMPTY));
         } catch (Exception ex) {
+            System.out.println(messages.format(ConsoleMessages.Key.SEARCH_PUBLIC_KEY_FAILED, ex.getMessage()));
             System.out.println(messages.format(ConsoleMessages.Key.SEARCH_PUBLIC_KEY_FAILED, ex.getMessage()));
         }
         return null;
@@ -1078,17 +1256,20 @@ public class ConsoleCommandRunner
     {
         if (args.size() < 2) {
             System.out.println(messages.usage("contact-remove <contact-N|N>"));
+            System.out.println(messages.usage("contact-remove <contact-N|N>"));
             return;
         }
 
         int contactIndex = parseContactIndexArgument(args.get(1));
         localContactBookService.removeContactByIndex(contactIndex);
         System.out.println(messages.format(ConsoleMessages.Key.CONTACT_REMOVED, contactIndex));
+        System.out.println(messages.format(ConsoleMessages.Key.CONTACT_REMOVED, contactIndex));
     }
 
     private void showContact(List<String> args)
     {
         if (args.size() < 2) {
+            System.out.println(messages.usage("contact-show <contact-N|N>"));
             System.out.println(messages.usage("contact-show <contact-N|N>"));
             return;
         }
@@ -1097,9 +1278,16 @@ public class ConsoleCommandRunner
         ContactRecord contact = localContactBookService.findContactByIndex(contactIndex).orElse(null);
         if (contact == null) {
             System.out.println(messages.format(ConsoleMessages.Key.CONTACT_NOT_FOUND, contactIndex));
+            System.out.println(messages.format(ConsoleMessages.Key.CONTACT_NOT_FOUND, contactIndex));
             return;
         }
 
+        printLabelValue("contact", "contact-" + contact.getContactIndex());
+        printLabelValue("alias", displayNullable(contact.getAlias()));
+        printLabelValue("accountId", contact.getAccountId());
+        printLabelValue("publicKey", contact.getPublicKey());
+        printLabelValue("createdAt", contact.getCreatedAt());
+        printLabelValue("updatedAt", contact.getUpdatedAt());
         printLabelValue("contact", "contact-" + contact.getContactIndex());
         printLabelValue("alias", displayNullable(contact.getAlias()));
         printLabelValue("accountId", contact.getAccountId());
@@ -1113,9 +1301,11 @@ public class ConsoleCommandRunner
         List<BlacklistRecord> records = localContactBookService.listBlacklist();
         if (records.isEmpty()) {
             System.out.println(messages.text(ConsoleMessages.Key.NO_BLACKLIST));
+            System.out.println(messages.text(ConsoleMessages.Key.NO_BLACKLIST));
             return;
         }
 
+        System.out.println(messages.tableHeader("accountId", "reason", "publicKey", "createdAt"));
         System.out.println(messages.tableHeader("accountId", "reason", "publicKey", "createdAt"));
         for (BlacklistRecord record : records) {
             System.out.printf(
@@ -1132,17 +1322,20 @@ public class ConsoleCommandRunner
     {
         if (args.size() < 2) {
             System.out.println(messages.usage("blacklist-add <accountId> [reason]"));
+            System.out.println(messages.usage("blacklist-add <accountId> [reason]"));
             return;
         }
 
         String reason = args.size() >= 3 ? joinArguments(args, 2) : null;
         BlacklistRecord record = localContactBookService.addBlacklist(args.get(1), null, reason);
         System.out.println(messages.format(ConsoleMessages.Key.BLACKLIST_SAVED, record.getAccountId()));
+        System.out.println(messages.format(ConsoleMessages.Key.BLACKLIST_SAVED, record.getAccountId()));
     }
 
     private void addBlacklistContact(List<String> args)
     {
         if (args.size() < 2) {
+            System.out.println(messages.usage("blacklist-add-contact <contact-N|N> [reason]"));
             System.out.println(messages.usage("blacklist-add-contact <contact-N|N> [reason]"));
             return;
         }
@@ -1151,22 +1344,26 @@ public class ConsoleCommandRunner
         String reason = args.size() >= 3 ? joinArguments(args, 2) : null;
         BlacklistRecord record = localContactBookService.addBlacklistByContactIndex(contactIndex, reason);
         System.out.println(messages.format(ConsoleMessages.Key.BLACKLIST_SAVED_FROM_CONTACT, contactIndex, record.getAccountId()));
+        System.out.println(messages.format(ConsoleMessages.Key.BLACKLIST_SAVED_FROM_CONTACT, contactIndex, record.getAccountId()));
     }
 
     private void removeBlacklist(List<String> args)
     {
         if (args.size() < 2) {
             System.out.println(messages.usage("blacklist-remove <accountId>"));
+            System.out.println(messages.usage("blacklist-remove <accountId>"));
             return;
         }
 
         localContactBookService.removeBlacklist(args.get(1));
+        System.out.println(messages.format(ConsoleMessages.Key.BLACKLIST_REMOVED, args.get(1)));
         System.out.println(messages.format(ConsoleMessages.Key.BLACKLIST_REMOVED, args.get(1)));
     }
 
     private void searchUser(List<String> args)
     {
         if (args.size() < 2) {
+            System.out.println(messages.usage("search-user <accountId>"));
             System.out.println(messages.usage("search-user <accountId>"));
             return;
         }
@@ -1178,6 +1375,7 @@ public class ConsoleCommandRunner
     private void searchUserAndAddContact(List<String> args)
     {
         if (args.size() < 2) {
+            System.out.println(messages.usage("search-user-add <accountId> [alias]"));
             System.out.println(messages.usage("search-user-add <accountId> [alias]"));
             return;
         }
@@ -1193,9 +1391,12 @@ public class ConsoleCommandRunner
         ContactRecord contact = localContactBookService.addContact(result.getAccountId(), result.getPublicKey(), alias);
         System.out.println(messages.format(
                 ConsoleMessages.Key.CONTACT_SAVED_SHORT,
+        System.out.println(messages.format(
+                ConsoleMessages.Key.CONTACT_SAVED_SHORT,
                 contact.getContactIndex(),
                 displayNullable(contact.getAlias()),
                 contact.getAccountId()
+        ));
         ));
     }
 
@@ -1204,10 +1405,14 @@ public class ConsoleCommandRunner
         printLabelValue("found", result.isSearchResult());
         printLabelValue("accountId", result.getAccountId());
         printLabelValue("message", result.getMessage());
+        printLabelValue("found", result.isSearchResult());
+        printLabelValue("accountId", result.getAccountId());
+        printLabelValue("message", result.getMessage());
         if(!result.isSearchResult())
         {
             return;
         }
+        printLabelValue("publicKey", result.getPublicKey());
         printLabelValue("publicKey", result.getPublicKey());
     }
 
@@ -1215,6 +1420,7 @@ public class ConsoleCommandRunner
     private void printTask(BufferedReader reader, List<String> args) throws IOException
     {
         if (args.size() < 2) {      //校验参数数量
+            System.out.println(messages.usage("task <taskId|transferId> [--once]"));
             System.out.println(messages.usage("task <taskId|transferId> [--once]"));
             return;
         }
@@ -1224,6 +1430,7 @@ public class ConsoleCommandRunner
                 .or(() -> transferTaskRegistry.findByTransferId(id))//根据transferId查
                 .orElse(null);
         if (task == null) {
+            System.out.println(messages.format(ConsoleMessages.Key.TASK_NOT_FOUND, id));
             System.out.println(messages.format(ConsoleMessages.Key.TASK_NOT_FOUND, id));
             return;
         }
@@ -1242,7 +1449,9 @@ public class ConsoleCommandRunner
     private void watchTaskProgress(BufferedReader reader, TransferTask task) throws IOException
     {
         System.out.println(messages.text(ConsoleMessages.Key.WATCHING_TASK));
+        System.out.println(messages.text(ConsoleMessages.Key.WATCHING_TASK));
         lastProgressLineLength = 0;
+        while (isApplicationActive()) {     //外层循环
         while (isApplicationActive()) {     //外层循环
             synchronized (System.out) {
                 printProgressLine(formatProgressLine(task));// \r把光标移回当前行开头，然后覆盖旧内容
@@ -1257,6 +1466,7 @@ public class ConsoleCommandRunner
                 if (line == null || line.isBlank() || "q".equalsIgnoreCase(line.trim())) {
                     synchronized (System.out) {
                         System.out.println();
+                        System.out.println(messages.text(ConsoleMessages.Key.STOPPED_WATCHING));
                         System.out.println(messages.text(ConsoleMessages.Key.STOPPED_WATCHING));
                     }
                     return;
@@ -1371,13 +1581,16 @@ public class ConsoleCommandRunner
         String bar = "#".repeat(filledWidth) + "-".repeat(PROGRESS_BAR_WIDTH - filledWidth);
         return String.format(
                 messages.text(ConsoleMessages.Key.PROGRESS_LINE),
+                messages.text(ConsoleMessages.Key.PROGRESS_LINE),
                 bar,
                 progressPercent,
                 task.getStatus(),
                 task.getAverageSpeedMegabytesPerSecond(),
                 messages.label("bytes"),
+                messages.label("bytes"),
                 task.getTransferredBytes(),
                 task.getTotalBytes(),
+                messages.label("blocks"),
                 messages.label("blocks"),
                 task.getTransferredBlocks(),
                 task.getTotalBlocks(),
@@ -1409,12 +1622,28 @@ public class ConsoleCommandRunner
         printLabelValue("createdAt", task.getCreatedAt());
         printLabelValue("transferStartedAt", task.getTransferStartedAt());
         printLabelValue("message", task.getMessage());
+        printLabelValue("taskId", task.getTaskId());
+        printLabelValue("transferId", task.getTransferId());
+        printLabelValue("direction", task.getDirection());
+        printLabelValue("transportMode", task.getTransportMode());
+        printLabelValue("status", task.getStatus());
+        printLabelValue("fileName", task.getFileName());
+        printLabelValue("localPath", task.getLocalPath());
+        printLabelValue("peerDeviceId", task.getPeerDeviceId());
+        printLabelValue("bytes", task.getTransferredBytes() + "/" + task.getTotalBytes());
+        printLabelValue("blocks", task.getTransferredBlocks() + "/" + task.getTotalBlocks());
+        System.out.printf("%s: %.2f%%%n", messages.label("progress"), task.getProgress() * 100D);
+        System.out.printf("%s: %.2f mb/s%n", messages.label("speed"), task.getAverageSpeedMegabytesPerSecond());
+        printLabelValue("createdAt", task.getCreatedAt());
+        printLabelValue("transferStartedAt", task.getTransferStartedAt());
+        printLabelValue("message", task.getMessage());
     }
 
     //处理打开文件位置的函数
     private void openReceivedFile(List<String> args) throws IOException
     {
         if (args.size() < 2) {
+            System.out.println(messages.usage("open-received <taskId|transferId|\"fileName\">"));
             System.out.println(messages.usage("open-received <taskId|transferId|\"fileName\">"));
             return;
         }
@@ -1423,9 +1652,11 @@ public class ConsoleCommandRunner
         TransferTask task = resolveReceivedFileTask(target);
         if (task == null) {
             System.out.println(messages.format(ConsoleMessages.Key.RECEIVED_FILE_NOT_FOUND, target));
+            System.out.println(messages.format(ConsoleMessages.Key.RECEIVED_FILE_NOT_FOUND, target));
             return;
         }
         if (task.getLocalPath() == null || task.getLocalPath().isBlank()) {
+            System.out.println(messages.format(ConsoleMessages.Key.RECEIVED_PATH_EMPTY, task.getTaskId()));
             System.out.println(messages.format(ConsoleMessages.Key.RECEIVED_PATH_EMPTY, task.getTaskId()));
             return;
         }
@@ -1433,10 +1664,12 @@ public class ConsoleCommandRunner
         Path filePath = Path.of(task.getLocalPath()).toAbsolutePath().normalize();
         if (!Files.exists(filePath)) {
             System.out.println(messages.format(ConsoleMessages.Key.RECEIVED_PATH_MISSING, filePath));
+            System.out.println(messages.format(ConsoleMessages.Key.RECEIVED_PATH_MISSING, filePath));
             return;
         }
 
         revealInFileManager(filePath);
+        System.out.println(messages.format(ConsoleMessages.Key.OPENED_FILE_LOCATION, filePath));
         System.out.println(messages.format(ConsoleMessages.Key.OPENED_FILE_LOCATION, filePath));
     }
 
@@ -1447,6 +1680,7 @@ public class ConsoleCommandRunner
                 .orElse(null);
         if (task != null) {
             if (task.getDirection() != TransferDirection.RECEIVE) {
+                throw new IllegalArgumentException(messages.format(ConsoleMessages.Key.NOT_RECEIVED_FILE_TASK, target));
                 throw new IllegalArgumentException(messages.format(ConsoleMessages.Key.NOT_RECEIVED_FILE_TASK, target));
             }
             return task;
@@ -1461,15 +1695,21 @@ public class ConsoleCommandRunner
         }
         if (matches.size() > 1) {
             System.out.println(messages.text(ConsoleMessages.Key.MULTIPLE_RECEIVED_MATCHED));
+            System.out.println(messages.text(ConsoleMessages.Key.MULTIPLE_RECEIVED_MATCHED));
             for (TransferTask match : matches) {
                 System.out.printf(
                         "  %s=%s | %s=%s | %s=%s | %s=%s%n",
                         messages.label("taskId"),
+                        "  %s=%s | %s=%s | %s=%s | %s=%s%n",
+                        messages.label("taskId"),
                         match.getTaskId(),
+                        messages.label("transferId"),
                         messages.label("transferId"),
                         match.getTransferId(),
                         messages.label("fileName"),
+                        messages.label("fileName"),
                         match.getFileName(),
+                        messages.label("localPath"),
                         messages.label("localPath"),
                         match.getLocalPath()
                 );
@@ -1522,6 +1762,7 @@ public class ConsoleCommandRunner
         }
         if (!ensureLocalPublicKeyPresent()) {   //当前是否密钥文件
             System.out.println(messages.text(ConsoleMessages.Key.NO_LOCAL_PUBLIC_KEY));
+            System.out.println(messages.text(ConsoleMessages.Key.NO_LOCAL_PUBLIC_KEY));
             return;
         }
         System.out.println(cryptoSupport.publicKeyFingerprint());//输出当前公钥的指纹
@@ -1557,16 +1798,31 @@ public class ConsoleCommandRunner
         System.out.println(messages.text(ConsoleMessages.Key.PRIVATE_KEY_EXPORT_READY));
     }
 
+    private void exportPrivateKey() throws Exception
+    {
+        if (isKeyMissing(cryptoSupport.keyStatus())) {
+            System.out.println(messages.text(ConsoleMessages.Key.NO_LOCAL_KEY_PAIR));
+            return;
+        }
+        PrivateKeyArtifactService.ExportedPrivateKey exported = privateKeyArtifactService.exportPrivateKey();
+        printQrArtifact(exported.artifact(), exported.privateKeyText());
+        System.out.println(messages.text(ConsoleMessages.Key.PRIVATE_KEY_EXPORT_READY));
+    }
+
     //--------------------------导入密钥的三种方式------------------------------//
 
     private void importPrivateKey(List<String> args) throws Exception      //手动输入的方式
     {
         if (args.size() < 2) {
             System.out.println(messages.usage("import-private-key <privateKeyBase64OrPem|path|pngPath>"));
+            System.out.println(messages.usage("import-private-key <privateKeyBase64OrPem|path|pngPath>"));
             return;
         }
         privateKeyArtifactService.importPrivateKey(joinArguments(args, 1, args.size()));
+        privateKeyArtifactService.importPrivateKey(joinArguments(args, 1, args.size()));
         clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
+        System.out.println(messages.format(ConsoleMessages.Key.PRIVATE_KEY_IMPORTED, cryptoSupport.publicKeyFingerprint()));
+        System.out.println(messages.text(ConsoleMessages.Key.AUTO_CONNECT_CONTINUE));
         System.out.println(messages.format(ConsoleMessages.Key.PRIVATE_KEY_IMPORTED, cryptoSupport.publicKeyFingerprint()));
         System.out.println(messages.text(ConsoleMessages.Key.AUTO_CONNECT_CONTINUE));
     }
@@ -1575,10 +1831,14 @@ public class ConsoleCommandRunner
     {
         if (args.size() < 2) {
             System.out.println(messages.usage("import-private-key-file <path|pngPath>"));
+            System.out.println(messages.usage("import-private-key-file <path|pngPath>"));
             return;
         }
         privateKeyArtifactService.importPrivateKey(PathInputNormalizer.toPath(joinArguments(args, 1, args.size())));//对于导入私钥文件的路径进行规格化操作
+        privateKeyArtifactService.importPrivateKey(PathInputNormalizer.toPath(joinArguments(args, 1, args.size())));//对于导入私钥文件的路径进行规格化操作
         clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
+        System.out.println(messages.format(ConsoleMessages.Key.PRIVATE_KEY_IMPORTED, cryptoSupport.publicKeyFingerprint()));
+        System.out.println(messages.text(ConsoleMessages.Key.AUTO_CONNECT_CONTINUE));
         System.out.println(messages.format(ConsoleMessages.Key.PRIVATE_KEY_IMPORTED, cryptoSupport.publicKeyFingerprint()));
         System.out.println(messages.text(ConsoleMessages.Key.AUTO_CONNECT_CONTINUE));
     }
@@ -1586,10 +1846,12 @@ public class ConsoleCommandRunner
     private void importPrivateKeyPaste(BufferedReader reader) throws Exception  //通过负责粘贴的方式输入密钥
     {
         System.out.println(messages.text(ConsoleMessages.Key.PASTE_PRIVATE_KEY));
+        System.out.println(messages.text(ConsoleMessages.Key.PASTE_PRIVATE_KEY));
         StringBuilder keyText = new StringBuilder();
         while (true) {
             String line = reader.readLine();
             if (line == null) {
+                handleConsoleInputClosed();
                 handleConsoleInputClosed();
                 return;
             }
@@ -1602,12 +1864,26 @@ public class ConsoleCommandRunner
         clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
         System.out.println(messages.format(ConsoleMessages.Key.PRIVATE_KEY_IMPORTED, cryptoSupport.publicKeyFingerprint()));
         System.out.println(messages.text(ConsoleMessages.Key.AUTO_CONNECT_CONTINUE));
+        System.out.println(messages.format(ConsoleMessages.Key.PRIVATE_KEY_IMPORTED, cryptoSupport.publicKeyFingerprint()));
+        System.out.println(messages.text(ConsoleMessages.Key.AUTO_CONNECT_CONTINUE));
     }
 
+    //--------------------------导入密钥的三种方式------------------------------//
     //--------------------------导入密钥的三种方式------------------------------//
 
     private void exit() //退出程序的指令；退出整个TCP模块！！！；退出整个Spring应用
     {
+        applicationShutdownService.requestShutdown();
+    }
+
+    void handleConsoleInputClosed()
+    {
+        applicationShutdownService.requestShutdown();
+    }
+
+    private boolean isApplicationActive()
+    {
+        return applicationShutdownService.isApplicationActive();
         applicationShutdownService.requestShutdown();
     }
 
@@ -1625,6 +1901,7 @@ public class ConsoleCommandRunner
     {
         for (Map.Entry<String, ?> entry : map.entrySet()) {
             printLabelValue(entry.getKey(), entry.getValue());
+            printLabelValue(entry.getKey(), entry.getValue());
         }
     }
 
@@ -1632,7 +1909,13 @@ public class ConsoleCommandRunner
     {
         for (Map.Entry<?, ?> entry : map.entrySet()) {
             printLabelValue(String.valueOf(entry.getKey()), entry.getValue());
+            printLabelValue(String.valueOf(entry.getKey()), entry.getValue());
         }
+    }
+
+    private void printLabelValue(String label, Object value)
+    {
+        System.out.println(messages.label(label) + ": " + value);
     }
 
     private void printLabelValue(String label, Object value)
@@ -1649,6 +1932,8 @@ public class ConsoleCommandRunner
         } catch (Exception ex) {
             System.out.println(messages.format(ConsoleMessages.Key.UNABLE_CHECK_KEY_STATUS, ex.getMessage()));
             System.out.println(messages.text(ConsoleMessages.Key.RUN_KEY_INFO_AFTER_CRYPTO));
+            System.out.println(messages.format(ConsoleMessages.Key.UNABLE_CHECK_KEY_STATUS, ex.getMessage()));
+            System.out.println(messages.text(ConsoleMessages.Key.RUN_KEY_INFO_AFTER_CRYPTO));
         }
     }
 
@@ -1663,6 +1948,8 @@ public class ConsoleCommandRunner
         } catch (Exception ex) {
             System.out.println(messages.format(ConsoleMessages.Key.UNABLE_CHECK_KEY_STATUS, ex.getMessage()));
             System.out.println(messages.text(ConsoleMessages.Key.RUN_KEY_INFO_AFTER_CRYPTO));
+            System.out.println(messages.format(ConsoleMessages.Key.UNABLE_CHECK_KEY_STATUS, ex.getMessage()));
+            System.out.println(messages.text(ConsoleMessages.Key.RUN_KEY_INFO_AFTER_CRYPTO));
             return false;
         }
     }
@@ -1672,6 +1959,8 @@ public class ConsoleCommandRunner
         try {
             return isTruthy(cryptoSupport.keyStatus().get("hasPublicKey"));//检查当前是否有密钥
         } catch (Exception ex) {
+            System.out.println(messages.format(ConsoleMessages.Key.UNABLE_CHECK_KEY_STATUS, ex.getMessage()));
+            System.out.println(messages.text(ConsoleMessages.Key.RUN_KEY_INFO_AFTER_CRYPTO));
             System.out.println(messages.format(ConsoleMessages.Key.UNABLE_CHECK_KEY_STATUS, ex.getMessage()));
             System.out.println(messages.text(ConsoleMessages.Key.RUN_KEY_INFO_AFTER_CRYPTO));
             return false;
@@ -1751,6 +2040,8 @@ public class ConsoleCommandRunner
     //打印密钥缺失提醒
     private void printMissingKeyReminder()
     {
+        System.out.println(messages.text(ConsoleMessages.Key.NO_LOCAL_KEY_PAIR));
+        System.out.println(messages.text(ConsoleMessages.Key.MISSING_KEY_ACTION));
         System.out.println(messages.text(ConsoleMessages.Key.NO_LOCAL_KEY_PAIR));
         System.out.println(messages.text(ConsoleMessages.Key.MISSING_KEY_ACTION));
     }

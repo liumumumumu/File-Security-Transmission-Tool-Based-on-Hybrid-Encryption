@@ -143,6 +143,7 @@ public class PacketByteBufEncoder extends MessageToMessageEncoder<Packet>
         if (packet instanceof TextMessageReadReceiptPacket) {
             return new TextMessageReadReceiptEncoder();
         }
+
         //心跳
         else if(packet instanceof PingPacket)
         {
