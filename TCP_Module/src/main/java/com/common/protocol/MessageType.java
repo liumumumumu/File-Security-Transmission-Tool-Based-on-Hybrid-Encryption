@@ -27,6 +27,10 @@ public final class MessageType
     public static final byte Direct_Session_Proof=32;
     public static final byte Direct_Session_Accepted=33;
 
+    public static final byte Text_Message=40;
+    public static final byte Text_Message_Ack=41;
+    public static final byte Text_Message_Read_Receipt=42;
+
     public static final byte Ping=80;
     public static final byte Pong=81;
     public static final byte Error=99;

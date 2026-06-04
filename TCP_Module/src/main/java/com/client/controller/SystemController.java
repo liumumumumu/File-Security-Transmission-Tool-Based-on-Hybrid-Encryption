@@ -4,6 +4,8 @@ import com.client.ApplicationShutdownService;
 import com.client.ClientConnectionManager;
 import com.client.ClientStartupCoordinator;
 import com.client.controller.dto.ConnectRequest;
+import com.client.language.LanguageSettingsService;
+import com.client.language.UiLanguage;
 import com.common.config.ClientProperties;
 import com.common.config.CryptoServiceProperties;
 import com.common.config.NodeProperties;
@@ -37,6 +39,7 @@ public class SystemController
     private final ClientConnectionManager clientConnectionManager;
     private final ApplicationShutdownService applicationShutdownService;
     private final PrivateKeyArtifactService privateKeyArtifactService;
+    private final LanguageSettingsService languageSettingsService;
 
     public SystemController(
             ClientProperties clientProperties,
@@ -49,7 +52,8 @@ public class SystemController
             LocalTransferHistoryService localTransferHistoryService,
             ClientConnectionManager clientConnectionManager,
             ApplicationShutdownService applicationShutdownService,
-            PrivateKeyArtifactService privateKeyArtifactService
+            PrivateKeyArtifactService privateKeyArtifactService,
+            LanguageSettingsService languageSettingsService
     )
     {
         this.clientProperties = clientProperties;
@@ -63,6 +67,7 @@ public class SystemController
         this.clientConnectionManager = clientConnectionManager;
         this.applicationShutdownService = applicationShutdownService;
         this.privateKeyArtifactService = privateKeyArtifactService;
+        this.languageSettingsService = languageSettingsService;
     }
 
     @GetMapping("/status")
@@ -156,6 +161,40 @@ public class SystemController
         ));
     }
 
+    @GetMapping("/language")
+    public ResponseEntity<Map<String, Object>> language()
+    {
+        UiLanguage language = languageSettingsService.current();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("language", language.name());
+        payload.put("value", language.name().toLowerCase());
+        payload.put("settingsPath", languageSettingsService.settingsPath().toString());
+        return ResponseEntity.ok(payload);
+    }
+
+    @PostMapping("/language")
+    public ResponseEntity<Map<String, Object>> updateLanguage(@RequestBody Map<String, String> request)
+    {
+        String value = request == null ? null : request.get("language");
+        UiLanguage language = UiLanguage.fromUserSelection(value);
+        if(language == null)
+        {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("success", false);
+            error.put("message", "language must be one of: english, en, 1, chinese, zh, cn, 2");
+            return ResponseEntity.badRequest().body(error);
+        }
+
+        languageSettingsService.save(language);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("success", true);
+        payload.put("language", language.name());
+        payload.put("value", language.name().toLowerCase());
+        payload.put("settingsPath", languageSettingsService.settingsPath().toString());
+        payload.put("message", "Language updated");
+        return ResponseEntity.ok(payload);
+    }
+
     @PostMapping("/key/import-private-file")
     public ResponseEntity<Map<String, Object>> importPrivateKeyFile(@RequestBody ImportPrivateKeyRequest request) throws Exception
     {
@@ -184,6 +223,39 @@ public class SystemController
     public ResponseEntity<Map<String, Object>> startupStatus()
     {
         return ResponseEntity.ok(clientStartupCoordinator.startupStatus());
+    }
+
+    @GetMapping("/auto-connect/status")
+    public ResponseEntity<Map<String, Object>> autoConnectStatus()
+    {
+        return ResponseEntity.ok(clientStartupCoordinator.autoConnectStatus());
+    }
+
+    @PostMapping("/auto-connect")
+    public ResponseEntity<Map<String, Object>> autoConnect()
+    {
+        return ResponseEntity.ok(clientStartupCoordinator.triggerAutoConnect());
+    }
+
+    @PostMapping("/auto-connect/settings")
+    public ResponseEntity<Map<String, Object>> saveAutoConnectSettings(@RequestBody Map<String, Object> request)
+    {
+        if(request == null || !request.containsKey("enabled"))
+        {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("success", false);
+            error.put("message", "enabled is required");
+            return ResponseEntity.badRequest().body(error);
+        }
+        Object enabled = request.get("enabled");
+        if(!(enabled instanceof Boolean))
+        {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("success", false);
+            error.put("message", "enabled must be a boolean");
+            return ResponseEntity.badRequest().body(error);
+        }
+        return ResponseEntity.ok(clientStartupCoordinator.saveAutoConnectSettings((Boolean) enabled));
     }
 
     @PostMapping("/startup/key/generate")
@@ -260,6 +332,21 @@ public class SystemController
         return ResponseEntity.ok(clientConnectionManager.currentStatus());
     }
 
+    @GetMapping("/user-status")
+    public ResponseEntity<Map<String, Object>> userStatus()
+    {
+        Map<String, Object> connectionStatus = clientConnectionManager.currentStatus();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("deviceId", connectionStatus.get("deviceId"));
+        payload.put("accountId", connectionStatus.get("accountId"));
+        payload.put("status", connectionStatus.get("status"));
+        payload.put("connected", connectionStatus.get("connected"));
+        payload.put("authenticated", connectionStatus.get("authenticated"));
+        payload.put("connectedHost", connectionStatus.get("connectedHost"));
+        payload.put("connectedPort", connectionStatus.get("connectedPort"));
+        return ResponseEntity.ok(payload);
+    }
+
     @GetMapping("/public-key")
     public ResponseEntity<Map<String, String>> publicKey()
     {
@@ -285,12 +372,18 @@ public class SystemController
         system.put("POST /api/system/key/fingerprint", "Calculate fingerprint for a public key, or local public key when body is empty");
         system.put("GET /api/system/account-id", "Show local accountId");
         system.put("POST /api/system/account-id", "Calculate accountId for a public key, or local public key when body is empty");
+        system.put("GET /api/system/language", "Show current console language setting");
+        system.put("POST /api/system/language", "Update console language setting (body: {language})");
         system.put("POST /api/system/connect", "Connect to server (optional body: {host, port})");
         system.put("POST /api/system/disconnect", "Disconnect from server");
         system.put("POST /api/system/shutdown", "Request client application shutdown");
         system.put("GET /api/system/connection-status", "Show detailed connection status");
+        system.put("GET /api/system/user-status", "Show current user connection status");
         system.put("GET /api/system/public-key", "Show local public key");
         system.put("GET /api/system/startup-status", "Show startup key setup and auto-connect gate status");
+        system.put("GET /api/system/auto-connect/status", "Show auto-connect configuration and current gate status");
+        system.put("POST /api/system/auto-connect", "Trigger configured auto-connect now");
+        system.put("POST /api/system/auto-connect/settings", "Save auto-connect setting (body: {enabled})");
         system.put("POST /api/system/startup/key/generate", "Generate key for startup flow and continue auto-connect if blocked");
         system.put("POST /api/system/startup/key/skip", "Mark startup key setup as skipped");
         system.put("POST /api/system/startup/key/import-private", "Import private key for startup flow from raw text, file, or PNG QR");
@@ -305,6 +398,15 @@ public class SystemController
                 "GET /api/send/tasks/{taskIdOrTransferId}", "Get a specific task details",
                 "POST /api/send/tasks/{taskIdOrTransferId}/cancel", "Cancel an active transfer task",
                 "GET /api/send/tasks/{taskIdOrTransferId}/events", "Watch a task progress stream with Server-Sent Events"
+        ));
+        payload.put("messages", Map.of(
+                "POST /api/messages/send", "Send an encrypted relay text message (body: {targetAccountId, text})",
+                "GET /api/messages", "List in-memory message conversation summaries",
+                "GET /api/messages/{accountId}", "Show one in-memory conversation and mark displayed incoming messages as read"
+        ));
+        payload.put("notifications", Map.of(
+                "GET /api/events", "Subscribe to local notification events with Server-Sent Events",
+                "GET /api/notifications/events", "Alias of GET /api/events"
         ));
         payload.put("receive", Map.of(
                 "GET /incoming", "List incoming transfer requests",

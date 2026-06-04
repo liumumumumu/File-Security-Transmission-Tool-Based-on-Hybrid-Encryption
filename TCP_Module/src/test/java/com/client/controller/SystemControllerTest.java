@@ -30,6 +30,7 @@ public class SystemControllerTest
                 null,
                 null,
                 shutdownService,
+                null,
                 null
         );
 

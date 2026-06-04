@@ -36,7 +36,7 @@ public class PushNotificationService
     //给新的客户端创建Sse连接，并将这个连接注册到当前服务里面
     public SseEmitter subscribe()
     {
-        SseEmitter emitter = new SseEmitter();//新来的一个客户端
+        SseEmitter emitter = new SseEmitter(0L);//新来的一个客户端；0 表示不由服务端主动超时
         emitters.add(emitter);
         emitter.onCompletion(()->emitters.remove(emitter));//当连接注册结束后，就把它从列表中删掉
         emitter.onTimeout(()->emitters.remove(emitter));//当这个连接超时后，就把它从列表中删掉

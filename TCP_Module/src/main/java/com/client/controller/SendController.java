@@ -150,6 +150,7 @@ public class SendController
 
     private Map<String, Object> taskSummaryPayload(TransferTask task)
     {
+        double speedMegabytesPerSecond = task.getAverageSpeedMegabytesPerSecond();
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("taskId", task.getTaskId());
         item.put("transferId", task.getTransferId());
@@ -158,6 +159,14 @@ public class SendController
         item.put("fileName", task.getFileName());
         item.put("progress", task.getProgress() * 100D);
         item.put("message", task.getMessage());
+        item.put("transferredBytes", task.getTransferredBytes());
+        item.put("totalBytes", task.getTotalBytes());
+        item.put("transferredBlocks", task.getTransferredBlocks());
+        item.put("totalBlocks", task.getTotalBlocks());
+        item.put("createdAt", task.getCreatedAt());
+        item.put("transferStartedAt", task.getTransferStartedAt());
+        item.put("speedMegabytesPerSecond", speedMegabytesPerSecond);
+        item.put("speedText", String.format("%.2f MB/s", speedMegabytesPerSecond));
         return item;
     }
 
@@ -172,8 +181,6 @@ public class SendController
         payload.put("totalBlocks", task.getTotalBlocks());
         payload.put("createdAt", task.getCreatedAt());
         payload.put("transferStartedAt", task.getTransferStartedAt());
-        payload.put("speedMegabytesPerSecond", task.getAverageSpeedMegabytesPerSecond());
-        payload.put("speedText", String.format("%.2f mb/s", task.getAverageSpeedMegabytesPerSecond()));
         return payload;
     }
 

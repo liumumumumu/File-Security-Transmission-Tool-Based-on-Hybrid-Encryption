@@ -26,7 +26,7 @@ test("keeps Java stdin open for the bundled console loop", () => {
   assert.deepEqual(buildJavaProcessOptions(runtimePaths, env), {
     cwd: "C:\\runtime\\tcp-client",
     env,
-    stdio: ["pipe", "ignore", "ignore"],
+    stdio: ["pipe", "pipe", "pipe"],
   });
 });
 

@@ -1,4 +1,5 @@
-const fs = require("node:fs/promises");
+const fs = require("node:fs");
+const fsPromises = require("node:fs/promises");
 const { spawn } = require("node:child_process");
 
 function buildJavaArguments(jarPath) {
@@ -17,25 +18,49 @@ function buildJavaProcessOptions(runtimePaths, env) {
     env,
     // Keep stdin open so the bundled Java console loop does not treat
     // Electron startup as a closed terminal and shut Spring down.
-    stdio: ["pipe", "ignore", "ignore"],
+    stdio: ["pipe", "pipe", "pipe"],
   };
 }
 
 async function ensureRuntimeDirectories(runtimePaths) {
   await Promise.all([
-    fs.mkdir(runtimePaths.userDataDir, { recursive: true }),
-    fs.mkdir(runtimePaths.keyDir, { recursive: true }),
-    fs.mkdir(runtimePaths.logDir, { recursive: true }),
-    fs.mkdir(runtimePaths.downloadDir, { recursive: true }),
+    fsPromises.mkdir(runtimePaths.userDataDir, { recursive: true }),
+    fsPromises.mkdir(runtimePaths.keyDir, { recursive: true }),
+    fsPromises.mkdir(runtimePaths.logDir, { recursive: true }),
+    fsPromises.mkdir(runtimePaths.downloadDir, { recursive: true }),
   ]);
 }
 
+function attachProcessLogging(child, logFilePath, label = "process") {
+  if (!child || !logFilePath) {
+    return null;
+  }
+
+  const stream = fs.createWriteStream(logFilePath, { flags: "a" });
+  const prefix = `[${new Date().toISOString()}] ${label}`;
+  stream.write(`${prefix} started pid=${child.pid || "unknown"}\n`);
+
+  child.stdout?.on("data", (chunk) => stream.write(chunk));
+  child.stderr?.on("data", (chunk) => stream.write(chunk));
+  child.on("error", (error) => {
+    stream.write(`\n${prefix} error: ${error.message}\n`);
+  });
+  child.on("exit", (code, signal) => {
+    stream.write(`\n${prefix} exited code=${code ?? ""} signal=${signal ?? ""}\n`);
+    stream.end();
+  });
+
+  return stream;
+}
+
 function spawnManagedProcess(command, args, options = {}) {
+  const { logFilePath, logLabel, ...spawnOptions } = options;
   const child = spawn(command, args, {
     windowsHide: true,
-    stdio: "ignore",
-    ...options,
+    stdio: logFilePath ? ["ignore", "pipe", "pipe"] : "ignore",
+    ...spawnOptions,
   });
+  attachProcessLogging(child, logFilePath, logLabel || command);
   child.unref();
   return child;
 }
@@ -102,6 +127,7 @@ async function stopManagedProcess(childProcess) {
 }
 
 module.exports = {
+  attachProcessLogging,
   buildJavaArguments,
   buildJavaProcessOptions,
   ensureRuntimeDirectories,

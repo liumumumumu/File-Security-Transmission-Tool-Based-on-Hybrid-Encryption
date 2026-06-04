@@ -374,19 +374,22 @@ public class ClientTransferService
         TransferTask task = transferTaskRegistry.findByTransferId(packet.getTransferId()).orElse(null);//查找本地任务和发送上下文；task:本地传输记录，2.content:发送端运行中的传输上下文
         OutboundTransferContext context = outboundTransferContexts.get(packet.getTransferId());
         TransportMode mode = task == null ? resolveTransferMode(packet.getTransferId()) : task.getTransportMode();
-        if(task==null || task.getDirection()!=TransferDirection.SEND || context==null)//找不到任务，或者这个任务不是发送任务，或者发送上下文不存在就发一个拒绝请求的ACK包
+        if(task==null || task.getDirection()!=TransferDirection.SEND)//找不到任务，或者这个任务不是发送任务就发一个拒绝请求的ACK包
         {
             sendRetransmitAck(packet.getTransferId(), false, packet.getStartBlockId(), "Sender cannot resume this transfer");
             return;
         }
-        if(task.getStatus()==TransferStatus.COMPLETED)//判断任务是否已经完成
+        if(context==null)
         {
-            sendRetransmitAck(packet.getTransferId(), false, packet.getStartBlockId(), "Transfer is already completed");
+            String message = expiredDirectRetransmissionIds.contains(packet.getTransferId())
+                    ? "retransmission window expired"
+                    : "Sender cannot resume this transfer because the app was restarted or the session context expired";
+            sendRetransmitAck(packet.getTransferId(), false, packet.getStartBlockId(), message);
             return;
         }
         if(isDirectRetransmissionExpired(packet.getTransferId()))
         {
-            sendRetransmitAck(packet.getTransferId(), false, packet.getStartBlockId(), "direct retransmission window expired");
+            sendRetransmitAck(packet.getTransferId(), false, packet.getStartBlockId(), "retransmission window expired");
             expireDirectRetransmissionRuntime(packet.getTransferId());
             return;
         }
@@ -410,8 +413,9 @@ public class ClientTransferService
 
         //校验通过，保存重传请求
         int startBlockId = packet.getStartBlockId();//重新读取传输起点
+        TransferStatus previousStatus = task.getStatus();
         canceledTransferIds.remove(task.getTransferId());//移除取消标记
-        pendingRetransmitRequests.put(packet.getTransferId(), new PendingRetransmitRequest(packet, context, filePath));//保存pending重传请求
+        pendingRetransmitRequests.put(packet.getTransferId(), new PendingRetransmitRequest(packet, context, filePath, previousStatus));//保存pending重传请求
         task.updateStatus(TransferStatus.WAITING_FOR_ACCEPT, "Waiting for sender confirmation to retransmit from block "+startBlockId);//更新任务状态
         persistTask(task);
         pushNotificationService.publish("transfer-retransmit-request-received", Map.of(     //发起通知推送
@@ -446,9 +450,19 @@ public class ClientTransferService
         RetransmitRequestPacket packet = pending.packet();//还是从pending里拿到原始的重传请求包
         sendRetransmitAck(packet.getTransferId(), false, packet.getStartBlockId(), "Retransmission rejected by sender");//发送方给接收方回一个重传确认包(拒绝)
         TransferTask task = pending.context().transferTask;//从发送上下文处拿到对应的发送任务
-        task.updateStatus(TransferStatus.FAILED, "Retransmission rejected by sender");//更新任务状态
+        TransferStatus rejectedStatus = pending.previousStatus() == TransferStatus.COMPLETED
+                ? TransferStatus.COMPLETED
+                : TransferStatus.FAILED;
+        task.updateStatus(rejectedStatus, "Retransmission rejected by sender");//更新任务状态
         persistTask(task);
-        outboundTransferContexts.remove(packet.getTransferId());//从传输上下文表里移除这个传输上下文
+        if(rejectedStatus == TransferStatus.COMPLETED && shouldRetainDirectRuntimeOnStop(packet.getTransferId(), rejectedStatus))
+        {
+            retainDirectRetransmissionRuntime(packet.getTransferId());
+        }
+        else
+        {
+            outboundTransferContexts.remove(packet.getTransferId());//从传输上下文表里移除这个传输上下文
+        }
         for(CompletableFuture<Boolean> ackFuture : pending.context().ackFutures.values())//一些block正在等待ACK时，会立即得false
         {
             ackFuture.complete(false);
@@ -666,7 +680,8 @@ public class ClientTransferService
         IncomingTransferRequestPacket request = pendingRequest == null ? null : pendingRequest.packet();
         if(request==null)
         {
-            throw new IllegalStateException("Incoming transfer request not found: "+transferId);
+            rejectActiveReceiveTransfer(transferId);
+            return;
         }
         ensureKnownTransferModeAllowsNetworkControl(transferId);
         sendForTransfer(transferId, new ReceiverDeviceSelectionPacket(transferId, false, "Rejected by receiver device"));
@@ -675,6 +690,42 @@ public class ClientTransferService
         {
             closeDirectTransport(transferId);
             clearDirectRuntimeState(transferId);
+        }
+    }
+
+    private void rejectActiveReceiveTransfer(String transferId)
+    {
+        TransferTask task = transferTaskRegistry.findByTransferId(transferId)
+                .orElseThrow(() -> new IllegalStateException("Incoming transfer request not found: "+transferId));
+        if(task.getDirection() != TransferDirection.RECEIVE)
+        {
+            throw new IllegalStateException("Transfer task is not a receive task: "+transferId);
+        }
+        if(task.getStatus() != null && task.getStatus().isTerminal())
+        {
+            return;
+        }
+
+        String reason = "Rejected by receiver device";
+        boolean retainDirectRuntime = shouldRetainDirectRuntimeOnStop(transferId, TransferStatus.REJECTED);
+        if(resolveTransferMode(transferId) != TransportMode.UNKNOWN)
+        {
+            try
+            {
+                sendForTransfer(transferId, new TransferCancelPacket(transferId, reason));
+            }
+            catch(RuntimeException e)
+            {
+                log.warn("Failed to notify peer after rejecting receive transfer {}", transferId, e);
+            }
+        }
+        cancelLocalTransfer(transferId, reason, retainDirectRuntime);
+        task.updateStatus(TransferStatus.REJECTED, reason);
+        persistTask(task);
+        pushNotificationService.publish("transfer-rejected", task);
+        if(retainDirectRuntime)
+        {
+            retainDirectRetransmissionRuntime(transferId);
         }
     }
 
@@ -968,7 +1019,11 @@ public class ClientTransferService
         }
         finally
         {
-            if(task.getStatus()!=TransferStatus.FAILED)
+            if(shouldRetainDirectRuntimeOnStop(task.getTransferId(), task.getStatus()))
+            {
+                retainDirectRetransmissionRuntime(task.getTransferId());
+            }
+            else
             {
                 outboundTransferContexts.remove(task.getTransferId());
             }
@@ -1060,7 +1115,7 @@ public class ClientTransferService
         finally
         {
             directReceiverSelectionFutures.remove(task.getTransferId());
-            if(task.getStatus() == TransferStatus.COMPLETED || task.getStatus() == TransferStatus.REJECTED)
+            if(task.getStatus() == TransferStatus.REJECTED)
             {
                 outboundTransferContexts.remove(task.getTransferId());
                 closeDirectTransport(task.getTransferId());
@@ -1099,11 +1154,18 @@ public class ClientTransferService
                 task.updateStatus(TransferStatus.COMPLETED, "File sent");
                 persistTask(task);
                 pushNotificationService.publish("transfer-complete", task);//更新任务状态为完成
-                outboundTransferContexts.remove(task.getTransferId());//清理发送端上下文
-                if(task.getTransportMode() == TransportMode.DIRECT_PEER)
+                if(shouldRetainDirectRuntimeOnStop(task.getTransferId(), task.getStatus()))
                 {
-                    closeDirectTransport(task.getTransferId());
-                    clearDirectRuntimeState(task.getTransferId());
+                    retainDirectRetransmissionRuntime(task.getTransferId());
+                }
+                else
+                {
+                    outboundTransferContexts.remove(task.getTransferId());//清理发送端上下文
+                    if(task.getTransportMode() == TransportMode.DIRECT_PEER)
+                    {
+                        closeDirectTransport(task.getTransferId());
+                        clearDirectRuntimeState(task.getTransferId());
+                    }
                 }
                 context.ackFutures.clear();
             }
@@ -1578,23 +1640,23 @@ public class ClientTransferService
 
     private boolean shouldRetainDirectRuntimeOnStop(String transferId, TransferStatus terminalStatus)
     {
+        if(terminalStatus != TransferStatus.COMPLETED
+                && terminalStatus != TransferStatus.FAILED
+                && terminalStatus != TransferStatus.CANCELED)
+        {
+            return false;
+        }
         if(resolveTransferMode(transferId) != TransportMode.DIRECT_PEER)
         {
-            return false;
+            return outboundTransferContexts.containsKey(transferId);
         }
-        if(terminalStatus != TransferStatus.FAILED && terminalStatus != TransferStatus.CANCELED)
-        {
-            return false;
-        }
-        return outboundTransferContexts.containsKey(transferId) || inboundTransferContexts.containsKey(transferId);
+        return outboundTransferContexts.containsKey(transferId)
+                || inboundTransferContexts.containsKey(transferId)
+                || transferTransports.containsKey(transferId);
     }
 
     private void retainDirectRetransmissionRuntime(String transferId)
     {
-        if(resolveTransferMode(transferId) != TransportMode.DIRECT_PEER)
-        {
-            return;
-        }
         if(!transferTransports.containsKey(transferId)
                 && !outboundTransferContexts.containsKey(transferId)
                 && !inboundTransferContexts.containsKey(transferId))
@@ -1809,7 +1871,8 @@ public class ClientTransferService
     private record PendingRetransmitRequest(
             RetransmitRequestPacket packet,
             OutboundTransferContext context,
-            Path filePath
+            Path filePath,
+            TransferStatus previousStatus
     )
     {
     }

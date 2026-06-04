@@ -12,6 +12,9 @@ import com.common.codec.decoder.ProtocolDecodingLayer.direct.DirectSessionProofD
 import com.common.codec.decoder.ProtocolDecodingLayer.file.*;
 import com.common.codec.decoder.ProtocolDecodingLayer.heartbeat.PingDecoder;
 import com.common.codec.decoder.ProtocolDecodingLayer.heartbeat.PongDecoder;
+import com.common.codec.decoder.ProtocolDecodingLayer.message.TextMessageAckDecoder;
+import com.common.codec.decoder.ProtocolDecodingLayer.message.TextMessageDecoder;
+import com.common.codec.decoder.ProtocolDecodingLayer.message.TextMessageReadReceiptDecoder;
 import com.common.codec.decoder.ProtocolDecodingLayer.searchUser.OnlineUserSearchRequestDecoder;
 import com.common.codec.decoder.ProtocolDecodingLayer.searchUser.OnlineUserSearchResultDecoder;
 import io.netty.buffer.ByteBuf;
@@ -82,6 +85,9 @@ public class PacketByteBufDecoder extends MessageToMessageDecoder<ByteBuf>
             case MessageType.Direct_Session_Challenge -> new DirectSessionChallengeDecoder();
             case MessageType.Direct_Session_Proof -> new DirectSessionProofDecoder();
             case MessageType.Direct_Session_Accepted -> new DirectSessionAcceptedDecoder();
+            case MessageType.Text_Message -> new TextMessageDecoder();
+            case MessageType.Text_Message_Ack -> new TextMessageAckDecoder();
+            case MessageType.Text_Message_Read_Receipt -> new TextMessageReadReceiptDecoder();
 
             //心跳
             case MessageType.Ping ->    new PingDecoder();

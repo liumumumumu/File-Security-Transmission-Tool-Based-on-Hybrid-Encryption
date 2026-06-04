@@ -23,10 +23,9 @@ test("buildCopyPlan maps jar, crypto runtime, config, and jre directories", () =
   const jarPath = path.join(repoRoot, "TCP_Module", "target", "client.jar");
   const cryptoDir = path.join(
     repoRoot,
-    "Encryption_Module_OpenSSLversion",
-    "Xcode_solution",
+    "Encryption_module",
     "dist",
-    "crypto-service-windows-x64",
+    "crypto-service",
   );
   const javaHome = path.join(repoRoot, "jdk-21");
 
@@ -69,15 +68,14 @@ test("buildCopyPlan maps jar, crypto runtime, config, and jre directories", () =
   ]);
 });
 
-test("listRequiredRuntimePaths includes crypto binary and OpenSSL dlls", () => {
+test("listRequiredRuntimePaths includes Windows python crypto binary", () => {
   const repoRoot = path.resolve("repo");
   const jarPath = path.join(repoRoot, "TCP_Module", "target", "client.jar");
   const cryptoDir = path.join(
     repoRoot,
-    "Encryption_Module_OpenSSLversion",
-    "Xcode_solution",
+    "Encryption_module",
     "dist",
-    "crypto-service-windows-x64",
+    "crypto-service",
   );
   const javaHome = path.join(repoRoot, "jdk-21");
 
@@ -97,26 +95,6 @@ test("listRequiredRuntimePaths includes crypto binary and OpenSSL dlls", () => {
     {
       path: path.join(cryptoDir, "crypto-service.exe"),
       label: "Crypto service executable",
-    },
-    {
-      path: path.join(cryptoDir, "libssl-3-x64.dll"),
-      label: "Crypto service OpenSSL runtime",
-    },
-    {
-      path: path.join(cryptoDir, "libcrypto-3-x64.dll"),
-      label: "Crypto service libcrypto runtime",
-    },
-    {
-      path: path.join(cryptoDir, "brotlicommon.dll"),
-      label: "Crypto service Brotli common runtime",
-    },
-    {
-      path: path.join(cryptoDir, "brotlidec.dll"),
-      label: "Crypto service Brotli decoder runtime",
-    },
-    {
-      path: path.join(cryptoDir, "brotlienc.dll"),
-      label: "Crypto service Brotli encoder runtime",
     },
     {
       path: path.join(
@@ -141,10 +119,9 @@ test("listRequiredRuntimePaths includes macOS crypto binary and dylibs", () => {
   const jarPath = path.join(repoRoot, "TCP_Module", "target", "client.jar");
   const cryptoDir = path.join(
     repoRoot,
-    "Encryption_Module_OpenSSLversion",
-    "Xcode_solution",
+    "Encryption_module",
     "dist",
-    "crypto-service-macos-arm64",
+    "crypto-service",
   );
   const javaHome = path.join(repoRoot, "jdk-21");
 
@@ -179,14 +156,14 @@ test("listRequiredRuntimePaths includes macOS crypto binary and dylibs", () => {
 test("resolves platform-specific crypto runtime folder names", () => {
   assert.equal(
     resolveCryptoRuntimeName({ platform: "win32", arch: "x64" }),
-    "crypto-service-windows-x64",
+    "crypto-service",
   );
   assert.equal(
     resolveCryptoRuntimeName({ platform: "darwin", arch: "arm64" }),
-    "crypto-service-macos-arm64",
+    "crypto-service",
   );
   assert.equal(
     resolveCryptoRuntimeName({ platform: "macos", arch: "x86_64" }),
-    "crypto-service-macos-x64",
+    "crypto-service",
   );
 });
