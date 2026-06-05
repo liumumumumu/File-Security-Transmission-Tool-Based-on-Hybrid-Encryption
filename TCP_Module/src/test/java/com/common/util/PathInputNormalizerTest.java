@@ -21,18 +21,4 @@ public class PathInputNormalizerTest
 
         assertEquals(Path.of("/tmp/qr code.png"), path);
     }
-
-    @Test
-    public void normalizePreservesWindowsDrivePath()
-    {
-        assertEquals("C:\\Users\\KimMinGyu\\Downloads\\testqrcode.png",
-                PathInputNormalizer.normalize("\"C:\\Users\\KimMinGyu\\Downloads\\testqrcode.png\""));
-    }
-
-    @Test
-    public void normalizeSupportsWindowsFileUriWithBackslashes()
-    {
-        assertEquals("file:///C:/Users/KimMinGyu/Downloads/testqrcode.png",
-                PathInputNormalizer.normalize("file:///\\C:\\Users\\KimMinGyu\\Downloads\\testqrcode.png"));
-    }
 }

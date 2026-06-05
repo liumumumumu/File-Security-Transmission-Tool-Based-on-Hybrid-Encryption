@@ -2,13 +2,22 @@ package com.client.direct;
 
 import com.client.message.ClientMessageService;
 import com.client.service.ClientTransferService;
-import com.client.message.ClientMessageService;
+
 import com.common.protocol.Packet;
 import com.common.protocol.direct.DirectSessionAcceptedPacket;
 import com.common.protocol.direct.DirectSessionChallengePacket;
 import com.common.protocol.direct.DirectSessionHelloPacket;
 import com.common.protocol.direct.DirectSessionProofPacket;
-import com.common.protocol.file.*;
+import com.common.protocol.file.AckPacket;
+import com.common.protocol.file.FileAcceptPacket;
+import com.common.protocol.file.FileBlockPacket;
+import com.common.protocol.file.FileOfferPacket;
+import com.common.protocol.file.IncomingTransferRequestPacket;
+import com.common.protocol.file.ReceiverDeviceSelectionPacket;
+import com.common.protocol.file.RetransmitAckPacket;
+import com.common.protocol.file.RetransmitRequestPacket;
+import com.common.protocol.file.TransferCancelAckPacket;
+import com.common.protocol.file.TransferCancelPacket;
 import com.common.protocol.message.TextMessageAckPacket;
 import com.common.protocol.message.TextMessagePacket;
 import com.common.protocol.message.TextMessageReadReceiptPacket;
@@ -22,9 +31,8 @@ import org.springframework.stereotype.Component;
 @ChannelHandler.Sharable
 public class DirectPeerPacketHandler extends SimpleChannelInboundHandler<Packet>
 {
-    //Handler本身不直接处理业务，但是会把消息分发给其他的服务
-    private final DirectPeerConnectionManager directPeerConnectionManager;//负责管理直连会话；握手，认证，连接状态维护
-    private final ClientTransferService clientTransferService;//负责文件传输业务；文件请求，文件块，确认包，取消传输，重传
+    private final DirectPeerConnectionManager directPeerConnectionManager;
+    private final ClientTransferService clientTransferService;
     private final ClientMessageService clientMessageService;
 
     public DirectPeerPacketHandler(@Lazy DirectPeerConnectionManager directPeerConnectionManager,

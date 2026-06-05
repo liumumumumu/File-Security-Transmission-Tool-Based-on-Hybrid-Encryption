@@ -69,67 +69,6 @@ public class LocalContactBookService
         return contactMapper.findByAccountId(accountId);
     }
 
-    public ContactRecord addContactFromPublicKey(String publicKey, String alias, String accountId)
-    {
-        if(publicKey==null || publicKey.isBlank())
-        {
-            throw new IllegalArgumentException("publicKey is required");
-        }
-        return addContact(accountId, publicKey, alias);
-    }
-
-    public ContactRecord updateContactPublicKey(int contactIndex, String publicKey, String accountId)
-    {
-        if(publicKey==null || publicKey.isBlank())
-        {
-            throw new IllegalArgumentException("publicKey is required");
-        }
-        validateAccountId(accountId);
-        ContactRecord existing = contactMapper.findByContactIndex(contactIndex);
-        if(existing==null)
-        {
-            throw new IllegalArgumentException("Contact not found: contact-"+contactIndex);
-        }
-        ContactRecord duplicate = contactMapper.findByAccountId(accountId);
-        if(duplicate!=null && duplicate.getContactIndex()!=contactIndex)
-        {
-            throw new IllegalArgumentException("Another contact already uses accountId: "+accountId);
-        }
-
-        existing.setAccountId(accountId);
-        existing.setPublicKey(publicKey);
-        existing.setUpdatedAt(Instant.now().toString());
-        contactMapper.updateByContactIndex(existing);
-        return contactMapper.findByContactIndex(contactIndex);
-    }
-
-    public ContactRecord updateContact(int contactIndex, String alias, String publicKey, String accountId)
-    {
-        ContactRecord existing = contactMapper.findByContactIndex(contactIndex);
-        if(existing==null)
-        {
-            throw new IllegalArgumentException("Contact not found: contact-"+contactIndex);
-        }
-        if(alias != null)
-        {
-            existing.setAlias(normalizeBlank(alias));
-        }
-        if(publicKey != null && !publicKey.isBlank())
-        {
-            validateAccountId(accountId);
-            ContactRecord duplicate = contactMapper.findByAccountId(accountId);
-            if(duplicate!=null && duplicate.getContactIndex()!=contactIndex)
-            {
-                throw new IllegalArgumentException("Another contact already uses accountId: "+accountId);
-            }
-            existing.setPublicKey(publicKey);
-            existing.setAccountId(accountId);
-        }
-        existing.setUpdatedAt(Instant.now().toString());
-        contactMapper.updateByContactIndex(existing);
-        return contactMapper.findByContactIndex(contactIndex);
-    }
-
     public List<ContactRecord> listContacts()
     {
         return contactMapper.findAll();

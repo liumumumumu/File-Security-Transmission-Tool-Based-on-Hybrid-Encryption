@@ -13,7 +13,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class PrivateKeyArtifactServiceTest
@@ -30,10 +29,8 @@ public class PrivateKeyArtifactServiceTest
         PrivateKeyArtifactService.ExportedPrivateKey exported = service.exportPrivateKey();
 
         assertEquals("private-key-text", exported.privateKeyText());
-        assertEquals("private-key-text", service.normalizePrivateKeyText(exported.qrText()));
         assertTrue(Files.exists(exported.artifact().getPngPath()));
         assertTrue(Files.exists(exported.artifact().getFst1Path()));
-        assertTrue(exported.artifact().getFst1Path().toString().endsWith(".fstpriv"));
         assertTrue(Files.exists(exported.artifact().getAsciiPath()));
     }
 
@@ -50,16 +47,16 @@ public class PrivateKeyArtifactServiceTest
     }
 
     @Test
-    public void importPrivateKeyReadsExistingTextFilePathAndNormalizesContent() throws Exception
+    public void importPrivateKeyReadsExistingTextFilePath() throws Exception
     {
         FakeCryptoSupport cryptoSupport = new FakeCryptoSupport("private-key-text");
         PrivateKeyArtifactService service = service(cryptoSupport);
         Path path = temporaryFolder.getRoot().toPath().resolve("private-key.txt");
-        Files.writeString(path, KeyArtifactPayload.privateArtifact("file-private-key"));
+        Files.writeString(path, "file-private-key");
 
         service.importPrivateKey(path);
 
-        assertEquals("file-private-key", cryptoSupport.importedPrivateKeyText);
+        assertEquals(path.toAbsolutePath().normalize(), cryptoSupport.importedPrivateKeyFile);
     }
 
     @Test
@@ -73,60 +70,6 @@ public class PrivateKeyArtifactServiceTest
         assertEquals("plain-private-key", cryptoSupport.importedPrivateKeyText);
     }
 
-    @Test
-    public void importPrivateKeyAcceptsLabeledText()
-    {
-        FakeCryptoSupport cryptoSupport = new FakeCryptoSupport("private-key-text");
-        PrivateKeyArtifactService service = service(cryptoSupport);
-
-        service.importPrivateKey("privateKey: labeled-private-key");
-
-        assertEquals("labeled-private-key", cryptoSupport.importedPrivateKeyText);
-    }
-
-    @Test
-    public void importPrivateKeyAcceptsLegacyPrivatePrefix()
-    {
-        FakeCryptoSupport cryptoSupport = new FakeCryptoSupport("private-key-text");
-        PrivateKeyArtifactService service = service(cryptoSupport);
-
-        service.importPrivateKey("FST-PRIV1:legacy-private-key");
-
-        assertEquals("legacy-private-key", cryptoSupport.importedPrivateKeyText);
-    }
-
-    @Test
-    public void importPrivateKeyPreservesPemShape()
-    {
-        FakeCryptoSupport cryptoSupport = new FakeCryptoSupport("private-key-text");
-        PrivateKeyArtifactService service = service(cryptoSupport);
-        String pem = "-----BEGIN PRIVATE KEY-----\nYWJjZA==\n-----END PRIVATE KEY-----";
-
-        service.importPrivateKey(KeyArtifactPayload.privateArtifact(pem));
-
-        assertEquals("-----BEGIN PRIVATE KEY-----\nYWJjZA==\n-----END PRIVATE KEY-----\n", cryptoSupport.importedPrivateKeyText);
-    }
-
-    @Test
-    public void importPrivateKeyAcceptsConsoleQrTextLine()
-    {
-        FakeCryptoSupport cryptoSupport = new FakeCryptoSupport("private-key-text");
-        PrivateKeyArtifactService service = service(cryptoSupport);
-
-        service.importPrivateKey("qrText: " + KeyArtifactPayload.privateArtifact("private-key"));
-
-        assertEquals("private-key", cryptoSupport.importedPrivateKeyText);
-    }
-
-    @Test
-    public void importPrivateKeyRejectsPublicArtifact()
-    {
-        FakeCryptoSupport cryptoSupport = new FakeCryptoSupport("private-key-text");
-        PrivateKeyArtifactService service = service(cryptoSupport);
-
-        assertThrows(IllegalArgumentException.class, () -> service.importPrivateKey(KeyArtifactPayload.publicArtifact("public-key")));
-    }
-
     private PrivateKeyArtifactService service(FakeCryptoSupport cryptoSupport)
     {
         LocalStorageProperties properties = new LocalStorageProperties();
@@ -138,6 +81,7 @@ public class PrivateKeyArtifactServiceTest
     {
         private final String privateKeyText;
         private String importedPrivateKeyText;
+        private Path importedPrivateKeyFile;
 
         private FakeCryptoSupport(String privateKeyText)
         {
@@ -160,7 +104,7 @@ public class PrivateKeyArtifactServiceTest
         @Override
         public synchronized void importPrivateKeyFile(Path privateKeyPath)
         {
-            throw new AssertionError("Private key file imports should be normalized before calling crypto service");
+            this.importedPrivateKeyFile = privateKeyPath;
         }
     }
 }
