@@ -394,7 +394,6 @@ public class ConsoleMessages
         put(en, zh, Key.SEND_QR_TO_RECEIVER, "Send this QR/FST1 file to the receiver.", "请将此二维码/FST1文件发送给接收方。");
         put(en, zh, Key.PASTE_RECEIVER_FST1, "Type receiver .fst1 or .png file path:", "输入接收方 .fst1 或 .png 文件路径:");
         put(en, zh, Key.HANDSHAKE_CANCEL_HINT, "Leave blank or type 'cancel' to stop this handshake step.", "留空或输入 'cancel' 可停止当前握手步骤。");
-        put(en, zh, Key.FST1_MULTILINE_HINT, "For FST1 text, paste all wrapped lines, then enter a single '.' line to finish.", "粘贴FST1文本时，可以粘贴多行，最后单独输入一行 '.' 结束。");
         put(en, zh, Key.DIRECT_SESSION_CONNECTED, "Direct session connected: %s", "直连会话已连接: %s");
         put(en, zh, Key.FILE_PATH_TO_SEND, "File path to send> ", "要发送的文件路径> ");
         put(en, zh, Key.SEND_TASK_CREATED, "Send task created: %s", "发送任务已创建: %s");

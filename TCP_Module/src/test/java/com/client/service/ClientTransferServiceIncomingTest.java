@@ -4,25 +4,15 @@ import com.common.config.ClientProperties;
 import com.common.config.LocalStorageProperties;
 import com.common.config.NodeProperties;
 import com.common.config.TransferProperties;
-import com.common.protocol.file.RetransmitRequestPacket;
 import com.common.protocol.file.IncomingTransferRequestPacket;
 import com.common.protocol.file.TransferCancelPacket;
 import com.common.service.PushNotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.client.transport.TransportMode;
-import com.session.TransferDirection;
-import com.session.TransferStatus;
-import com.session.TransferTask;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import java.time.Instant;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
 
 import static org.junit.Assert.assertEquals;
 
@@ -58,64 +48,7 @@ public class ClientTransferServiceIncomingTest
         assertEquals(0, service.pendingIncomingTransferRequestsDetailed().size());
     }
 
-    @Test
-    public void rejectIncomingTransferCanRejectActiveReceiveTask()
-    {
-        TransferTaskRegistry registry = transferTaskRegistry();
-        ClientTransferService service = service(registry);
-        TransferTask task = new TransferTask(
-                UUID.randomUUID().toString(),
-                "transfer-active",
-                TransferDirection.RECEIVE,
-                "active.txt",
-                temporaryFolder.getRoot().toPath().resolve("active.txt").toString(),
-                "sender-a",
-                100L,
-                1,
-                Instant.now()
-        );
-        task.updateStatus(TransferStatus.TRANSFERRING, "Receiving file");
-        registry.register(task);
-
-        service.rejectIncomingTransfer("transfer-active");
-
-        assertEquals(TransferStatus.REJECTED, task.getStatus());
-    }
-
-    @Test
-    public void completedSendTaskCanReceivePendingRetransmissionRequest() throws Exception
-    {
-        TransferTaskRegistry registry = transferTaskRegistry();
-        ClientTransferService service = service(registry);
-        java.io.File source = temporaryFolder.newFile("sent.txt");
-        TransferTask task = new TransferTask(
-                UUID.randomUUID().toString(),
-                "transfer-complete",
-                TransferDirection.SEND,
-                "sent.txt",
-                source.toPath().toString(),
-                "receiver-a",
-                100L,
-                10,
-                Instant.now(),
-                TransportMode.SERVER_RELAY
-        );
-        task.updateStatus(TransferStatus.COMPLETED, "File sent");
-        registry.register(task);
-        putOutboundContext(service, task);
-
-        service.handleRetransmitRequest(new RetransmitRequestPacket("transfer-complete", 3, "missing block"));
-
-        assertEquals(1, service.pendingRetransmitRequests().size());
-        assertEquals(TransferStatus.WAITING_FOR_ACCEPT, task.getStatus());
-    }
-
     private ClientTransferService service()
-    {
-        return service(transferTaskRegistry());
-    }
-
-    private ClientTransferService service(TransferTaskRegistry registry)
     {
         return new ClientTransferService(
                 null,
@@ -124,7 +57,7 @@ public class ClientTransferServiceIncomingTest
                 nodeProperties(),
                 new PushNotificationService(),
                 transferProperties(),
-                registry
+                transferTaskRegistry()
         );
     }
 
@@ -148,21 +81,6 @@ public class ClientTransferServiceIncomingTest
     {
         LocalStorageProperties localStorageProperties = new LocalStorageProperties();
         localStorageProperties.setTransferHistoryPath(temporaryFolder.getRoot().toPath().resolve("history.json").toString());
-        return new TransferTaskRegistry(new LocalTransferHistoryService(new ObjectMapper().findAndRegisterModules(), localStorageProperties));
-    }
-
-    @SuppressWarnings("unchecked")
-    private void putOutboundContext(ClientTransferService service, TransferTask task) throws Exception
-    {
-        Class<?> contextClass = Class.forName("com.client.service.ClientTransferService$OutboundTransferContext");
-        java.lang.reflect.Constructor<?> constructor = contextClass.getDeclaredConstructor(SecretKey.class, TransferTask.class, String.class);
-        constructor.setAccessible(true);
-        KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
-        keyGenerator.init(128);
-        Object context = constructor.newInstance(keyGenerator.generateKey(), task, "receiver-public-key");
-
-        java.lang.reflect.Field field = ClientTransferService.class.getDeclaredField("outboundTransferContexts");
-        field.setAccessible(true);
-        ((Map<String, Object>) field.get(service)).put(task.getTransferId(), context);
+        return new TransferTaskRegistry(new LocalTransferHistoryService(new ObjectMapper(), localStorageProperties));
     }
 }

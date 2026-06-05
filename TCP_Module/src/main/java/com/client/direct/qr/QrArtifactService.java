@@ -4,8 +4,8 @@ import com.common.config.LocalStorageProperties;
 import com.common.util.PathInputNormalizer;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
-import com.google.zxing.BarcodeFormat;
 import com.google.zxing.BinaryBitmap;
+import com.google.zxing.BarcodeFormat;
 import com.google.zxing.DecodeHintType;
 import com.google.zxing.LuminanceSource;
 import com.google.zxing.EncodeHintType;
@@ -19,7 +19,6 @@ import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.GlobalHistogramBinarizer;
 import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.common.BitMatrix;
-import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -42,15 +41,27 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Author: LQH
+ * Date: 2026-05-19
+ * Purpose: 负责将DirectQrCodec生成出来的FST1文本保存成文件，并且实现从文件重新读回FST1文本
+ * 1.生成PNG二维码图片
+ * 2.生成.fst1原始文本文件
+ * 3.生成.ascii.txt终端字符版二维码
+ * 4.从PNG/ .fst1读取内容
+ * 5.维护manifest.json，用于清理过期的二维码文件
+ *
+ * */
+
 @Service
 public class QrArtifactService
 {
-    private static final DateTimeFormatter FILE_TIME =
-            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC);
+    //文件时间格式
+    private static final DateTimeFormatter FILE_TIME = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC);
 
-    private final Path outputDir;
-    private final Path manifestPath;
-    private final Gson gson = new Gson();
+    private final Path outputDir;//二维码文件输出目录
+    private final Path manifestPath;//manifest文件的路径
+    private final Gson gson = new Gson();//用于读写manifest.json
 
     public QrArtifactService(LocalStorageProperties localStorageProperties)
     {
@@ -58,6 +69,7 @@ public class QrArtifactService
         this.manifestPath = outputDir.resolve("manifest.json");
     }
 
+    //生成二维码文件
     public synchronized QrArtifact writeArtifacts(String role, String inviteId, Instant expiresAt, String fst1Text)
     {
         return writeArtifacts(role, inviteId, expiresAt, fst1Text, ".fst1", true);
@@ -84,6 +96,7 @@ public class QrArtifactService
             String qrText = normalizeGeneratedQrText(fst1Text);
             Files.createDirectories(outputDir);//创建输出目录
 
+            //生成文件名
             String safeInvite = inviteId.length() <= 8 ? inviteId : inviteId.substring(0, 8);
             String baseName = role + "-" + FILE_TIME.format(Instant.now()) + "-" + safeInvite;
             Path png = outputDir.resolve(baseName + ".png");
@@ -132,15 +145,15 @@ public class QrArtifactService
     public synchronized int cleanupExpired()
     {
         Manifest manifest = readManifest();
-        Instant now = Instant.now();
+        Instant now = Instant.now();//当前时间
         int removed = 0;
         Iterator<ManifestEntry> iterator = manifest.entries.iterator();
         while(iterator.hasNext())
         {
             ManifestEntry entry = iterator.next();
-            Instant expiresAt = Instant.parse(entry.expiresAt);
+            Instant expiresAt = Instant.parse(entry.expiresAt);//如果expiresAt不晚于当前时间，就认为过期
             boolean expired = !expiresAt.isAfter(now);
-            boolean missingAll = entry.files.stream().noneMatch(path -> Files.exists(Path.of(path)));
+            boolean missingAll = entry.files.stream().noneMatch(path -> Files.exists(Path.of(path)));//如果manifest中记录的所有文件都不存在，也移除这个manifest条目
             if(expired || missingAll)
             {
                 for(String file : entry.files)
@@ -158,9 +171,11 @@ public class QrArtifactService
             }
         }
         writeManifest(manifest);
-        return removed;
+        return removed;//返回清理掉的记录数量（不是文件数量）
     }
 
+    //按照邀请删除文件，用于删除某个邀请ID对应的二维码文件
+    //发送方完成握手后就删除自己的邀请二维码避免堆积
     public synchronized void deleteInvite(String inviteId)
     {
         Manifest manifest = readManifest();
@@ -168,7 +183,7 @@ public class QrArtifactService
         while(iterator.hasNext())
         {
             ManifestEntry entry = iterator.next();
-            if(!entry.inviteId.equals(inviteId))
+            if(!entry.inviteId.equals(inviteId))//找到对应的inviteId，然后删除该记录下的所有文件
             {
                 continue;
             }
@@ -182,7 +197,7 @@ public class QrArtifactService
                 {
                 }
             }
-            iterator.remove();
+            iterator.remove();//最后从 manifest 移除该记录：
         }
         writeManifest(manifest);
     }
@@ -195,7 +210,7 @@ public class QrArtifactService
         {
             throw new IllegalArgumentException("Direct FST1 text input is not supported. Please provide a .fst1 or .png file path.");
         }
-        if(trimmed.startsWith("file "))
+        if(trimmed.startsWith("file "))//输入的是文件路径
         {
             trimmed = trimmed.substring("file ".length()).trim();
         }
@@ -203,24 +218,15 @@ public class QrArtifactService
         String text = normalizeFst1FileText(readQrText(path));
         if(!text.startsWith(DirectQrCodec.PREFIX))
         {
-            throw new IllegalArgumentException("QR code import failed: content is not FST1 text: " + path);
+            throw new IllegalArgumentException("QR code import failed: content is not FST1 text: "+path);
         }
         return text;
-    }
-
-    private String normalizeGeneratedQrText(String text)
-    {
-        if(text == null || !text.startsWith(DirectQrCodec.PREFIX))
-        {
-            return text;
-        }
-        return compactWhitespace(text.trim());
     }
 
     private String normalizeFst1FileText(String text)
     {
         String trimmed = text == null ? "" : text.trim();
-        return compactWhitespace(trimmed);
+        return removeLineSeparators(trimmed);
     }
 
     private String removeLineSeparators(String text)
@@ -244,7 +250,7 @@ public class QrArtifactService
         {
             throw new IllegalArgumentException("QR text or path is required");
         }
-        if(trimmed.startsWith("file "))
+        if(trimmed.startsWith("file "))//输入的是文件路径
         {
             trimmed = trimmed.substring("file ".length()).trim();
         }
@@ -253,17 +259,17 @@ public class QrArtifactService
 
     public String readQrText(Path path)
     {
-        if(isPngPath(path))
+        if(isPngPath(path))//判断是否是PNG,是PNG就从图中识别二维码文本
         {
             return readPngText(path);
         }
-        try
+        try //不是就按普通文本文件读取
         {
             return Files.readString(path).trim();
         }
         catch(IOException ex)
         {
-            throw new IllegalArgumentException("Unable to read QR text file: " + path, ex);
+            throw new IllegalArgumentException("Unable to read QR text file: "+path, ex);
         }
     }
 
@@ -272,17 +278,20 @@ public class QrArtifactService
         return outputDir;
     }
 
+    //判断PNG路径
+    //根据后缀名来判断
     private boolean isPngPath(Path path)
     {
         Path fileName = path.getFileName();
         return fileName != null && fileName.toString().toLowerCase(Locale.ROOT).endsWith(".png");
     }
 
+    //从PNG识别二维码
     private String readPngText(Path path)
     {
         try
         {
-            BufferedImage image = ImageIO.read(path.toFile());
+            BufferedImage image = ImageIO.read(path.toFile());//读取图片
             if(image == null)
             {
                 throw new IOException("Unsupported PNG image");
@@ -451,46 +460,82 @@ public class QrArtifactService
         }
     }
 
+    //程序启动完成后就自动执行一次短期二维码清理
     @EventListener(ApplicationReadyEvent.class)
     public void cleanupOnStartup()
     {
         cleanupExpired();
     }
 
+    //生成PNG二维码
     private void writePng(String text, Path path) throws WriterException, IOException
     {
+        //用ZXing生成二维码图片
         Map<EncodeHintType, Object> hints = new EnumMap<>(EncodeHintType.class);
         hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M);
         hints.put(EncodeHintType.MARGIN, 2);
 
-        BitMatrix matrix = new QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, 720, 720, hints);
-        MatrixToImageWriter.writeToPath(matrix, "PNG", path);
+        //二维码矩阵
+        BitMatrix matrix = new QRCodeWriter().encode(
+                text,
+                BarcodeFormat.QR_CODE,
+                720,
+                720,
+                hints);
+        MatrixToImageWriter.writeToPath(matrix, "PNG", path);//将二维码矩阵写入PNG文件
     }
 
+    //生成ASCII二维码，生成在终端可以显示的字符二维码
     private String asciiQr(String text) throws WriterException
     {
         Map<EncodeHintType, Object> hints = new EnumMap<>(EncodeHintType.class);
         hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M);
         hints.put(EncodeHintType.MARGIN, 1);
 
-        BitMatrix matrix = new QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, 0, 0, hints);
+        //生成二维码矩阵
+        BitMatrix matrix = new QRCodeWriter().encode(
+                text,
+                BarcodeFormat.QR_CODE,
+                0,
+                0,
+                hints);
         StringBuilder builder = new StringBuilder();
-        for(int y = 0; y < matrix.getHeight(); y++)
+
+        //逐行扫描二维码举证
+        for(int y = 0; y < matrix.getHeight(); y += 2)
         {
             for(int x = 0; x < matrix.getWidth(); x++)
             {
-                builder.append(matrix.get(x, y) ? "##" : "  ");
+                boolean upper = matrix.get(x, y);
+                boolean lower = y + 1 < matrix.getHeight() && matrix.get(x, y + 1);
+                if(upper && lower)
+                {
+                    builder.append('█');
+                }
+                else if(upper)
+                {
+                    builder.append('▀');
+                }
+                else if(lower)
+                {
+                    builder.append('▄');
+                }
+                else
+                {
+                    builder.append(' ');
+                }
             }
             builder.append(System.lineSeparator());
         }
         return builder.toString();
     }
 
+    //读取manifest
     private Manifest readManifest()
     {
         if(Files.notExists(manifestPath))
         {
-            return new Manifest();
+            return new Manifest();//manifest.json文件不存在的话就创建一个
         }
         try
         {
@@ -503,11 +548,12 @@ public class QrArtifactService
         }
     }
 
+    //写入manifest文件
     private void writeManifest(Manifest manifest)
     {
         try
         {
-            Files.createDirectories(outputDir);
+            Files.createDirectories(outputDir);//确保目录存在
             Files.writeString(manifestPath, gson.toJson(manifest));
         }
         catch(IOException ex)
@@ -516,11 +562,13 @@ public class QrArtifactService
         }
     }
 
+    //标识整个manifest文件
     private static class Manifest
     {
         private List<ManifestEntry> entries = new ArrayList<>();
     }
 
+    //二维码生成记录
     private record ManifestEntry(String inviteId, String role, String expiresAt, List<String> files) {
     }
 }
