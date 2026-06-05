@@ -37,12 +37,7 @@ public final class PathInputNormalizer
             normalized = normalized.substring(1, normalized.length() - 1).trim();
         }
         if (normalized.startsWith("file:///") && normalized.length() > "file:///".length() && normalized.charAt("file:///".length()) == '\\') {
-            String pathPart = normalized.substring("file:///".length()).replace('\\', '/');
-            while(pathPart.startsWith("/"))
-            {
-                pathPart = pathPart.substring(1);
-            }
-            normalized = "file:///" + pathPart;
+            normalized = "file:///" + normalized.substring("file:///".length()).replace('\\', '/');
         }
         return normalized;
     }

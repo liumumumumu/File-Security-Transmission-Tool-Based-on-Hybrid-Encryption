@@ -57,16 +57,6 @@ public interface ContactMapper
             """)
     int updateByAccountId(ContactRecord record);
 
-    @Update("""
-            UPDATE contact
-            SET alias = #{alias},
-                account_id = #{accountId},
-                public_key = #{publicKey},
-                updated_at = #{updatedAt}
-            WHERE contact_index = #{contactIndex}
-            """)
-    int updateByContactIndex(ContactRecord record);
-
     @Select("""
             SELECT
                 id,

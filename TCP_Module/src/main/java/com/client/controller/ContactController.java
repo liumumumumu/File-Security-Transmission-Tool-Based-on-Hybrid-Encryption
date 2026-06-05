@@ -2,9 +2,7 @@ package com.client.controller;
 
 import com.client.service.ClientTransferService;
 import com.client.service.LocalContactBookService;
-import com.client.service.PublicKeyPayloadService;
 import com.common.protocol.searchUser.OnlineUserSearchResultPacket;
-import com.common.util.PathInputNormalizer;
 import com.persistence.local.model.contactsRecord.BlacklistRecord;
 import com.persistence.local.model.contactsRecord.ContactRecord;
 import org.springframework.http.ResponseEntity;
@@ -20,16 +18,13 @@ public class ContactController {
 
     private final LocalContactBookService localContactBookService;
     private final ClientTransferService clientTransferService;
-    private final PublicKeyPayloadService publicKeyPayloadService;
 
     public ContactController(
             LocalContactBookService localContactBookService,
-            ClientTransferService clientTransferService,
-            PublicKeyPayloadService publicKeyPayloadService
+            ClientTransferService clientTransferService
     ) {
         this.localContactBookService = localContactBookService;
         this.clientTransferService = clientTransferService;
-        this.publicKeyPayloadService = publicKeyPayloadService;
     }
 
     @GetMapping
@@ -67,7 +62,7 @@ public class ContactController {
     }
 
     @PostMapping
-    public ResponseEntity<Map<String, Object>> addContact(@RequestBody Map<String, String> request) throws Exception {
+    public ResponseEntity<Map<String, Object>> addContact(@RequestBody Map<String, String> request) {
         if (request == null) {
             Map<String, Object> error = new LinkedHashMap<>();
             error.put("success", false);
@@ -77,27 +72,15 @@ public class ContactController {
         String accountId = request.get("accountId");
         String alias = request.get("alias");
         String publicKey = request.get("publicKey");
-        String publicKeyPath = request.get("publicKeyPath");
 
-        if (publicKey != null && !publicKey.isBlank() && publicKeyPath != null && !publicKeyPath.isBlank()) {
+        if (accountId == null || accountId.isBlank()) {
             Map<String, Object> error = new LinkedHashMap<>();
             error.put("success", false);
-            error.put("message", "publicKey and publicKeyPath cannot both be provided");
+            error.put("message", "accountId is required");
             return ResponseEntity.badRequest().body(error);
         }
 
-        if (publicKey != null && !publicKey.isBlank() || publicKeyPath != null && !publicKeyPath.isBlank()) {
-            publicKey = publicKey != null && !publicKey.isBlank()
-                    ? publicKeyPayloadService.normalizePublicKeyText(publicKey)
-                    : publicKeyPayloadService.readPublicKey(PathInputNormalizer.toPath(publicKeyPath));
-            accountId = publicKeyPayloadService.accountIdForPublicKey(publicKey);
-        } else {
-            if (accountId == null || accountId.isBlank()) {
-                Map<String, Object> error = new LinkedHashMap<>();
-                error.put("success", false);
-                error.put("message", "accountId or publicKey/publicKeyPath is required");
-                return ResponseEntity.badRequest().body(error);
-            }
+        if (publicKey == null || publicKey.isBlank()) {
             publicKey = searchPublicKeyForContact(accountId);
         }
 
@@ -119,37 +102,20 @@ public class ContactController {
             @RequestBody Map<String, String> request) {
         String alias = request.get("alias");
         String publicKey = request.get("publicKey");
-        String publicKeyPath = request.get("publicKeyPath");
-
-        if (publicKey != null && !publicKey.isBlank() && publicKeyPath != null && !publicKeyPath.isBlank()) {
-            Map<String, Object> error = new LinkedHashMap<>();
-            error.put("success", false);
-            error.put("message", "publicKey and publicKeyPath cannot both be provided");
-            return ResponseEntity.badRequest().body(error);
-        }
 
         return localContactBookService.findContactByIndex(contactIndex)
                 .map(existing -> {
-                    String normalizedPublicKey = null;
-                    String accountId = null;
-                    if (publicKey != null && !publicKey.isBlank() || publicKeyPath != null && !publicKeyPath.isBlank()) {
-                        normalizedPublicKey = publicKey != null && !publicKey.isBlank()
-                                ? publicKeyPayloadService.normalizePublicKeyText(publicKey)
-                                : publicKeyPayloadService.readPublicKey(PathInputNormalizer.toPath(publicKeyPath));
-                        try {
-                            accountId = publicKeyPayloadService.accountIdForPublicKey(normalizedPublicKey);
-                        } catch (Exception ex) {
-                            throw new IllegalStateException("Unable to calculate accountId from publicKey", ex);
-                        }
-                    }
-                    ContactRecord updated = localContactBookService.updateContact(contactIndex, alias, normalizedPublicKey, accountId);
+                    ContactRecord updated = localContactBookService.addContact(
+                            existing.getAccountId(),
+                            publicKey != null && !publicKey.isBlank() ? publicKey : existing.getPublicKey(),
+                            alias
+                    );
 
                     Map<String, Object> payload = new LinkedHashMap<>();
                     payload.put("success", true);
                     payload.put("contactIndex", updated.getContactIndex());
                     payload.put("alias", updated.getAlias());
                     payload.put("accountId", updated.getAccountId());
-                    payload.put("publicKey", updated.getPublicKey());
                     payload.put("message", "Contact updated successfully");
                     return ResponseEntity.ok(payload);
                 })
