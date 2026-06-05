@@ -7,13 +7,16 @@ import com.google.gson.JsonSyntaxException;
 import com.google.zxing.BinaryBitmap;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.DecodeHintType;
+import com.google.zxing.LuminanceSource;
 import com.google.zxing.EncodeHintType;
 import com.google.zxing.MultiFormatReader;
+import com.google.zxing.NotFoundException;
 import com.google.zxing.ReaderException;
 import com.google.zxing.Result;
 import com.google.zxing.WriterException;
 import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.GlobalHistogramBinarizer;
 import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
@@ -23,6 +26,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
+import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -68,7 +72,25 @@ public class QrArtifactService
     //生成二维码文件
     public synchronized QrArtifact writeArtifacts(String role, String inviteId, Instant expiresAt, String fst1Text)
     {
-        cleanupExpired();//清理之前的过期的二维码
+        return writeArtifacts(role, inviteId, expiresAt, fst1Text, ".fst1", true);
+    }
+
+    public synchronized QrArtifact writeArtifacts(String role, String inviteId, Instant expiresAt, String text, String textExtension)
+    {
+        return writeArtifacts(role, inviteId, expiresAt, text, textExtension, true);
+    }
+
+    public synchronized QrArtifact writePermanentArtifacts(String role, String id, String text, String textExtension)
+    {
+        return writeArtifacts(role, id, null, text, textExtension, false);
+    }
+
+    private synchronized QrArtifact writeArtifacts(String role, String inviteId, Instant expiresAt, String fst1Text, String textExtension, boolean trackManifest)
+    {
+        if(trackManifest)
+        {
+            cleanupExpired();//清理之前的过期的二维码
+        }
         try
         {
             Files.createDirectories(outputDir);//创建输出目录
@@ -77,23 +99,32 @@ public class QrArtifactService
             String safeInvite = inviteId.length() <= 8 ? inviteId : inviteId.substring(0, 8);
             String baseName = role + "-" + FILE_TIME.format(Instant.now()) + "-" + safeInvite;
             Path png = outputDir.resolve(baseName + ".png");
-            Path fst1 = outputDir.resolve(baseName + ".fst1");
+            String normalizedExtension = textExtension == null || textExtension.isBlank() ? ".fst1" : textExtension;
+            if(!normalizedExtension.startsWith("."))
+            {
+                normalizedExtension = "." + normalizedExtension;
+            }
+            Path fst1 = outputDir.resolve(baseName + normalizedExtension);
             Path ascii = outputDir.resolve(baseName + ".ascii.txt");
 
             //将内容写入二维码文件里面
-            Files.writeString(fst1, fst1Text);//写入FST1文本文件
-            Files.writeString(ascii, asciiQr(fst1Text));//写入ASCII字符二维码文件
-            writePng(fst1Text, png);//写入PNG图片二维码
+            String normalizedText = normalizeGeneratedQrText(fst1Text);
+            Files.writeString(fst1, normalizedText);//写入FST1文本文件
+            Files.writeString(ascii, asciiQr(normalizedText));//写入ASCII字符二维码文件
+            writePng(normalizedText, png);//写入PNG图片二维码
 
 
-            //更新manifest文件
-            Manifest manifest = readManifest();
-            manifest.entries.add(new ManifestEntry(inviteId, role, expiresAt.toString(), List.of(
-                    png.toString(),
-                    fst1.toString(),
-                    ascii.toString()
-            )));
-            writeManifest(manifest);//将这次生成的文件路径记录进manifest.json方便之后删除或清理
+            if(trackManifest)
+            {
+                //更新manifest文件
+                Manifest manifest = readManifest();
+                manifest.entries.add(new ManifestEntry(inviteId, role, expiresAt.toString(), List.of(
+                        png.toString(),
+                        fst1.toString(),
+                        ascii.toString()
+                )));
+                writeManifest(manifest);//将这次生成的文件路径记录进manifest.json方便之后删除或清理
+            }
             return new QrArtifact(inviteId, role, expiresAt, png, fst1, ascii);
         }
         catch(IOException | WriterException ex)
@@ -179,19 +210,14 @@ public class QrArtifactService
         String trimmed = valueOrPath == null ? "" : valueOrPath.trim();
         if(trimmed.startsWith(DirectQrCodec.PREFIX))
         {
-            return compacted;
-        }
-        if(compacted.startsWith(DirectQrCodec.PREFIX))//支持为终端粘贴拆成多行的FST1文本
-        {
-            return compacted;
-
+            throw new IllegalArgumentException("Direct FST1 text input is not supported. Please provide a .fst1 or .png file path.");
         }
         if(trimmed.startsWith("file "))//输入的是文件路径
         {
             trimmed = trimmed.substring("file ".length()).trim();
         }
         Path path = PathInputNormalizer.toPath(trimmed);
-        String text = readQrText(path);
+        String text = normalizeFst1FileText(readQrText(path));
 
         if(!text.startsWith(DirectQrCodec.PREFIX))
         {
@@ -218,19 +244,6 @@ public class QrArtifactService
             }
         }
         return normalized.toString();
-    private String compactWhitespace(String value)
-    {
-        StringBuilder normalized = new StringBuilder(text.length());
-        for(int i = 0; i < text.length(); i++)
-        {
-            char ch = text.charAt(i);
-            if(ch != '\r' && ch != '\n' && ch != '\t')
-            {
-                normalized.append(ch);
-            }
-        }
-        return compacted.toString();
-
     }
 
     public String readQrText(String valueOrPath)
@@ -286,13 +299,13 @@ public class QrArtifactService
             {
                 throw new IOException("Unsupported PNG image");
             }
-            //将图片转成ZXing可以识别的二值图
-            BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(image)));//BufferedImageLuminanceSource将图片转成灰度亮度源；HybridBinarizer将灰度图转成黑白图；BinaryBitmap ZXing解码器使用的图像格式
             Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);//识别二维码
             hints.put(DecodeHintType.POSSIBLE_FORMATS, List.of(BarcodeFormat.QR_CODE));
+            hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
+            hints.put(DecodeHintType.CHARACTER_SET, "UTF-8");
 
             //解码
-            Result result = new MultiFormatReader().decode(bitmap, hints);
+            Result result = decodeQrImage(image, hints);
             String text = result.getText().trim();
 
             //校验二维码内容是否属于本系统的格式
@@ -300,7 +313,153 @@ public class QrArtifactService
         }
         catch(IOException | ReaderException ex)
         {
-            throw new IllegalArgumentException("QR code import failed: unable to decode PNG: "+path, ex);
+            throw new IllegalArgumentException("QR code import failed: unable to decode PNG: "+pngDiagnostic(path), ex);
+        }
+    }
+
+    private Result decodeQrImage(BufferedImage image, Map<DecodeHintType, Object> hints) throws ReaderException
+    {
+        ReaderException firstFailure = null;
+        for(BufferedImage variant : qrDecodeImageVariants(image))
+        {
+            LuminanceSource source = new BufferedImageLuminanceSource(variant);
+            for(LuminanceSource candidate : List.of(source, source.invert()))
+            {
+                for(BinaryBitmap bitmap : List.of(
+                        new BinaryBitmap(new HybridBinarizer(candidate)),
+                        new BinaryBitmap(new GlobalHistogramBinarizer(candidate))))
+                {
+                    try
+                    {
+                        return new MultiFormatReader().decode(bitmap, hints);
+                    }
+                    catch(ReaderException ex)
+                    {
+                        if(firstFailure == null)
+                        {
+                            firstFailure = ex;
+                        }
+                    }
+                }
+            }
+        }
+        throw firstFailure == null ? NotFoundException.getNotFoundInstance() : firstFailure;
+    }
+
+    private List<BufferedImage> qrDecodeImageVariants(BufferedImage image)
+    {
+        BufferedImage normalized = normalizeQrInputImage(image);
+        List<BufferedImage> variants = new ArrayList<>();
+        variants.add(normalized);
+        variants.add(withQuietZone(normalized, 32));
+        variants.add(scaleImage(withQuietZone(normalized, 48), 2));
+        if(normalized.getWidth() < 500 || normalized.getHeight() < 500)
+        {
+            variants.add(scaleImage(withQuietZone(normalized, 64), 4));
+        }
+        variants.add(rotateRight(normalized));
+        variants.add(rotateRight(variants.get(variants.size() - 1)));
+        variants.add(rotateRight(variants.get(variants.size() - 1)));
+        return variants;
+    }
+
+    private BufferedImage normalizeQrInputImage(BufferedImage image)
+    {
+        BufferedImage normalized = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
+        for(int y = 0; y < image.getHeight(); y++)
+        {
+            for(int x = 0; x < image.getWidth(); x++)
+            {
+                normalized.setRGB(x, y, compositeOnWhite(image.getRGB(x, y)));
+            }
+        }
+        return normalized;
+    }
+
+    private BufferedImage withQuietZone(BufferedImage image, int margin)
+    {
+        BufferedImage padded = new BufferedImage(image.getWidth() + margin * 2, image.getHeight() + margin * 2, BufferedImage.TYPE_INT_RGB);
+        fillWhite(padded);
+        for(int y = 0; y < image.getHeight(); y++)
+        {
+            for(int x = 0; x < image.getWidth(); x++)
+            {
+                padded.setRGB(x + margin, y + margin, image.getRGB(x, y));
+            }
+        }
+        return padded;
+    }
+
+    private BufferedImage scaleImage(BufferedImage image, int scale)
+    {
+        BufferedImage scaled = new BufferedImage(image.getWidth() * scale, image.getHeight() * scale, BufferedImage.TYPE_INT_RGB);
+        for(int y = 0; y < scaled.getHeight(); y++)
+        {
+            for(int x = 0; x < scaled.getWidth(); x++)
+            {
+                scaled.setRGB(x, y, image.getRGB(x / scale, y / scale));
+            }
+        }
+        return scaled;
+    }
+
+    private BufferedImage rotateRight(BufferedImage image)
+    {
+        BufferedImage rotated = new BufferedImage(image.getHeight(), image.getWidth(), BufferedImage.TYPE_INT_RGB);
+        fillWhite(rotated);
+        for(int y = 0; y < image.getHeight(); y++)
+        {
+            for(int x = 0; x < image.getWidth(); x++)
+            {
+                rotated.setRGB(image.getHeight() - 1 - y, x, image.getRGB(x, y));
+            }
+        }
+        return rotated;
+    }
+
+    private int compositeOnWhite(int argb)
+    {
+        int alpha = (argb >>> 24) & 0xff;
+        if(alpha == 255)
+        {
+            return argb & 0x00ffffff;
+        }
+        int red = (argb >>> 16) & 0xff;
+        int green = (argb >>> 8) & 0xff;
+        int blue = argb & 0xff;
+        red = (red * alpha + 255 * (255 - alpha)) / 255;
+        green = (green * alpha + 255 * (255 - alpha)) / 255;
+        blue = (blue * alpha + 255 * (255 - alpha)) / 255;
+        return (red << 16) | (green << 8) | blue;
+    }
+
+    private void fillWhite(BufferedImage image)
+    {
+        int white = Color.WHITE.getRGB();
+        for(int y = 0; y < image.getHeight(); y++)
+        {
+            for(int x = 0; x < image.getWidth(); x++)
+            {
+                image.setRGB(x, y, white);
+            }
+        }
+    }
+
+    private String pngDiagnostic(Path path)
+    {
+        try
+        {
+            BufferedImage image = ImageIO.read(path.toFile());
+            long size = Files.exists(path) ? Files.size(path) : -1;
+            if(image == null)
+            {
+                return path + " (unsupported image, bytes=" + size + ")";
+            }
+            return path + " (width=" + image.getWidth() + ", height=" + image.getHeight() + ", bytes=" + size + ")";
+        }
+        catch(IOException ex)
+        {
+            return path + " (diagnostic unavailable: " + ex.getMessage() + ")";
         }
     }
 

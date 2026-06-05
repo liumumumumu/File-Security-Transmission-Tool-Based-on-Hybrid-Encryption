@@ -63,7 +63,6 @@ public class DirectPeerConnectionManager
     private final EventLoopGroup workerGroup = new NioEventLoopGroup();//处理连接读写
     private final Map<Channel, DirectPeerTransport> transportsByChannel = new ConcurrentHashMap<>();//保存已经认证成功的直连通道
     private final Map<Channel, DirectPeerSession> sessionsByChannel = new ConcurrentHashMap<>();
-    private final Map<Channel, DirectPeerSession> sessionsByChannel = new ConcurrentHashMap<>();
     private final Map<String, PendingReceiver> pendingReceivers = new ConcurrentHashMap<>();//接收方等待中的邀请
     private final Map<String, PendingSender> pendingSenders = new ConcurrentHashMap<>();//发送方等待中的连接
     private final Map<String, ChallengeState> challenges = new ConcurrentHashMap<>();//接收方发出的挑战
@@ -215,7 +214,7 @@ public class DirectPeerConnectionManager
         }
         //连接通过就生成一个随机Challenge
         String challenge = UUID.randomUUID().toString();
-        challenges.put(packet.getSessionId(), new ChallengeState(packet.getInviteId(), packet.getSessionId(), packet.getSenderDeviceId(), packet.getSenderPublicKey(), challenge));//保存challenge状态
+        challenges.put(packet.getSessionId(), new ChallengeState(packet.getInviteId(), packet.getSessionId(), packet.getSenderAccountId(), packet.getSenderDeviceId(), packet.getSenderPublicKey(), challenge));//保存challenge状态
         channel.writeAndFlush(new DirectSessionChallengePacket(packet.getInviteId(), packet.getSessionId(), challenge));//发回challenge
     }
 
@@ -415,7 +414,7 @@ public class DirectPeerConnectionManager
     //接收方发给发送方的Challenge,以及验证这个Challenge所需要的信息
     private record ChallengeState(String inviteId,
                                   String sessionId,
-
+                                  String senderAccountId,
                                   String senderDeviceId,
                                   String senderPublicKey,
                                   String challenge) {

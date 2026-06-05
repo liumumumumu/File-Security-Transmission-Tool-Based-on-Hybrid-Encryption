@@ -20,6 +20,8 @@ import static org.junit.Assert.assertTrue;
 
 public class SystemControllerTest
 {
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
     public void shutdownReturnsAcceptedResponse() throws Exception

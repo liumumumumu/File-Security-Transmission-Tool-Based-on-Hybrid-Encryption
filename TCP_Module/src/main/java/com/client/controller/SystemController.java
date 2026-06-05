@@ -16,7 +16,9 @@ import com.common.util.PathInputNormalizer;
 import com.crypto.CryptoSupport;
 import com.client.service.LocalTransferHistoryService;
 import com.client.service.PrivateKeyArtifactService;
+import com.client.service.PublicKeyPayloadService;
 import com.client.service.TransferTaskRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,7 +41,72 @@ public class SystemController
     private final ClientConnectionManager clientConnectionManager;
     private final ApplicationShutdownService applicationShutdownService;
     private final PrivateKeyArtifactService privateKeyArtifactService;
+    private final PublicKeyPayloadService publicKeyPayloadService;
+    private final LanguageSettingsService languageSettingsService;
 
+    @Autowired
+    public SystemController(
+            ClientProperties clientProperties,
+            ServerProperties serverProperties,
+            CryptoServiceProperties cryptoServiceProperties,
+            NodeProperties nodeProperties,
+            CryptoSupport cryptoSupport,
+            ClientStartupCoordinator clientStartupCoordinator,
+            TransferTaskRegistry transferTaskRegistry,
+            LocalTransferHistoryService localTransferHistoryService,
+            ClientConnectionManager clientConnectionManager,
+            ApplicationShutdownService applicationShutdownService,
+            PrivateKeyArtifactService privateKeyArtifactService,
+            PublicKeyPayloadService publicKeyPayloadService,
+            LanguageSettingsService languageSettingsService
+    )
+    {
+        this.clientProperties = clientProperties;
+        this.serverProperties = serverProperties;
+        this.cryptoServiceProperties = cryptoServiceProperties;
+        this.nodeProperties = nodeProperties;
+        this.cryptoSupport = cryptoSupport;
+        this.clientStartupCoordinator = clientStartupCoordinator;
+        this.transferTaskRegistry = transferTaskRegistry;
+        this.localTransferHistoryService = localTransferHistoryService;
+        this.clientConnectionManager = clientConnectionManager;
+        this.applicationShutdownService = applicationShutdownService;
+        this.privateKeyArtifactService = privateKeyArtifactService;
+        this.publicKeyPayloadService = publicKeyPayloadService;
+        this.languageSettingsService = languageSettingsService;
+    }
+
+    public SystemController(
+            ClientProperties clientProperties,
+            ServerProperties serverProperties,
+            CryptoServiceProperties cryptoServiceProperties,
+            NodeProperties nodeProperties,
+            CryptoSupport cryptoSupport,
+            ClientStartupCoordinator clientStartupCoordinator,
+            TransferTaskRegistry transferTaskRegistry,
+            LocalTransferHistoryService localTransferHistoryService,
+            ClientConnectionManager clientConnectionManager,
+            ApplicationShutdownService applicationShutdownService,
+            PrivateKeyArtifactService privateKeyArtifactService,
+            LanguageSettingsService languageSettingsService
+    )
+    {
+        this(
+                clientProperties,
+                serverProperties,
+                cryptoServiceProperties,
+                nodeProperties,
+                cryptoSupport,
+                clientStartupCoordinator,
+                transferTaskRegistry,
+                localTransferHistoryService,
+                clientConnectionManager,
+                applicationShutdownService,
+                privateKeyArtifactService,
+                null,
+                languageSettingsService
+        );
+    }
 
     public SystemController(
             ClientProperties clientProperties,
@@ -55,17 +122,21 @@ public class SystemController
             PrivateKeyArtifactService privateKeyArtifactService
     )
     {
-        this.clientProperties = clientProperties;
-        this.serverProperties = serverProperties;
-        this.cryptoServiceProperties = cryptoServiceProperties;
-        this.nodeProperties = nodeProperties;
-        this.cryptoSupport = cryptoSupport;
-        this.clientStartupCoordinator = clientStartupCoordinator;
-        this.transferTaskRegistry = transferTaskRegistry;
-        this.localTransferHistoryService = localTransferHistoryService;
-        this.clientConnectionManager = clientConnectionManager;
-        this.applicationShutdownService = applicationShutdownService;
-        this.privateKeyArtifactService = privateKeyArtifactService;
+        this(
+                clientProperties,
+                serverProperties,
+                cryptoServiceProperties,
+                nodeProperties,
+                cryptoSupport,
+                clientStartupCoordinator,
+                transferTaskRegistry,
+                localTransferHistoryService,
+                clientConnectionManager,
+                applicationShutdownService,
+                privateKeyArtifactService,
+                null,
+                null
+        );
     }
 
     @GetMapping("/status")
@@ -131,7 +202,7 @@ public class SystemController
     {
         String fingerprint = request == null || request.getPublicKey() == null || request.getPublicKey().isBlank()
                 ? cryptoSupport.publicKeyFingerprint()
-                : cryptoSupport.publicKeyFingerprint(request.getPublicKey());
+                : publicKeyPayloadService.accountIdForPublicKey(request.getPublicKey());
         return ResponseEntity.ok(Map.of(
                 "fingerprint", fingerprint
         ));
@@ -152,7 +223,7 @@ public class SystemController
     {
         String accountId = request == null || request.getPublicKey() == null || request.getPublicKey().isBlank()
                 ? cryptoSupport.publicKeyFingerprint()
-                : cryptoSupport.publicKeyFingerprint(request.getPublicKey());
+                : publicKeyPayloadService.accountIdForPublicKey(request.getPublicKey());
         return ResponseEntity.ok(Map.of(
                 "fingerprint", accountId,
                 "accountId", accountId
@@ -210,10 +281,24 @@ public class SystemController
         PrivateKeyArtifactService.ExportedPrivateKey exported = privateKeyArtifactService.exportPrivateKey();
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("privateKey", exported.privateKeyText());
+        payload.put("qrText", exported.qrText());
         payload.put("pngPath", exported.artifact().getPngPath().toString());
         payload.put("textPath", exported.artifact().getFst1Path().toString());
         payload.put("asciiPath", exported.artifact().getAsciiPath().toString());
         payload.put("expiresAt", exported.artifact().getExpiresAt().toString());
+        return ResponseEntity.ok(payload);
+    }
+
+    @PostMapping("/key/export-public")
+    public ResponseEntity<Map<String, Object>> exportPublicKey() throws Exception
+    {
+        PublicKeyPayloadService.ExportedPublicKey exported = publicKeyPayloadService.exportPublicKey();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("publicKey", exported.publicKey());
+        payload.put("qrText", exported.qrText());
+        payload.put("pngPath", exported.artifact().getPngPath().toString());
+        payload.put("textPath", exported.artifact().getFst1Path().toString());
+        payload.put("asciiPath", exported.artifact().getAsciiPath().toString());
         return ResponseEntity.ok(payload);
     }
 
