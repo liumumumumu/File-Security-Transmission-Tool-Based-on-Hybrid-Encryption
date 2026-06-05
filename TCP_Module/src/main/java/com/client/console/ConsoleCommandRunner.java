@@ -43,7 +43,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -82,7 +81,6 @@ public class ConsoleCommandRunner
     private static final int PROGRESS_BAR_WIDTH = 30;
     private static final int WINDOWS_DEFAULT_TERMINAL_COLUMNS = 80;
     private static final int DEFAULT_TERMINAL_COLUMNS = 120;
-    private static final int FST1_TERMINAL_WRAP_WIDTH = 96;
     private static final long TASK_WATCH_INTERVAL_MILLIS = 1000L;
 
     private final ClientConnectionManager clientConnectionManager;//负责客户端连接服务器，认证，断开连接
@@ -603,9 +601,13 @@ public class ConsoleCommandRunner
         while (isApplicationActive()) {
             System.out.println(messages.text(ConsoleMessages.Key.PASTE_RECEIVER_FST1));
             System.out.println(messages.text(ConsoleMessages.Key.HANDSHAKE_CANCEL_HINT));
-            System.out.println(messages.text(ConsoleMessages.Key.FST1_MULTILINE_HINT));
-            String receiverInput = readFst1ConsoleInput(reader, "receiver-fst1> ");
+            System.out.print("receiver-fst1> ");
+            String receiverInput = reader.readLine();
             if(receiverInput == null) {
+                handleConsoleInputClosed();
+                return null;
+            }
+            if(isHandshakeAbortInput(receiverInput)) {
                 return null;
             }
             try {
@@ -623,9 +625,13 @@ public class ConsoleCommandRunner
         while (isApplicationActive()) {
             System.out.println(messages.text(ConsoleMessages.Key.PASTE_SENDER_FST1));
             System.out.println(messages.text(ConsoleMessages.Key.HANDSHAKE_CANCEL_HINT));
-            System.out.println(messages.text(ConsoleMessages.Key.FST1_MULTILINE_HINT));
-            String senderInput = readFst1ConsoleInput(reader, "sender-fst1> ");
+            System.out.print("sender-fst1> ");
+            String senderInput = reader.readLine();
             if(senderInput == null) {
+                handleConsoleInputClosed();
+                return null;
+            }
+            if(isHandshakeAbortInput(senderInput)) {
                 return null;
             }
             try {
@@ -636,40 +642,6 @@ public class ConsoleCommandRunner
             }
         }
         return null;
-    }
-
-    private String readFst1ConsoleInput(BufferedReader reader, String prompt) throws IOException
-    {
-        System.out.print(prompt);
-        String firstLine = reader.readLine();
-        if(firstLine == null) {
-            handleConsoleInputClosed();
-            return null;
-        }
-        if(isHandshakeAbortInput(firstLine)) {
-            return null;
-        }
-        String trimmed = firstLine.trim();
-        if(!trimmed.startsWith("FST1:")) {
-            return firstLine;
-        }
-
-        List<String> lines = new ArrayList<>();
-        lines.add(firstLine);
-        while (true) {
-            String line = reader.readLine();
-            if(line == null) {
-                handleConsoleInputClosed();
-                return null;
-            }
-            if(".".equals(line.trim())) {
-                return joinFst1PasteLines(lines);
-            }
-            if(isHandshakeAbortInput(line)) {
-                return null;
-            }
-            lines.add(line);
-        }
     }
 
     private String promptDirectFileSend(BufferedReader reader, DirectSessionInfo session) throws IOException
@@ -710,34 +682,11 @@ public class ConsoleCommandRunner
         System.out.println(messages.format(ConsoleMessages.Key.QR_PNG, artifact.getPngPath()));
         System.out.println(messages.format(ConsoleMessages.Key.QR_FST1, artifact.getFst1Path()));
         System.out.println(messages.format(ConsoleMessages.Key.QR_ASCII, artifact.getAsciiPath()));
+        if(text != null && text.startsWith("FST1:")) {
+            return;
+        }
         System.out.println(messages.text(ConsoleMessages.Key.QR_TEXT));
-        System.out.println(wrapLongText(text, FST1_TERMINAL_WRAP_WIDTH));
-    }
-
-    static String wrapLongText(String text, int width)
-    {
-        if(text == null || text.isEmpty() || width <= 0) {
-            return text;
-        }
-        StringBuilder wrapped = new StringBuilder(text.length() + text.length() / width);
-        for(int index = 0; index < text.length(); index += width) {
-            if(index > 0) {
-                wrapped.append(System.lineSeparator());
-            }
-            wrapped.append(text, index, Math.min(index + width, text.length()));
-        }
-        return wrapped.toString();
-    }
-
-    static String joinFst1PasteLines(List<String> lines)
-    {
-        StringBuilder joined = new StringBuilder();
-        for(String line : lines) {
-            if(line != null) {
-                joined.append(line.trim());
-            }
-        }
-        return joined.toString();
+        System.out.println(text);
     }
 
     private boolean confirm(BufferedReader reader, String prompt) throws IOException
@@ -1043,11 +992,92 @@ public class ConsoleCommandRunner
             return;
         }
         if (args.size() < 2) {
+            System.out.println(messages.usage("fst-file-decrypt <fst2Path> [outputDir]"));
+            return;
+        }
+        Path outputDir = args.size() >= 3 ? PathInputNormalizer.toPath(joinArguments(args, 2)) : null;
+        OfflineCryptoService.Fst2DecryptResult result = offlineCryptoService.decryptFile(PathInputNormalizer.toPath(args.get(1)), outputDir);
+        System.out.println("FST2 file decrypted: " + result.outputPath());
+        System.out.println("fileName: " + result.fileName());
+        System.out.println("fileSize: " + result.fileSize());
+        System.out.println("totalBlocks: " + result.totalBlocks());
+    }
+
+    private void fstTextEncrypt(BufferedReader reader, List<String> args) throws IOException
+    {
+        if (!ensureKeyPresent()) {
+            return;
+        }
+        if(args.size() < 2)
+        {
+            System.out.println(messages.usage("fst-text-encrypt <publicKey|publicKeyFile|contact-N>"));
+            return;
+        }
+        String text = readUntilQuit(reader, "text> ");
+        if(text == null)
+        {
+            return;
+        }
+        OfflineCryptoService.FstTextEncryptResult result = offlineCryptoService.encryptText(text, args.get(1));
+        System.out.println(result.payload());
+    }
+
+    private void fstTextDecrypt(BufferedReader reader, List<String> args) throws IOException
+    {
+        if (!ensureKeyPresent()) {
+            return;
+        }
+        String payload;
+        if(args.size() >= 2)
+        {
+            payload = joinArguments(args, 1);
+        }
+        else
+        {
+            payload = readUntilQuit(reader, "fst-text> ");
+            if(payload == null)
+            {
+                return;
+            }
+        }
+        OfflineCryptoService.FstTextDecryptResult result = offlineCryptoService.decryptText(payload);
+        System.out.println(result.text());
+    }
+
+    private String readUntilQuit(BufferedReader reader, String prompt) throws IOException
+    {
+        List<String> lines = new ArrayList<>();
+        while(isApplicationActive())
+        {
+            System.out.print(prompt);
+            String line = reader.readLine();
+            if(line == null)
+            {
+                handleConsoleInputClosed();
+                return null;
+            }
+            if(":q".equals(line))
+            {
+                return String.join(System.lineSeparator(), lines);
+            }
+            lines.add(line);
+        }
+        return null;
+    }
+
+    private void sendRelayMessage(BufferedReader reader, List<String> args) throws IOException
+    {
+        if (!ensureKeyPresent()) {
+            return;
+        }
+        if(args.size() < 2)
+        {
             System.out.println(messages.usage("message-send <accountId|contact-N>"));
             return;
         }
         String body = promptMessageBody(reader);
-        if (body == null) {
+        if(body == null)
+        {
             return;
         }
         TextMessageRecord record = clientMessageService.sendRelay(args.get(1), body);
@@ -1059,12 +1089,14 @@ public class ConsoleCommandRunner
         if (!ensureKeyPresent()) {
             return;
         }
-        if (args.size() > 1) {
+        if(args.size() > 1)
+        {
             System.out.println(messages.usage("message-send"));
             return;
         }
         String body = promptMessageBody(reader);
-        if (body == null) {
+        if(body == null)
+        {
             return;
         }
         TextMessageRecord record = clientMessageService.sendDirect(body, clientMessageService.requireSingleActiveDirectSession());
@@ -1074,30 +1106,37 @@ public class ConsoleCommandRunner
     private String promptMessageBody(BufferedReader reader) throws IOException
     {
         List<String> lines = new ArrayList<>();
-        while (isApplicationActive()) {
+        while(isApplicationActive())
+        {
             System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_EDIT_HINT));
-            if (!lines.isEmpty()) {
+            if(!lines.isEmpty())
+            {
                 System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_CURRENT_DRAFT));
                 System.out.println(String.join(System.lineSeparator(), lines));
             }
-            while (isApplicationActive()) {
+            while(isApplicationActive())
+            {
                 System.out.print("message> ");
                 String line = reader.readLine();
-                if (line == null) {
+                if(line == null)
+                {
                     handleConsoleInputClosed();
                     return null;
                 }
-                if (":q".equals(line)) {
+                if(":q".equals(line))
+                {
                     break;
                 }
                 lines.add(line);
             }
             String body = String.join(System.lineSeparator(), lines);
-            if (body.trim().isEmpty()) {
+            if(body.trim().isEmpty())
+            {
                 System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_EMPTY));
                 continue;
             }
-            if (body.getBytes(StandardCharsets.UTF_8).length > ClientMessageService.MAX_MESSAGE_BYTES) {
+            if(body.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > ClientMessageService.MAX_MESSAGE_BYTES)
+            {
                 System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_TOO_LARGE));
                 continue;
             }
@@ -1106,17 +1145,21 @@ public class ConsoleCommandRunner
             System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_REVIEW_HINT));
             System.out.print("message-review> ");
             String action = reader.readLine();
-            if (action == null) {
+            if(action == null)
+            {
                 handleConsoleInputClosed();
                 return null;
             }
-            if (action.isBlank()) {
+            if(action.isBlank())
+            {
                 return body;
             }
-            if ("i".equalsIgnoreCase(action.trim())) {
+            if("i".equalsIgnoreCase(action.trim()))
+            {
                 continue;
             }
-            if ("q".equalsIgnoreCase(action.trim())) {
+            if("q".equalsIgnoreCase(action.trim()))
+            {
                 System.out.println(messages.text(ConsoleMessages.Key.MESSAGE_CANCELED));
                 return null;
             }
@@ -1128,12 +1171,14 @@ public class ConsoleCommandRunner
     private void printMessageSummaries()
     {
         List<ConversationSummary> summaries = clientMessageService.summaries();
-        if (summaries.isEmpty()) {
+        if(summaries.isEmpty())
+        {
             System.out.println(messages.text(ConsoleMessages.Key.NO_MESSAGES));
             return;
         }
         System.out.println(messages.tableHeader("accountId", "alias", "unread", "lastMessageTime", "direction", "status", "mode"));
-        for (ConversationSummary summary : summaries) {
+        for(ConversationSummary summary : summaries)
+        {
             System.out.printf(
                     "%s | %s | %d | %s | %s | %s | %s%n",
                     summary.peerAccountId(),
@@ -1149,7 +1194,8 @@ public class ConsoleCommandRunner
 
     private void printRelayConversation(List<String> args)
     {
-        if (args.size() < 2) {
+        if(args.size() < 2)
+        {
             System.out.println(messages.usage("message <accountId|contact-N>"));
             return;
         }
@@ -1158,7 +1204,8 @@ public class ConsoleCommandRunner
 
     private void printDirectConversation(List<String> args)
     {
-        if (args.size() < 2) {
+        if(args.size() < 2)
+        {
             printConversation(clientMessageService.directActiveConversation(true));
             return;
         }
@@ -1167,11 +1214,13 @@ public class ConsoleCommandRunner
 
     private void printConversation(List<TextMessageRecord> records)
     {
-        if (records.isEmpty()) {
+        if(records.isEmpty())
+        {
             System.out.println(messages.text(ConsoleMessages.Key.NO_MESSAGES));
             return;
         }
-        for (TextMessageRecord record : records) {
+        for(TextMessageRecord record : records)
+        {
             String direction = record.getDirection() == com.client.message.MessageDirection.OUTGOING ? "me -> peer" : "peer -> me";
             System.out.printf(
                     "%s | %s | %s%s%n",
@@ -1180,7 +1229,8 @@ public class ConsoleCommandRunner
                     record.getStatus(),
                     record.getReadAt() == null ? "" : " | readAt=" + record.getReadAt()
             );
-            if (record.getErrorMessage() != null) {
+            if(record.getErrorMessage() != null)
+            {
                 System.out.println("error=" + record.getErrorMessage());
             }
             System.out.println(record.getBody());
