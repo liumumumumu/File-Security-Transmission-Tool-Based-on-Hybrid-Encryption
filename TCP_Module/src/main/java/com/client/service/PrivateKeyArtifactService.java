@@ -30,9 +30,10 @@ public class PrivateKeyArtifactService
     public ExportedPrivateKey exportPrivateKey() throws GeneralSecurityException
     {
         String privateKeyText = cryptoSupport.getEncodedPrivateKey();
+        String qrText = KeyArtifactPayload.privateArtifact(privateKeyText);
         Instant expiresAt = Instant.now().plus(EXPORT_TTL);
-        QrArtifact artifact = qrArtifactService.writeArtifacts("private-key", UUID.randomUUID().toString(), expiresAt, privateKeyText);
-        return new ExportedPrivateKey(privateKeyText, artifact);
+        QrArtifact artifact = qrArtifactService.writeArtifacts("private-key", UUID.randomUUID().toString(), expiresAt, qrText, ".fstpriv");
+        return new ExportedPrivateKey(privateKeyText, qrText, artifact);
     }
 
     public void importPrivateKey(String privateKeyTextOrPath)
@@ -43,18 +44,28 @@ public class PrivateKeyArtifactService
             importPrivateKey(path);
             return;
         }
-        cryptoSupport.importPrivateKeyText(privateKeyTextOrPath);
+        cryptoSupport.importPrivateKeyText(normalizePrivateKeyText(privateKeyTextOrPath));
     }
 
     public void importPrivateKey(Path privateKeyPath)
     {
         Path normalizedPath = privateKeyPath.toAbsolutePath().normalize();
-        if(isPngPath(normalizedPath))
+        cryptoSupport.importPrivateKeyText(readPrivateKey(normalizedPath));
+    }
+
+    public String readPrivateKey(Path path)
+    {
+        return normalizePrivateKeyText(qrArtifactService.readQrText(path));
+    }
+
+    public String normalizePrivateKeyText(String text)
+    {
+        String normalized = KeyArtifactPayload.extractPrivateKey(text);
+        if(KeyArtifactPayload.containsPemEnvelope(normalized, "PRIVATE KEY"))
         {
-            cryptoSupport.importPrivateKeyText(qrArtifactService.readQrText(normalizedPath));
-            return;
+            return KeyArtifactPayload.normalizePemEnvelope(normalized, "PRIVATE KEY");
         }
-        cryptoSupport.importPrivateKeyFile(normalizedPath);
+        return normalized.trim();
     }
 
     private Path resolveExistingPath(String value)
@@ -77,13 +88,8 @@ public class PrivateKeyArtifactService
         return null;
     }
 
-    private boolean isPngPath(Path path)
-    {
-        Path fileName = path.getFileName();
-        return fileName != null && fileName.toString().toLowerCase().endsWith(".png");
-    }
-
     public record ExportedPrivateKey(String privateKeyText,
+                                     String qrText,
                                      QrArtifact artifact)
     {
     }
