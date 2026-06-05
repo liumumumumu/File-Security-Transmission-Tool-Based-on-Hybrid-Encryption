@@ -93,6 +93,7 @@ public class QrArtifactService
         }
         try
         {
+            String qrText = normalizeGeneratedQrText(fst1Text);
             Files.createDirectories(outputDir);//创建输出目录
 
             //生成文件名
@@ -108,11 +109,9 @@ public class QrArtifactService
             Path ascii = outputDir.resolve(baseName + ".ascii.txt");
 
             //将内容写入二维码文件里面
-            String normalizedText = normalizeGeneratedQrText(fst1Text);
-            Files.writeString(fst1, normalizedText);//写入FST1文本文件
-            Files.writeString(ascii, asciiQr(normalizedText));//写入ASCII字符二维码文件
-            writePng(normalizedText, png);//写入PNG图片二维码
-
+            Files.writeString(fst1, qrText);//写入FST1文本文件
+            Files.writeString(ascii, asciiQr(qrText));//写入ASCII字符二维码文件
+            writePng(qrText, png);//写入PNG图片二维码
 
             if(trackManifest)
             {
@@ -141,7 +140,6 @@ public class QrArtifactService
         }
         return removeLineSeparators(text.trim());
     }
-
 
     //清理过期的二维码，读取manifest.json，并删除已经过期的二维码文件
     public synchronized int cleanupExpired()
@@ -204,7 +202,7 @@ public class QrArtifactService
         writeManifest(manifest);
     }
 
-    //读取FST1文件，支持两种输入1.二维码文本；2.输入路径
+    //读取FST1文件，仅支持FST1/PNG文件路径，避免终端粘贴长文本破坏Base45内容。
     public String readFst1Text(String valueOrPath)
     {
         String trimmed = valueOrPath == null ? "" : valueOrPath.trim();
@@ -218,7 +216,6 @@ public class QrArtifactService
         }
         Path path = PathInputNormalizer.toPath(trimmed);
         String text = normalizeFst1FileText(readQrText(path));
-
         if(!text.startsWith(DirectQrCodec.PREFIX))
         {
             throw new IllegalArgumentException("QR code import failed: content is not FST1 text: "+path);

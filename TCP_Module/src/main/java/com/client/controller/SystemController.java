@@ -108,37 +108,6 @@ public class SystemController
         );
     }
 
-    public SystemController(
-            ClientProperties clientProperties,
-            ServerProperties serverProperties,
-            CryptoServiceProperties cryptoServiceProperties,
-            NodeProperties nodeProperties,
-            CryptoSupport cryptoSupport,
-            ClientStartupCoordinator clientStartupCoordinator,
-            TransferTaskRegistry transferTaskRegistry,
-            LocalTransferHistoryService localTransferHistoryService,
-            ClientConnectionManager clientConnectionManager,
-            ApplicationShutdownService applicationShutdownService,
-            PrivateKeyArtifactService privateKeyArtifactService
-    )
-    {
-        this(
-                clientProperties,
-                serverProperties,
-                cryptoServiceProperties,
-                nodeProperties,
-                cryptoSupport,
-                clientStartupCoordinator,
-                transferTaskRegistry,
-                localTransferHistoryService,
-                clientConnectionManager,
-                applicationShutdownService,
-                privateKeyArtifactService,
-                null,
-                null
-        );
-    }
-
     @GetMapping("/status")
     public Map<String, Object> status() throws Exception
     {

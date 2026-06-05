@@ -262,7 +262,6 @@ public class DirectPeerConnectionManager
                 challenge.senderPublicKey(),
                 transport
         ));
-
         pendingReceivers.remove(packet.getInviteId());//清理连接状态
         qrArtifactService.deleteInvite(packet.getInviteId());//删除本地二维码文件
         if(listenerChannel != null)//关闭监听端口
@@ -306,7 +305,6 @@ public class DirectPeerConnectionManager
                 packet.getReceiverPublicKey(),
                 transport
         ));
-
 
         //完成future
         pending.future().complete(new DirectSessionInfo(
@@ -355,12 +353,11 @@ public class DirectPeerConnectionManager
         return activeSessions().size();
     }
 
-
     //处理断开连接的情况，当某条直连TCP连接断开时，从transportByChannel里删除对应的transport记录
     public void handleChannelInactive(Channel channel)
     {
         transportsByChannel.remove(channel);
-
+        sessionsByChannel.remove(channel);
     }
 
     //停止接收方正在监听的IPv6直连端口，并清空等待中的接收方邀请状态
@@ -425,5 +422,4 @@ public class DirectPeerConnectionManager
                                     String peerPublicKey,
                                     PacketTransport transport) {
     }
-
 }

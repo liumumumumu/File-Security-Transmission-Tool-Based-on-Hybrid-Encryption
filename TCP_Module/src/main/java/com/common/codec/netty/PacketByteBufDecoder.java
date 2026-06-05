@@ -85,7 +85,9 @@ public class PacketByteBufDecoder extends MessageToMessageDecoder<ByteBuf>
             case MessageType.Direct_Session_Challenge -> new DirectSessionChallengeDecoder();
             case MessageType.Direct_Session_Proof -> new DirectSessionProofDecoder();
             case MessageType.Direct_Session_Accepted -> new DirectSessionAcceptedDecoder();
-
+            case MessageType.Text_Message -> new TextMessageDecoder();
+            case MessageType.Text_Message_Ack -> new TextMessageAckDecoder();
+            case MessageType.Text_Message_Read_Receipt -> new TextMessageReadReceiptDecoder();
 
             //心跳
             case MessageType.Ping ->    new PingDecoder();

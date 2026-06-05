@@ -1,7 +1,7 @@
 package com.client.direct;
 
-import com.client.message.ClientMessageService;
 import com.client.service.ClientTransferService;
+import com.client.message.ClientMessageService;
 import com.common.protocol.Packet;
 import com.common.protocol.direct.DirectSessionAcceptedPacket;
 import com.common.protocol.direct.DirectSessionChallengePacket;

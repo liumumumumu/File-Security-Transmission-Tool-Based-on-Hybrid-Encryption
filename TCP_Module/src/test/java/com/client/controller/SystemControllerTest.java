@@ -7,9 +7,6 @@ import com.client.service.PrivateKeyArtifactService;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import com.client.service.PrivateKeyArtifactService;
-import org.junit.Test;
-
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.http.ResponseEntity;
 
@@ -40,7 +37,7 @@ public class SystemControllerTest
                 null,
                 null,
                 shutdownService,
-
+                null,
                 null
         );
 
@@ -104,5 +101,4 @@ public class SystemControllerTest
         assertEquals(false, response.getBody().get("success"));
         assertEquals("enabled is required", response.getBody().get("message"));
     }
-
 }

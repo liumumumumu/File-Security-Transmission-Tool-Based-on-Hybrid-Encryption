@@ -187,46 +187,6 @@ public class ConsoleCommandRunner
         );
     }
 
-    public ConsoleCommandRunner(
-            ClientConnectionManager clientConnectionManager,
-            ClientStartupCoordinator clientStartupCoordinator,
-            ClientTransferService clientTransferService,
-            ClientProperties clientProperties,
-            CryptoSupport cryptoSupport,
-            TransferTaskRegistry transferTaskRegistry,
-            ApplicationShutdownService applicationShutdownService,
-            PushNotificationService pushNotificationService,
-            LocalContactBookService localContactBookService,
-            PrivateKeyArtifactService privateKeyArtifactService,
-            DirectHandshakeService directHandshakeService,
-            DirectSettingsService directSettingsService,
-            DirectPeerConnectionManager directPeerConnectionManager,
-            LanguageSettingsService languageSettingsService,
-            ConsoleMessages messages
-    )
-    {
-        this(
-                clientConnectionManager,
-                clientStartupCoordinator,
-                clientTransferService,
-                clientProperties,
-                cryptoSupport,
-                transferTaskRegistry,
-                applicationShutdownService,
-                pushNotificationService,
-                localContactBookService,
-                privateKeyArtifactService,
-                directHandshakeService,
-                directSettingsService,
-                directPeerConnectionManager,
-                languageSettingsService,
-                null,
-                null,
-                null,
-                messages
-        );
-    }
-
     @EventListener(ApplicationReadyEvent.class)
     public void startConsole()//startConsole监听ApplicationReadyEvent
     {
@@ -1941,41 +1901,6 @@ public class ConsoleCommandRunner
         clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
         System.out.println(messages.format(ConsoleMessages.Key.PRIVATE_KEY_IMPORTED, cryptoSupport.publicKeyFingerprint()));
         System.out.println(messages.text(ConsoleMessages.Key.AUTO_CONNECT_CONTINUE));
-    }
-
-    static String wrapLongText(String text, int lineWidth)
-    {
-        if(text == null || text.isEmpty() || lineWidth <= 0)
-        {
-            return text == null ? "" : text;
-        }
-        StringBuilder wrapped = new StringBuilder();
-        for(int offset = 0; offset < text.length(); offset += lineWidth)
-        {
-            if(offset > 0)
-            {
-                wrapped.append(System.lineSeparator());
-            }
-            wrapped.append(text, offset, Math.min(text.length(), offset + lineWidth));
-        }
-        return wrapped.toString();
-    }
-
-    static String joinFst1PasteLines(List<String> lines)
-    {
-        if(lines == null || lines.isEmpty())
-        {
-            return "";
-        }
-        StringBuilder joined = new StringBuilder();
-        for(String line : lines)
-        {
-            if(line != null)
-            {
-                joined.append(line.trim());
-            }
-        }
-        return joined.toString();
     }
 
     //--------------------------导入密钥的三种方式------------------------------//
