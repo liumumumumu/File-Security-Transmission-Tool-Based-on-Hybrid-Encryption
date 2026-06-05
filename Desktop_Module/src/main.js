@@ -1,4 +1,5 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell, session } = require("electron");
+const path = require("node:path");
 const {
   buildRuntimeEnv,
   getJavaLaunchCommand,
@@ -70,11 +71,81 @@ function showLoadError(url, error) {
   );
 }
 
+function appendRendererVersion(url) {
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}v=${encodeURIComponent(app.getVersion())}`;
+}
+
+async function clearRendererCache() {
+  if (!app.isPackaged) {
+    return;
+  }
+
+  try {
+    await session.defaultSession.clearCache();
+    await session.defaultSession.clearStorageData({
+      storages: ["cachestorage", "serviceworkers"],
+    });
+  } catch (error) {
+    console.warn("Failed to clear renderer cache", error);
+  }
+}
+
+function currentRuntimePaths() {
+  return runtimeState?.runtimePaths || resolveDesktopRuntimePaths({
+    isPackaged: app.isPackaged,
+    resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
+  });
+}
+
+async function openDevTools() {
+  const window = mainWindow || BrowserWindow.getFocusedWindow();
+  if (!window) {
+    throw new Error("No active window is available");
+  }
+  window.webContents.openDevTools({ mode: "detach" });
+  return { success: true };
+}
+
+async function openLogsFolder() {
+  const runtimePaths = currentRuntimePaths();
+  await ensureRuntimeDirectories(runtimePaths);
+  const error = await shell.openPath(runtimePaths.logDir);
+  if (error) {
+    throw new Error(error);
+  }
+  return { success: true, path: runtimePaths.logDir };
+}
+
+async function openSystemStatus() {
+  const runtimePaths = currentRuntimePaths();
+  await shell.openExternal(runtimePaths.healthUrl);
+  return { success: true, url: runtimePaths.healthUrl };
+}
+
+async function getDebugInfo() {
+  const runtimePaths = currentRuntimePaths();
+  return {
+    version: app.getVersion(),
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    arch: process.arch,
+    healthUrl: runtimePaths.healthUrl,
+    logDir: runtimePaths.logDir,
+    userDataDir: runtimePaths.userDataDir,
+    downloadDir: runtimePaths.downloadDir,
+    runtimeRoot: runtimePaths.runtimeRoot,
+    javaPid: runtimeState?.javaProcess?.pid || null,
+    cryptoPid: runtimeState?.cryptoProcess?.pid || null,
+  };
+}
+
 function createMainWindow() {
   mainWindow = new BrowserWindow(createWindowOptions());
-  const rendererUrl = app.isPackaged
+  const baseRendererUrl = app.isPackaged
     ? getPackagedRendererUrl()
     : getRendererUrl(process.env);
+  const rendererUrl = app.isPackaged ? appendRendererVersion(baseRendererUrl) : baseRendererUrl;
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -118,13 +189,19 @@ async function startDesktopRuntime() {
     {
       cwd: runtimePaths.cryptoDir,
       env,
+      logFilePath: path.join(runtimePaths.logDir, "crypto-service.log"),
+      logLabel: "crypto-service",
     },
   );
 
   const javaProcess = spawnManagedProcess(
     getJavaLaunchCommand(runtimePaths),
     buildJavaArguments(runtimePaths.jarPath),
-    buildJavaProcessOptions(runtimePaths, env),
+    {
+      ...buildJavaProcessOptions(runtimePaths, env),
+      logFilePath: path.join(runtimePaths.logDir, "java-client.log"),
+      logLabel: "java-client",
+    },
   );
 
   await waitForServiceReady({
@@ -134,6 +211,7 @@ async function startDesktopRuntime() {
   runtimeState = {
     cryptoProcess,
     javaProcess,
+    runtimePaths,
   };
 
   return runtimeState;
@@ -155,7 +233,12 @@ async function shutdownDesktopRuntime() {
 app.whenReady().then(() => {
   ipcMain.handle("pickSendFile", pickSendFile);
   ipcMain.handle("pickPrivateKeyFile", pickPrivateKeyFile);
-  return startDesktopRuntime()
+  ipcMain.handle("debug:openDevTools", openDevTools);
+  ipcMain.handle("debug:openLogsFolder", openLogsFolder);
+  ipcMain.handle("debug:openSystemStatus", openSystemStatus);
+  ipcMain.handle("debug:getInfo", getDebugInfo);
+  return clearRendererCache()
+    .then(() => startDesktopRuntime())
     .then(() => {
       createMainWindow();
 

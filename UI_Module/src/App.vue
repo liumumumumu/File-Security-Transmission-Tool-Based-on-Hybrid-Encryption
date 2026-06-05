@@ -43,13 +43,79 @@
             <p class="page-intro">{{ pageIntro }}</p>
           </div>
         </div>
-        <button class="icon-button" type="button" @click="toggleSettings">
-          <SettingsGearIcon />
-          <span class="sr-only">{{ t("settings.open") }}</span>
-        </button>
+        <div class="topbar-actions">
+          <button
+            v-if="localAccountId"
+            class="account-chip"
+            type="button"
+            @click="copyValue(localAccountId, t('settings.accountId'))"
+          >
+            <span>{{ t("settings.accountId") }}</span>
+            <strong>{{ shortId(localAccountId, 18) }}</strong>
+            <i data-lucide="copy" aria-hidden="true"></i>
+          </button>
+          <button
+            v-if="retransmitRequests.length"
+            class="icon-button alert"
+            type="button"
+            @click="toggleRetransmitPanel"
+            :title="t('retransmit.openPanel')"
+          >
+            <i data-lucide="bell-ring" aria-hidden="true"></i>
+            <span class="badge-dot">{{ retransmitRequests.length }}</span>
+            <span class="sr-only">{{ t("retransmit.openPanel") }}</span>
+          </button>
+          <button class="icon-button" type="button" @click="toggleDebugPanel" :title="t('debug.open')">
+            <i data-lucide="terminal" aria-hidden="true"></i>
+            <span class="sr-only">{{ t("debug.open") }}</span>
+          </button>
+          <button class="icon-button" type="button" @click="toggleSettings">
+            <SettingsGearIcon />
+            <span class="sr-only">{{ t("settings.open") }}</span>
+          </button>
+        </div>
       </header>
 
       <main class="workspace">
+        <p v-if="copyFeedback" class="result-note success copy-feedback">{{ copyFeedback }}</p>
+        <section v-if="showRetransmitPanel && retransmitRequests.length" class="global-alert-panel" aria-live="polite">
+          <div class="panel-heading compact">
+            <div>
+              <p class="eyebrow">{{ t("retransmit.eyebrow") }}</p>
+              <h2>{{ t("retransmit.title") }}</h2>
+            </div>
+            <button class="icon-button subtle" type="button" @click="showRetransmitPanel = false">
+              <i data-lucide="x" aria-hidden="true"></i>
+              <span class="sr-only">{{ t("common.cancel") }}</span>
+            </button>
+          </div>
+          <div v-if="retransmitError" class="inline-error">{{ retransmitError }}</div>
+          <div class="task-stack">
+            <article v-for="request in retransmitRequests" :key="`global-${request.transferId}`" class="task-row simple alert-row">
+              <div class="task-main">
+                <strong>{{ request.fileName || t("retransmit.unknownFile") }}</strong>
+                <small>{{ t("retransmit.fromBlock") }} {{ request.startBlockId ?? 0 }} · {{ request.reason || t("receive.defaultRetransmitReason") }}</small>
+                <div class="task-meta-line">
+                  <span>{{ t("common.transferId") }}</span>
+                  <button class="copy-chip compact" type="button" @click="copyValue(request.transferId, t('common.transferId'))">
+                    <span>{{ shortId(request.transferId, 14) }}</span>
+                    <i data-lucide="copy" aria-hidden="true"></i>
+                    <span class="sr-only">{{ t("common.copy") }}</span>
+                  </button>
+                </div>
+              </div>
+              <div class="row-actions">
+                <button class="mini-button success" type="button" :disabled="isBusy(`rt-${request.transferId}`)" @click="acceptRetransmit(request.transferId)">
+                  {{ t("receive.allowRetransmit") }}
+                </button>
+                <button class="mini-button danger" type="button" :disabled="isBusy(`rt-${request.transferId}`)" @click="rejectRetransmit(request.transferId)">
+                  {{ t("common.reject") }}
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
+
         <section v-if="activePage === 'send'" class="page-grid" aria-label="Send page">
           <article class="panel composer-panel">
             <div class="panel-heading">
@@ -161,6 +227,14 @@
               <div class="progress-main">
                 <strong>{{ currentSendTask.fileName || t("send.untitledTask") }}</strong>
                 <small>{{ statusText(currentSendTask.status) }} · {{ taskSpeedText(currentSendTask) }}</small>
+                <div class="task-meta-line">
+                  <span>{{ t("common.transferId") }}</span>
+                  <button class="copy-chip" type="button" @click="copyValue(taskIdentifier(currentSendTask), t('common.transferId'))">
+                    <span>{{ shortId(taskIdentifier(currentSendTask), 14) }}</span>
+                    <i data-lucide="copy" aria-hidden="true"></i>
+                    <span class="sr-only">{{ t("common.copy") }}</span>
+                  </button>
+                </div>
                 <div class="progress-track large">
                   <span :style="{ width: `${taskProgress(currentSendTask)}%` }"></span>
                 </div>
@@ -185,6 +259,14 @@
                 <div class="task-main">
                   <strong>{{ task.fileName || t("send.untitledTask") }}</strong>
                   <small>{{ statusText(task.status) }} · {{ taskProgress(task) }}%</small>
+                  <div class="task-meta-line">
+                    <span>{{ t("common.transferId") }}</span>
+                    <button class="copy-chip compact" type="button" @click="copyValue(taskIdentifier(task), t('common.transferId'))">
+                      <span>{{ shortId(taskIdentifier(task), 14) }}</span>
+                      <i data-lucide="copy" aria-hidden="true"></i>
+                      <span class="sr-only">{{ t("common.copy") }}</span>
+                    </button>
+                  </div>
                   <div class="progress-track">
                     <span :style="{ width: `${taskProgress(task)}%` }"></span>
                   </div>
@@ -201,7 +283,7 @@
                 <p class="eyebrow">{{ t("receive.progressEyebrow") }}</p>
                 <h2>{{ t("receive.progressTitle") }}</h2>
               </div>
-              <button class="link-button" type="button" :disabled="isBusy('tasks')" @click="loadTasks">
+              <button class="link-button" type="button" :disabled="isBusy('tasks')" @click="refreshReceivePage()">
                 {{ t("common.refresh") }}
               </button>
             </div>
@@ -211,6 +293,14 @@
               <div class="progress-main">
                 <strong>{{ currentReceiveTask.fileName || t("receive.untitledTask") }}</strong>
                 <small>{{ statusText(currentReceiveTask.status) }} · {{ taskSpeedText(currentReceiveTask) }}</small>
+                <div class="task-meta-line">
+                  <span>{{ t("common.transferId") }}</span>
+                  <button class="copy-chip" type="button" @click="copyValue(taskIdentifier(currentReceiveTask), t('common.transferId'))">
+                    <span>{{ shortId(taskIdentifier(currentReceiveTask), 14) }}</span>
+                    <i data-lucide="copy" aria-hidden="true"></i>
+                    <span class="sr-only">{{ t("common.copy") }}</span>
+                  </button>
+                </div>
                 <div class="progress-track large">
                   <span :style="{ width: `${taskProgress(currentReceiveTask)}%` }"></span>
                 </div>
@@ -224,6 +314,14 @@
                   @click="requestRetransmit(currentReceiveTask)"
                 >
                   {{ t("receive.requestRetransmit") }}
+                </button>
+                <button
+                  class="mini-button danger"
+                  type="button"
+                  :disabled="isBusy(`reject-${taskIdentifier(currentReceiveTask)}`)"
+                  @click="rejectReceiveTask(currentReceiveTask)"
+                >
+                  {{ t("receive.cancelReceive") }}
                 </button>
               </div>
             </div>
@@ -248,6 +346,14 @@
                 <div class="task-main">
                   <strong>{{ request.fileName || t("receive.untitledTask") }}</strong>
                   <small>{{ formatBytes(request.fileSize) }}</small>
+                  <div class="task-meta-line">
+                    <span>{{ t("common.transferId") }}</span>
+                    <button class="copy-chip compact" type="button" @click="copyValue(request.transferId, t('common.transferId'))">
+                      <span>{{ shortId(request.transferId, 14) }}</span>
+                      <i data-lucide="copy" aria-hidden="true"></i>
+                      <span class="sr-only">{{ t("common.copy") }}</span>
+                    </button>
+                  </div>
                 </div>
                 <div class="row-actions">
                   <button class="mini-button success" type="button" :disabled="isBusy(request.transferId)" @click="acceptIncoming(request.transferId)">
@@ -255,6 +361,53 @@
                   </button>
                   <button class="mini-button danger" type="button" :disabled="isBusy(request.transferId)" @click="rejectIncoming(request.transferId)">
                     {{ t("receive.reject") }}
+                  </button>
+                </div>
+              </article>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">{{ t("receive.historyEyebrow") }}</p>
+                <h2>{{ t("receive.historyTitle") }}</h2>
+              </div>
+              <button
+                v-if="completedReceiveTasks.length > 3"
+                class="link-button"
+                type="button"
+                @click="receiveHistoryExpanded = !receiveHistoryExpanded"
+              >
+                {{ receiveHistoryExpanded ? t("receive.collapseHistory") : t("receive.viewMoreHistory") }}
+              </button>
+            </div>
+
+            <div v-if="!completedReceiveTasks.length" class="empty-state">{{ t("receive.noHistory") }}</div>
+            <div v-else class="task-stack">
+              <article v-for="task in visibleReceiveHistoryTasks" :key="taskIdentifier(task)" class="task-row simple">
+                <div class="task-main">
+                  <strong>{{ task.fileName || t("receive.untitledTask") }}</strong>
+                  <small>{{ formatBytes(task.totalBytes) }} · {{ t("receive.historyBlocks") }} {{ task.totalBlocks || 0 }}</small>
+                  <small>{{ t("receive.historyReceivedAt") }} {{ receiveHistoryTime(task) }}</small>
+                  <div class="task-meta-line">
+                    <span>{{ t("common.transferId") }}</span>
+                    <button class="copy-chip compact" type="button" @click="copyValue(taskIdentifier(task), t('common.transferId'))">
+                      <span>{{ shortId(taskIdentifier(task), 14) }}</span>
+                      <i data-lucide="copy" aria-hidden="true"></i>
+                      <span class="sr-only">{{ t("common.copy") }}</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="row-actions">
+                  <button
+                    class="mini-button"
+                    type="button"
+                    :disabled="isBusy(`open-${taskIdentifier(task)}`)"
+                    @click="openReceived(task)"
+                  >
+                    <i data-lucide="folder-open" aria-hidden="true"></i>
+                    {{ t("receive.openFolder") }}
                   </button>
                 </div>
               </article>
@@ -314,6 +467,14 @@
                 <div class="task-main">
                   <strong>{{ t("receive.retransmitRequestLabel") }}</strong>
                   <small>{{ request.reason || t("receive.defaultRetransmitReason") }}</small>
+                  <div class="task-meta-line">
+                    <span>{{ t("common.transferId") }}</span>
+                    <button class="copy-chip compact" type="button" @click="copyValue(request.transferId, t('common.transferId'))">
+                      <span>{{ shortId(request.transferId, 14) }}</span>
+                      <i data-lucide="copy" aria-hidden="true"></i>
+                      <span class="sr-only">{{ t("common.copy") }}</span>
+                    </button>
+                  </div>
                 </div>
                 <div class="row-actions">
                   <button class="mini-button success" type="button" :disabled="isBusy(`rt-${request.transferId}`)" @click="acceptRetransmit(request.transferId)">
@@ -406,6 +567,64 @@
       </main>
     </div>
 
+    <div v-if="showDebugPanel" class="drawer-backdrop" @click="closeDebugPanel"></div>
+    <aside v-if="showDebugPanel" class="settings-drawer debug-drawer" aria-label="Debug drawer">
+      <button class="drawer-close-tab" type="button" @click="closeDebugPanel">
+        &gt;
+        <span class="sr-only">{{ t("debug.close") }}</span>
+      </button>
+      <div class="drawer-head">
+        <div>
+          <p class="eyebrow">{{ t("debug.eyebrow") }}</p>
+          <h2>{{ t("debug.title") }}</h2>
+        </div>
+      </div>
+
+      <section class="drawer-section">
+        <div class="drawer-section-head">
+          <h3>{{ t("debug.actions") }}</h3>
+        </div>
+        <div class="drawer-actions">
+          <button class="primary-button" type="button" :disabled="isBusy('debug-devtools')" @click="openDevTools">
+            <i data-lucide="terminal" aria-hidden="true"></i>
+            {{ t("debug.openDevTools") }}
+          </button>
+          <button class="mini-button" type="button" :disabled="isBusy('debug-logs')" @click="openLogsFolder">
+            <i data-lucide="folder-open" aria-hidden="true"></i>
+            {{ t("debug.openLogs") }}
+          </button>
+          <button class="mini-button" type="button" :disabled="isBusy('debug-status')" @click="openSystemStatus">
+            <i data-lucide="activity" aria-hidden="true"></i>
+            {{ t("debug.openStatus") }}
+          </button>
+          <button class="mini-button" type="button" @click="copyDebugInfo">
+            <i data-lucide="copy" aria-hidden="true"></i>
+            {{ t("debug.copyInfo") }}
+          </button>
+        </div>
+        <p v-if="debugError" class="form-error">{{ debugError }}</p>
+      </section>
+
+      <section class="drawer-section">
+        <div class="drawer-section-head">
+          <h3>{{ t("debug.info") }}</h3>
+          <button class="link-button" type="button" :disabled="isBusy('debug-info')" @click="loadDebugInfo">
+            {{ t("common.refresh") }}
+          </button>
+        </div>
+        <div v-if="debugInfo" class="debug-info-list">
+          <div v-for="item in debugInfoItems" :key="item.label" class="debug-info-row">
+            <span>{{ item.label }}</span>
+            <button class="copy-value-button" type="button" @click="copyValue(item.value, item.label)">
+              <strong>{{ item.value || "--" }}</strong>
+              <i data-lucide="copy" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+        <p v-else class="empty-state">{{ t("debug.noInfo") }}</p>
+      </section>
+    </aside>
+
     <div v-if="showSettingsDrawer" class="drawer-backdrop" @click="closeSettings"></div>
     <aside v-if="showSettingsDrawer" class="settings-drawer" aria-label="Settings drawer">
       <button class="drawer-close-tab" type="button" @click="closeSettings">
@@ -427,11 +646,11 @@
           </button>
         </div>
         <div v-if="dashboardError" class="inline-error">{{ friendlyDashboardError }}</div>
-        <div class="status-card-list">
-          <article class="status-card mini">
-            <span>{{ t("settings.localStatus") }}</span>
-            <strong>{{ localStatusText }}</strong>
-            <small>{{ localStatusHint }}</small>
+          <div class="status-card-list">
+            <article class="status-card mini">
+              <span>{{ t("settings.localStatus") }}</span>
+              <strong>{{ localStatusText }}</strong>
+              <small>{{ localStatusHint }}</small>
           </article>
           <article class="status-card mini">
             <span>{{ t("settings.serverStatus") }}</span>
@@ -439,12 +658,12 @@
             <small>{{ serverStatusHint }}</small>
           </article>
           <article class="status-card mini">
-            <span>{{ t("settings.keyStatus") }}</span>
-            <strong>{{ keyReadyText }}</strong>
-            <small>{{ keyReadyHint }}</small>
-          </article>
-        </div>
-      </section>
+              <span>{{ t("settings.keyStatus") }}</span>
+              <strong>{{ keyReadyText }}</strong>
+              <small>{{ keyReadyHint }}</small>
+            </article>
+          </div>
+        </section>
 
       <section class="drawer-section">
         <div class="drawer-section-head">
@@ -595,7 +814,15 @@ import SettingsGearIcon from "./components/SettingsGearIcon.vue";
 import {
   extractFileNameFromPath,
   extractLocalFileSelection,
+  hasDesktopDebugApi,
   hasLocalKeyPair,
+  isActiveReceiveTask,
+  isTerminalTaskStatus,
+  normalizeRetransmitRequests,
+  receiveHistoryTasks,
+  shortId as formatShortId,
+  taskIdentifier as getTaskIdentifier,
+  taskSpeedText as formatTaskSpeedText,
   toFriendlyErrorMessage,
 } from "./ui-state.js";
 
@@ -618,6 +845,40 @@ const MESSAGES = {
       refresh: "刷新",
       cancel: "取消",
       reject: "拒绝",
+      copy: "复制",
+      copied: "已复制",
+      transferId: "传输编号",
+    },
+    retransmit: {
+      eyebrow: "补传提醒",
+      title: "收到补传请求",
+      openPanel: "查看补传请求",
+      unknownFile: "未知文件",
+      fromBlock: "起始分块",
+    },
+    debug: {
+      eyebrow: "调试",
+      title: "调试面板",
+      open: "打开调试面板",
+      close: "关闭调试面板",
+      actions: "常用操作",
+      openDevTools: "打开控制台",
+      openLogs: "打开日志文件夹",
+      openStatus: "打开状态页面",
+      copyInfo: "复制诊断信息",
+      info: "诊断信息",
+      noInfo: "暂无诊断信息。",
+      desktopOnly: "调试入口仅桌面版可用。",
+      version: "版本",
+      platform: "系统",
+      mode: "运行模式",
+      packaged: "安装包",
+      development: "开发",
+      healthUrl: "状态地址",
+      logDir: "日志目录",
+      userDataDir: "数据目录",
+      downloadDir: "下载目录",
+      runtimeRoot: "运行时目录",
     },
     send: {
       title: "发送",
@@ -651,13 +912,21 @@ const MESSAGES = {
       incomingEyebrow: "待接收文件",
       incomingTitle: "待接收列表",
       noIncoming: "暂无待接收文件。",
+      historyEyebrow: "接收历史",
+      historyTitle: "最近接收",
+      noHistory: "暂无接收历史。",
+      viewMoreHistory: "查看更多",
+      collapseHistory: "收起",
+      historyReceivedAt: "接收时间",
+      historyBlocks: "块数",
       advancedEyebrow: "高级操作",
       advancedTitle: "手动处理",
       transferId: "传输编号",
-      transferIdPlaceholder: "用于补传或打开位置，可从任务中复制",
+      transferIdPlaceholder: "用于补传或打开位置，可从任务编号复制",
       accept: "接受接收",
       reject: "拒绝接收",
       requestRetransmit: "请求补传",
+      cancelReceive: "取消接收",
       openFolder: "打开位置",
       retransmitEyebrow: "补传请求",
       retransmitTitle: "待处理补传",
@@ -713,6 +982,9 @@ const MESSAGES = {
       localStatus: "本机服务",
       serverStatus: "服务器连接",
       keyStatus: "密钥状态",
+      accountId: "本机账号",
+      accountIdHint: "点击复制完整 accountID",
+      accountIdMissing: "生成密钥后会显示 accountID",
       languageTitle: "语言切换",
       keyTitle: "密钥管理",
       generateKey: "重新生成密钥",
@@ -793,6 +1065,40 @@ const MESSAGES = {
       refresh: "Refresh",
       cancel: "Cancel",
       reject: "Reject",
+      copy: "Copy",
+      copied: "Copied",
+      transferId: "Transfer ID",
+    },
+    retransmit: {
+      eyebrow: "Retransmit alert",
+      title: "Retransmit request received",
+      openPanel: "View retransmit requests",
+      unknownFile: "Unknown file",
+      fromBlock: "From block",
+    },
+    debug: {
+      eyebrow: "Debug",
+      title: "Debug panel",
+      open: "Open debug panel",
+      close: "Close debug panel",
+      actions: "Actions",
+      openDevTools: "Open console",
+      openLogs: "Open logs folder",
+      openStatus: "Open status page",
+      copyInfo: "Copy diagnostics",
+      info: "Diagnostics",
+      noInfo: "No diagnostics yet.",
+      desktopOnly: "Debug tools are only available in the desktop app.",
+      version: "Version",
+      platform: "Platform",
+      mode: "Mode",
+      packaged: "Packaged",
+      development: "Development",
+      healthUrl: "Status URL",
+      logDir: "Log folder",
+      userDataDir: "Data folder",
+      downloadDir: "Download folder",
+      runtimeRoot: "Runtime folder",
     },
     send: {
       title: "Send",
@@ -826,13 +1132,21 @@ const MESSAGES = {
       incomingEyebrow: "Incoming files",
       incomingTitle: "Incoming queue",
       noIncoming: "No incoming files.",
+      historyEyebrow: "Receive history",
+      historyTitle: "Recent received files",
+      noHistory: "No receive history yet.",
+      viewMoreHistory: "View more",
+      collapseHistory: "Collapse",
+      historyReceivedAt: "Received",
+      historyBlocks: "Blocks",
       advancedEyebrow: "Advanced actions",
       advancedTitle: "Manual handling",
       transferId: "Transfer ID",
-      transferIdPlaceholder: "Used for retransmit or open location",
+      transferIdPlaceholder: "Copy it from a task card for retransmit or open location",
       accept: "Accept",
       reject: "Reject",
       requestRetransmit: "Request retransmit",
+      cancelReceive: "Cancel receive",
       openFolder: "Open location",
       retransmitEyebrow: "Retransmit requests",
       retransmitTitle: "Pending retransmits",
@@ -888,6 +1202,9 @@ const MESSAGES = {
       localStatus: "Local service",
       serverStatus: "Server connection",
       keyStatus: "Key status",
+      accountId: "Local account",
+      accountIdHint: "Click to copy the full accountID",
+      accountIdMissing: "Generate a key to show the accountID",
       languageTitle: "Language",
       keyTitle: "Key management",
       generateKey: "Regenerate key",
@@ -973,6 +1290,8 @@ export default {
       sidebarOpen: false,
       contactsSubView: "list",
       showSettingsDrawer: false,
+      showDebugPanel: false,
+      showRetransmitPanel: false,
       showContactModal: false,
       contactModalMode: "create",
       contactModalError: "",
@@ -996,6 +1315,8 @@ export default {
       contactListError: "",
       blacklistError: "",
       blacklistListError: "",
+      debugError: "",
+      debugInfo: null,
       sendForm: {
         filePath: "",
         targetAccountId: "",
@@ -1005,6 +1326,7 @@ export default {
       receiveForm: {
         transferId: "",
       },
+      receiveHistoryExpanded: false,
       keyForm: {
         privateKey: "",
         privateKeyPath: "",
@@ -1024,6 +1346,12 @@ export default {
       contacts: [],
       blacklist: [],
       searchResult: null,
+      copyFeedback: "",
+      copyFeedbackTimer: null,
+      receivePollTimer: null,
+      receivePollInFlight: false,
+      retransmitPollTimer: null,
+      retransmitPollInFlight: false,
     };
   },
 
@@ -1092,6 +1420,10 @@ export default {
       return this.hasKeyPair ? this.t("status.keyReadyHint") : this.t("status.keyMissingHint");
     },
 
+    localAccountId() {
+      return this.systemStatus?.accountId || this.keyStatus?.accountId || "";
+    },
+
     friendlyDashboardError() {
       return this.toFriendlyError(this.dashboardError);
     },
@@ -1128,12 +1460,24 @@ export default {
       return this.tasks.filter((task) => this.isReceiveTask(task));
     },
 
+    activeReceiveTasks() {
+      return this.receiveTasks.filter((task) => isActiveReceiveTask(task));
+    },
+
+    completedReceiveTasks() {
+      return receiveHistoryTasks(this.tasks, { expanded: true });
+    },
+
+    visibleReceiveHistoryTasks() {
+      return receiveHistoryTasks(this.tasks, { expanded: this.receiveHistoryExpanded });
+    },
+
     currentSendTask() {
       return this.findPriorityTask(this.sendTasks);
     },
 
     currentReceiveTask() {
-      return this.findPriorityTask(this.receiveTasks);
+      return this.findPriorityTask(this.activeReceiveTasks);
     },
 
     recentSendTasks() {
@@ -1162,11 +1506,37 @@ export default {
       const id = this.receiveForm.transferId.trim();
       return !id || this.isBusy(id) || this.isBusy(`open-${id}`);
     },
+
+    debugInfoItems() {
+      if (!this.debugInfo) return [];
+      return [
+        { label: this.t("debug.version"), value: this.debugInfo.version },
+        { label: this.t("debug.platform"), value: this.debugInfo.platform },
+        { label: this.t("debug.mode"), value: this.debugInfo.isPackaged ? this.t("debug.packaged") : this.t("debug.development") },
+        { label: this.t("debug.healthUrl"), value: this.debugInfo.healthUrl },
+        { label: this.t("debug.logDir"), value: this.debugInfo.logDir },
+        { label: this.t("debug.userDataDir"), value: this.debugInfo.userDataDir },
+        { label: this.t("debug.downloadDir"), value: this.debugInfo.downloadDir },
+        { label: this.t("debug.runtimeRoot"), value: this.debugInfo.runtimeRoot },
+      ];
+    },
   },
 
   mounted() {
     this.refreshActivePage();
     this.refreshIcons();
+    this.syncReceivePolling();
+    this.startRetransmitPolling();
+    window.addEventListener("beforeunload", this.stopAllPolling);
+  },
+
+  beforeUnmount() {
+    this.stopAllPolling();
+    window.removeEventListener("beforeunload", this.stopAllPolling);
+    if (this.copyFeedbackTimer) {
+      clearTimeout(this.copyFeedbackTimer);
+      this.copyFeedbackTimer = null;
+    }
   },
 
   updated() {
@@ -1212,6 +1582,85 @@ export default {
       this.showSettingsDrawer = false;
     },
 
+    toggleRetransmitPanel() {
+      this.showRetransmitPanel = !this.showRetransmitPanel;
+    },
+
+    toggleDebugPanel() {
+      this.showDebugPanel = !this.showDebugPanel;
+      this.debugError = "";
+      if (this.showDebugPanel) {
+        this.loadDebugInfo();
+      }
+    },
+
+    closeDebugPanel() {
+      this.showDebugPanel = false;
+      this.debugError = "";
+    },
+
+    async loadDebugInfo() {
+      this.debugError = "";
+      const desktopApi = this.desktopApi();
+      if (!hasDesktopDebugApi(desktopApi)) {
+        this.debugError = this.t("debug.desktopOnly");
+        this.debugInfo = null;
+        return;
+      }
+      this.markBusy("debug-info", true);
+      try {
+        this.debugInfo = await desktopApi.getDebugInfo();
+      } catch (error) {
+        this.debugError = this.toFriendlyError(error.message);
+      } finally {
+        this.markBusy("debug-info", false);
+      }
+    },
+
+    async openDevTools() {
+      await this.performDebugAction("debug-devtools", async (desktopApi) => {
+        await desktopApi.openDevTools();
+      });
+    },
+
+    async openLogsFolder() {
+      await this.performDebugAction("debug-logs", async (desktopApi) => {
+        await desktopApi.openLogsFolder();
+      });
+    },
+
+    async openSystemStatus() {
+      await this.performDebugAction("debug-status", async (desktopApi) => {
+        await desktopApi.openSystemStatus();
+      });
+    },
+
+    async copyDebugInfo() {
+      if (!this.debugInfo) {
+        await this.loadDebugInfo();
+      }
+      if (!this.debugInfo) return;
+      await this.copyValue(JSON.stringify(this.debugInfo, null, 2), this.t("debug.info"));
+    },
+
+    async performDebugAction(key, action) {
+      this.debugError = "";
+      const desktopApi = this.desktopApi();
+      if (!hasDesktopDebugApi(desktopApi)) {
+        this.debugError = this.t("debug.desktopOnly");
+        return;
+      }
+      this.markBusy(key, true);
+      try {
+        await action(desktopApi);
+        await this.loadDebugInfo();
+      } catch (error) {
+        this.debugError = this.toFriendlyError(error.message);
+      } finally {
+        this.markBusy(key, false);
+      }
+    },
+
     setPage(page) {
       this.activePage = page;
       this.closeSidebar();
@@ -1219,6 +1668,7 @@ export default {
       if (page !== "contacts") {
         this.contactsSubView = "list";
       }
+      this.syncReceivePolling();
       this.refreshActivePage();
     },
 
@@ -1239,7 +1689,7 @@ export default {
         if (this.activePage === "send") {
           await Promise.all([this.loadTasks(), this.loadContacts()]);
         } else if (this.activePage === "receive") {
-          await Promise.all([this.loadTasks(), this.loadIncoming(), this.loadRetransmitRequests()]);
+          await this.refreshReceivePage();
         } else if (this.contactsSubView === "blacklist") {
           await this.loadBlacklist();
         } else {
@@ -1247,6 +1697,76 @@ export default {
         }
       } finally {
         this.refreshing = false;
+      }
+    },
+
+    async refreshReceivePage(options = {}) {
+      await Promise.all([
+        this.loadTasks(options),
+        this.loadIncoming(options),
+        this.loadRetransmitRequests(options),
+      ]);
+    },
+
+    syncReceivePolling() {
+      if (this.activePage === "receive") {
+        this.startReceivePolling();
+      } else {
+        this.stopReceivePolling();
+      }
+    },
+
+    startReceivePolling() {
+      if (this.receivePollTimer) return;
+      this.receivePollTimer = window.setInterval(() => {
+        this.pollReceivePage();
+      }, 1000);
+    },
+
+    stopReceivePolling() {
+      if (!this.receivePollTimer) return;
+      window.clearInterval(this.receivePollTimer);
+      this.receivePollTimer = null;
+      this.receivePollInFlight = false;
+    },
+
+    startRetransmitPolling() {
+      if (this.retransmitPollTimer) return;
+      this.loadRetransmitRequests({ silent: true });
+      this.retransmitPollTimer = window.setInterval(() => {
+        this.pollRetransmitRequests();
+      }, 1000);
+    },
+
+    stopRetransmitPolling() {
+      if (!this.retransmitPollTimer) return;
+      window.clearInterval(this.retransmitPollTimer);
+      this.retransmitPollTimer = null;
+      this.retransmitPollInFlight = false;
+    },
+
+    stopAllPolling() {
+      this.stopReceivePolling();
+      this.stopRetransmitPolling();
+    },
+
+    async pollReceivePage() {
+      if (this.activePage !== "receive" || this.receivePollInFlight) return;
+      this.receivePollInFlight = true;
+      try {
+        await this.refreshReceivePage({ silent: true });
+      } finally {
+        this.receivePollInFlight = false;
+      }
+    },
+
+    async pollRetransmitRequests() {
+      if (this.retransmitPollInFlight) return;
+      this.retransmitPollInFlight = true;
+      try {
+        await this.loadRetransmitRequests({ silent: true, autoOpen: true });
+      } finally {
+        this.retransmitPollInFlight = false;
       }
     },
 
@@ -1270,39 +1790,61 @@ export default {
       this.markBusy("dashboard", false);
     },
 
-    async loadTasks() {
-      this.taskError = "";
-      this.markBusy("tasks", true);
+    async loadTasks(options = {}) {
+      const silent = options.silent === true;
+      if (!silent) {
+        this.taskError = "";
+        this.markBusy("tasks", true);
+      }
       try {
         this.tasks = await this.requestJson("/api/send/tasks");
       } catch (error) {
         this.taskError = this.toFriendlyError(error.message);
       } finally {
-        this.markBusy("tasks", false);
+        if (!silent) {
+          this.markBusy("tasks", false);
+        }
       }
     },
 
-    async loadIncoming() {
-      this.incomingError = "";
-      this.markBusy("incoming", true);
+    async loadIncoming(options = {}) {
+      const silent = options.silent === true;
+      if (!silent) {
+        this.incomingError = "";
+        this.markBusy("incoming", true);
+      }
       try {
         this.incomingRequests = await this.requestJson("/api/receive/incoming");
       } catch (error) {
         this.incomingError = this.toFriendlyError(error.message);
       } finally {
-        this.markBusy("incoming", false);
+        if (!silent) {
+          this.markBusy("incoming", false);
+        }
       }
     },
 
-    async loadRetransmitRequests() {
-      this.retransmitError = "";
-      this.markBusy("retransmit", true);
+    async loadRetransmitRequests(options = {}) {
+      const silent = options.silent === true;
+      if (!silent) {
+        this.retransmitError = "";
+        this.markBusy("retransmit", true);
+      }
       try {
-        this.retransmitRequests = await this.requestJson("/api/receive/retransmit-requests");
+        const previousCount = this.retransmitRequests.length;
+        this.retransmitRequests = normalizeRetransmitRequests(await this.requestJson("/api/receive/retransmit-requests"));
+        if (this.retransmitRequests.length > 0 && (options.autoOpen === true || previousCount === 0)) {
+          this.showRetransmitPanel = true;
+        }
+        if (this.retransmitRequests.length === 0) {
+          this.showRetransmitPanel = false;
+        }
       } catch (error) {
         this.retransmitError = this.toFriendlyError(error.message);
       } finally {
-        this.markBusy("retransmit", false);
+        if (!silent) {
+          this.markBusy("retransmit", false);
+        }
       }
     },
 
@@ -1462,7 +2004,7 @@ export default {
           method: "POST",
           body: JSON.stringify({ transferId }),
         });
-        await this.loadIncoming();
+        await Promise.all([this.loadIncoming(), this.loadTasks()]);
       }, "incomingError");
     },
 
@@ -1523,6 +2065,18 @@ export default {
       }, "taskError");
     },
 
+    async rejectReceiveTask(task) {
+      const id = this.taskIdentifier(task);
+      if (!id) return;
+      await this.performTransferAction(`reject-${id}`, async () => {
+        await this.requestJson("/api/receive/reject", {
+          method: "POST",
+          body: JSON.stringify({ transferId: id }),
+        });
+        await this.refreshReceivePage();
+      }, "taskError");
+    },
+
     async openReceived(task) {
       const id = this.taskIdentifier(task);
       await this.performTransferAction(`open-${id}`, async () => {
@@ -1542,7 +2096,7 @@ export default {
           method: "POST",
           body: JSON.stringify({ transferId }),
         });
-        await this.loadRetransmitRequests();
+        await Promise.all([this.loadRetransmitRequests(), this.loadTasks()]);
       }, "retransmitError");
     },
 
@@ -1552,7 +2106,7 @@ export default {
           method: "POST",
           body: JSON.stringify({ transferId }),
         });
-        await this.loadRetransmitRequests();
+        await Promise.all([this.loadRetransmitRequests(), this.loadTasks()]);
       }, "retransmitError");
     },
 
@@ -1934,6 +2488,45 @@ export default {
       }
     },
 
+    async copyValue(value, label = "") {
+      if (!value) return;
+      const text = String(value);
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          this.copyValueFallback(text);
+        }
+        this.showCopyFeedback(label ? `${label} ${this.t("common.copied")}` : this.t("common.copied"));
+      } catch {
+        this.copyValueFallback(text);
+        this.showCopyFeedback(label ? `${label} ${this.t("common.copied")}` : this.t("common.copied"));
+      }
+    },
+
+    copyValueFallback(text) {
+      const input = document.createElement("textarea");
+      input.value = text;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.left = "-9999px";
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      document.body.removeChild(input);
+    },
+
+    showCopyFeedback(message) {
+      this.copyFeedback = message;
+      if (this.copyFeedbackTimer) {
+        clearTimeout(this.copyFeedbackTimer);
+      }
+      this.copyFeedbackTimer = window.setTimeout(() => {
+        this.copyFeedback = "";
+        this.copyFeedbackTimer = null;
+      }, 1400);
+    },
+
     markBusy(key, value) {
       const next = new Set(this.busyKeys);
       if (value) next.add(key);
@@ -1946,7 +2539,7 @@ export default {
     },
 
     taskIdentifier(task) {
-      return task.transferId || task.taskId;
+      return getTaskIdentifier(task);
     },
 
     isSendTask(task) {
@@ -1958,7 +2551,7 @@ export default {
     },
 
     isTerminalTask(task) {
-      return ["COMPLETED", "FAILED", "CANCELED", "CANCELLED", "REJECTED"].includes(String(task.status || "").toUpperCase());
+      return isTerminalTaskStatus(task?.status);
     },
 
     taskProgress(task) {
@@ -1968,12 +2561,26 @@ export default {
     },
 
     taskSpeedText(task) {
-      return task.speedText || (task.speedMegabytesPerSecond ? `${Number(task.speedMegabytesPerSecond).toFixed(2)} MB/s` : "0 MB/s");
+      return formatTaskSpeedText(task);
     },
 
     statusText(status) {
       const value = String(status || "").toUpperCase();
       return getMessage(this.language, `tasks.${value}`) || getMessage(this.language, "tasks.unknown");
+    },
+
+    receiveHistoryTime(task) {
+      const value = task?.transferStartedAt || task?.createdAt;
+      if (!value) return "--";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "--";
+      return new Intl.DateTimeFormat(this.language, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(date);
     },
 
     formatBytes(bytes) {
@@ -1986,10 +2593,7 @@ export default {
     },
 
     shortId(value, length = 12) {
-      if (!value) return "--";
-      const text = String(value);
-      if (text.length <= length) return text;
-      return `${text.slice(0, length)}...`;
+      return formatShortId(value, length);
     },
 
     toFriendlyError(message) {

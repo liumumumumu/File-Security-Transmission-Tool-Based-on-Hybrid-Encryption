@@ -156,6 +156,7 @@ Version0003/
 # Local documents and screenshots.
 *.pdf
 *.png
+!Desktop_Module/src/assets/app-icon.png
 *.jpg
 *.jpeg
 *.docx

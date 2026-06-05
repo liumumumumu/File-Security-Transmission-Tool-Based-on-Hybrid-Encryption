@@ -3,7 +3,6 @@ package com.client.controller;
 import com.client.ApplicationShutdownService;
 import com.client.language.LanguageSettingsService;
 import com.client.language.UiLanguage;
-import com.client.service.PrivateKeyArtifactService;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
