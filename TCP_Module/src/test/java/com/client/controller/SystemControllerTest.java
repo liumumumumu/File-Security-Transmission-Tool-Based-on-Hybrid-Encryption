@@ -3,13 +3,9 @@ package com.client.controller;
 import com.client.ApplicationShutdownService;
 import com.client.language.LanguageSettingsService;
 import com.client.language.UiLanguage;
-import com.client.service.PrivateKeyArtifactService;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import com.client.service.PrivateKeyArtifactService;
-import org.junit.Test;
-
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.http.ResponseEntity;
 
@@ -20,6 +16,8 @@ import static org.junit.Assert.assertTrue;
 
 public class SystemControllerTest
 {
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
     public void shutdownReturnsAcceptedResponse() throws Exception
@@ -38,7 +36,7 @@ public class SystemControllerTest
                 null,
                 null,
                 shutdownService,
-
+                null,
                 null
         );
 
@@ -102,5 +100,4 @@ public class SystemControllerTest
         assertEquals(false, response.getBody().get("success"));
         assertEquals("enabled is required", response.getBody().get("message"));
     }
-
 }

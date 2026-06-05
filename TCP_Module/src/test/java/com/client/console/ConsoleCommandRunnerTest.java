@@ -41,6 +41,7 @@ public class ConsoleCommandRunnerTest
                 null,
                 null,
                 null,
+                null,
 
                 messages()
         );
@@ -64,6 +65,7 @@ public class ConsoleCommandRunnerTest
                 null,
                 null,
                 shutdownService(applicationContext),
+                null,
                 null,
                 null,
                 null,
