@@ -66,6 +66,11 @@ public class ConsoleMessages
         return directHelpLines(currentLanguage());
     }
 
+    public List<String> offlineHelpLines()
+    {
+        return offlineHelpLines(currentLanguage());
+    }
+
     public static String text(UiLanguage language, Key key)
     {
         UiLanguage selected = language == null ? UiLanguage.defaultLanguage() : language;
@@ -120,9 +125,9 @@ public class ConsoleMessages
                     "  connect [host] [port]             连接服务器并完成认证",
                     "  disconnect                        断开服务器连接",
                     "  send <filePath> <targetAccountId> 向目标账号发送文件",
-                    "  message-send <accountId|contact-N> 向账号或联系人发送文本消息",
-                    "  messages                          查看文本消息会话摘要",
-                    "  message <accountId|contact-N>     查看与账号或联系人的消息记录",
+                    "  message-send <accountId|contact-N> 发送加密文本消息",
+                    "  messages                          查看消息会话摘要",
+                    "  message <accountId|contact-N>     查看与账号的完整消息对话",
                     "  incoming                          查看待接收的传输请求",
                     "  accept <transferId>               在本设备接受一个传输请求",
                     "  reject <transferId>               拒绝并取消一个传输请求",
@@ -150,6 +155,7 @@ public class ConsoleMessages
                     "  key-info                          查看加密服务密钥状态",
                     "  generate-key                      在加密服务中生成密钥对",
                     "  delete-key                        从加密服务中删除密钥对",
+                    "  export-public-key                 导出公钥二维码和.fstpub文件",
                     "  export-private-key                导出私钥文本和二维码文件",
                     "  import-private-key <keyText|path> 从手动复制、文本文件或PNG二维码导入私钥",
                     "  import-private-key-file <path>    从文件或PNG二维码导入私钥",
@@ -167,9 +173,9 @@ public class ConsoleMessages
                 "  connect [host] [port]             Connect and authenticate with server",
                 "  disconnect                        Disconnect from server",
                 "  send <filePath> <targetAccountId> Send a file to target account",
-                "  message-send <accountId|contact-N> Send a text message to an account or contact",
-                "  messages                          List text message conversations",
-                "  message <accountId|contact-N>     Show conversation with an account or contact",
+                "  message-send <accountId|contact-N> Send encrypted text message",
+                "  messages                          List message conversation summaries",
+                "  message <accountId|contact-N>     Show full message conversation with account",
                 "  incoming                          List incoming transfer requests",
                 "  accept <transferId>               Accept an incoming transfer on this device",
                 "  reject <transferId>               Reject and cancel an incoming transfer",
@@ -197,6 +203,7 @@ public class ConsoleMessages
                 "  key-info                          Show crypto service key status",
                 "  generate-key                      Generate key pair in the crypto service",
                 "  delete-key                        Delete key pair from the crypto service",
+                "  export-public-key                 Export public key QR and .fstpub files",
                 "  export-private-key                Export private key text and QR artifact files",
                 "  import-private-key <keyText|path> Import private key from raw text, a text file, or a PNG QR",
                 "  import-private-key-file <path>    Import private key from a file or PNG QR",
@@ -217,9 +224,9 @@ public class ConsoleMessages
                     "  language                          切换控制台语言",
                     "  status                            查看直连设置和任务状态",
                     "  handshake                         启动发送方/接收方二维码握手向导",
-                    "  message-send                      向当前直连会话发送文本消息",
-                    "  messages                          查看文本消息会话摘要",
-                    "  message [accountId|contact-N]     查看当前直连会话或指定联系人的消息记录",
+                    "  message-send                      向当前直连对端发送加密文本消息",
+                    "  messages                          查看消息会话摘要",
+                    "  message [peerAccountId]           查看当前直连对端或指定账号的消息对话",
                     "  port-mode                         查看直连监听端口模式",
                     "  port-mode random                  使用随机临时监听端口",
                     "  port-mode fixed <port>            使用固定监听端口",
@@ -236,6 +243,7 @@ public class ConsoleMessages
                     "  key-info                          查看加密服务密钥状态",
                     "  generate-key                      在加密服务中生成密钥对",
                     "  delete-key                        从加密服务中删除密钥对",
+                    "  export-public-key                 导出公钥二维码和.fstpub文件",
                     "  export-private-key                导出私钥文本和二维码文件",
                     "  import-private-key <keyText|path> 从手动复制、文本文件或PNG二维码导入私钥",
                     "  import-private-key-file <path>    从文件或PNG二维码导入私钥",
@@ -252,9 +260,9 @@ public class ConsoleMessages
                 "  language                          Change console language",
                 "  status                            Show direct settings and task status",
                 "  handshake                         Start sender/receiver QR handshake wizard",
-                "  message-send                      Send a text message to the active direct peer",
-                "  messages                          List text message conversations",
-                "  message [accountId|contact-N]     Show active direct conversation or a selected one",
+                "  message-send                      Send encrypted text message to active direct peer",
+                "  messages                          List message conversation summaries",
+                "  message [peerAccountId]           Show active direct peer or account message conversation",
                 "  port-mode                         Show direct listen port mode",
                 "  port-mode random                  Use a random temporary listen port",
                 "  port-mode fixed <port>            Use a fixed listen port",
@@ -271,6 +279,7 @@ public class ConsoleMessages
                 "  key-info                          Show crypto service key status",
                 "  generate-key                      Generate key pair in the crypto service",
                 "  delete-key                        Delete key pair from the crypto service",
+                "  export-public-key                 Export public key QR and .fstpub files",
                 "  export-private-key                Export private key text and QR artifact files",
                 "  import-private-key <keyText|path> Import private key from raw text, a text file, or a PNG QR",
                 "  import-private-key-file <path>    Import private key from a file or PNG QR",
@@ -282,20 +291,85 @@ public class ConsoleMessages
         );
     }
 
+    private static List<String> offlineHelpLines(UiLanguage language)
+    {
+        if(language == UiLanguage.CHINESE)
+        {
+            return List.of(
+                    "离线命令:",
+                    "  help                              显示此帮助说明",
+                    "  language                          切换控制台语言",
+                    "  status                            查看客户端状态",
+                    "  fst-file-encrypt <file> <publicKey|publicKeyFile|contact-N> [outputDir] 生成离线加密文件",
+                    "  fst-file-decrypt <fst2File> [outputDir] 解密离线加密文件",
+                    "  fst-text-encrypt <publicKey|publicKeyFile|contact-N> 生成离线加密文本",
+                    "  fst-text-decrypt [FST-TEXT1]      解密离线加密文本，不带参数时进入粘贴模式",
+                    "  export-public-key                 导出公钥二维码和.fstpub文件",
+                    "  export-private-key                导出私钥文本和二维码文件",
+                    "  public-key                        打印本地公钥",
+                    "  account-id [publicKey]            打印accountId/公钥指纹",
+                    "  contacts                          查看本地联系人",
+                    "  contact-add <accountId> [alias]   新增或更新本地联系人",
+                    "  contact-add-public-key <publicKey|publicKeyFile> [alias] 通过公钥新增联系人",
+                    "  contact-update-public-key <contact-N|N> <publicKey|publicKeyFile> 更新联系人公钥",
+                    "  contact-remove <contact-N|N>      删除本地联系人",
+                    "  contact-show <contact-N|N>        查看一个本地联系人",
+                    "  key-info                          查看加密服务密钥状态",
+                    "  generate-key                      在加密服务中生成密钥对",
+                    "  delete-key                        从加密服务中删除密钥对",
+                    "  import-private-key <keyText|path> 从手动复制、文本文件或PNG二维码导入私钥",
+                    "  import-private-key-file <path>    从文件或PNG二维码导入私钥",
+                    "  import-private-key-paste          粘贴多行私钥，最后输入单独一行的点号结束",
+                    "  back                              返回模式选择",
+                    "  exit                              停止应用程序"
+            );
+        }
+        return List.of(
+                "Offline commands:",
+                "  help                              Show this help",
+                "  language                          Change console language",
+                "  status                            Show client status",
+                "  fst-file-encrypt <file> <publicKey|publicKeyFile|contact-N> [outputDir] Create offline encrypted file",
+                "  fst-file-decrypt <fst2File> [outputDir] Decrypt offline encrypted file",
+                "  fst-text-encrypt <publicKey|publicKeyFile|contact-N> Create offline encrypted text",
+                "  fst-text-decrypt [FST-TEXT1]      Decrypt offline encrypted text; paste mode when omitted",
+                "  export-public-key                 Export public key QR and .fstpub files",
+                "  export-private-key                Export private key text and QR artifact files",
+                "  public-key                        Print local public key",
+                "  account-id [publicKey]            Print accountId/fingerprint",
+                "  contacts                          List local contacts",
+                "  contact-add <accountId> [alias]   Add or update a local contact",
+                "  contact-add-public-key <publicKey|publicKeyFile> [alias] Add contact from public key",
+                "  contact-update-public-key <contact-N|N> <publicKey|publicKeyFile> Update contact public key",
+                "  contact-remove <contact-N|N>      Remove a local contact",
+                "  contact-show <contact-N|N>        Show one local contact",
+                "  key-info                          Show crypto service key status",
+                "  generate-key                      Generate key pair in the crypto service",
+                "  delete-key                        Delete key pair from the crypto service",
+                "  import-private-key <keyText|path> Import private key from raw text, a text file, or a PNG QR",
+                "  import-private-key-file <path>    Import private key from a file or PNG QR",
+                "  import-private-key-paste          Paste a multi-line private key, then enter a single dot",
+                "  back                              Return to mode selector",
+                "  exit                              Stop application"
+        );
+    }
+
     private static Map<UiLanguage, Map<Key, String>> createMessages()
     {
         Map<UiLanguage, Map<Key, String>> messages = new EnumMap<>(UiLanguage.class);
         Map<Key, String> en = new EnumMap<>(Key.class);
         Map<Key, String> zh = new EnumMap<>(Key.class);
 
-        put(en, zh, Key.UNKNOWN_MODE, "Unknown mode. Choose 1/relay, 2/direct, 0/exit, or language.", "未知模式。请选择 1/relay、2/direct、0/exit，或输入 language。");
+        put(en, zh, Key.UNKNOWN_MODE, "Unknown mode. Choose 1/relay, 2/direct, 3/offline, 0/exit, or language.", "未知模式。请选择 1/relay、2/direct、3/offline、0/exit，或输入 language。");
         put(en, zh, Key.CONSOLE_STOPPED, "Console stopped: %s", "控制台已停止: %s");
         put(en, zh, Key.MODE_TITLE, "Choose transfer mode:", "请选择传输模式:");
         put(en, zh, Key.MODE_RELAY_OPTION, "  1. relay  - server relay mode", "  1. relay  - 服务器中继模式");
         put(en, zh, Key.MODE_DIRECT_OPTION, "  2. direct - IPv6 direct QR handshake mode", "  2. direct - IPv6直连二维码握手模式");
+        put(en, zh, Key.MODE_OFFLINE_OPTION, "  3. offline - offline encrypt/decrypt mode", "  3. offline - 离线加密解密模式");
         put(en, zh, Key.MODE_EXIT_OPTION, "  0. exit", "  0. exit");
         put(en, zh, Key.RELAY_CONSOLE_READY, "Relay console. Type 'help' for commands, 'language' to change language, or 'back' to choose another mode.", "中继控制台。输入 'help' 查看命令，输入 'language' 切换语言，或输入 'back' 返回模式选择。");
         put(en, zh, Key.DIRECT_CONSOLE_READY, "IPv6 direct console. Type 'help' for commands, 'language' to change language, or 'back' to choose another mode.", "IPv6直连控制台。输入 'help' 查看命令，输入 'language' 切换语言，或输入 'back' 返回模式选择。");
+        put(en, zh, Key.OFFLINE_CONSOLE_READY, "Offline console. Type 'help' for commands, 'language' to change language, or 'back' to choose another mode.", "离线控制台。输入 'help' 查看命令，输入 'language' 切换语言，或输入 'back' 返回模式选择。");
         put(en, zh, Key.CONFIRM_RETURN_MODE_DISCONNECT_RELAY, "Return to mode selector and disconnect relay connection if active? [y/N] ", "返回模式选择并断开当前中继连接吗？[y/N] ");
         put(en, zh, Key.CONFIRM_RETURN_MODE_CLOSE_DIRECT, "Return to mode selector and close direct listener if active? [y/N] ", "返回模式选择并关闭当前直连监听吗？[y/N] ");
         put(en, zh, Key.STARTUP_NO_KEY_PAUSED, "No local key pair is available. Auto-connect has been paused for this startup.", "当前没有本地密钥对。本次启动已暂停自动连接。");
@@ -317,15 +391,15 @@ public class ConsoleMessages
         put(en, zh, Key.USAGE, "Usage: %s", "用法: %s");
         put(en, zh, Key.ROLE_PROMPT, "Role [sender/receiver]> ", "角色 [sender/receiver]> ");
         put(en, zh, Key.INVALID_ROLE, "Invalid role. Choose sender or receiver.", "角色无效。请选择 sender 或 receiver。");
-        put(en, zh, Key.SEND_QR_TO_RECEIVER, "Send this QR/FST1 text to the receiver.", "请将此二维码/FST1文本发送给接收方。");
-        put(en, zh, Key.PASTE_RECEIVER_FST1, "Paste receiver FST1 text or type a FST1/PNG file path:", "粘贴接收方FST1文本，或输入FST1/PNG文件路径:");
+        put(en, zh, Key.SEND_QR_TO_RECEIVER, "Send this QR/FST1 file to the receiver.", "请将此二维码/FST1文件发送给接收方。");
+        put(en, zh, Key.PASTE_RECEIVER_FST1, "Type receiver .fst1 or .png file path:", "输入接收方 .fst1 或 .png 文件路径:");
         put(en, zh, Key.HANDSHAKE_CANCEL_HINT, "Leave blank or type 'cancel' to stop this handshake step.", "留空或输入 'cancel' 可停止当前握手步骤。");
         put(en, zh, Key.FST1_MULTILINE_HINT, "For FST1 text, paste all wrapped lines, then enter a single '.' line to finish.", "粘贴FST1文本时，可以粘贴多行，最后单独输入一行 '.' 结束。");
         put(en, zh, Key.DIRECT_SESSION_CONNECTED, "Direct session connected: %s", "直连会话已连接: %s");
         put(en, zh, Key.FILE_PATH_TO_SEND, "File path to send> ", "要发送的文件路径> ");
         put(en, zh, Key.SEND_TASK_CREATED, "Send task created: %s", "发送任务已创建: %s");
-        put(en, zh, Key.PASTE_SENDER_FST1, "Paste sender FST1 text or type a FST1/PNG file path:", "粘贴发送方FST1文本，或输入FST1/PNG文件路径:");
-        put(en, zh, Key.SEND_QR_TO_SENDER_WAITING, "Send this QR/FST1 text to the sender. Waiting for incoming transfer request.", "请将此二维码/FST1文本发送给发送方。正在等待传输请求。");
+        put(en, zh, Key.PASTE_SENDER_FST1, "Type sender .fst1 or .png file path:", "输入发送方 .fst1 或 .png 文件路径:");
+        put(en, zh, Key.SEND_QR_TO_SENDER_WAITING, "Send this QR/FST1 file to the sender. Waiting for incoming transfer request.", "请将此二维码/FST1文件发送给发送方。正在等待传输请求。");
         put(en, zh, Key.QR_PNG, "QR PNG: %s", "二维码PNG: %s");
         put(en, zh, Key.QR_FST1, "QR FST1 file: %s", "二维码FST1文件: %s");
         put(en, zh, Key.QR_ASCII, "QR ASCII file: %s", "二维码ASCII文件: %s");
@@ -452,6 +526,8 @@ public class ConsoleMessages
                 Map.entry("listenPortMode", "监听端口模式"),
                 Map.entry("fixedListenPort", "固定监听端口"),
                 Map.entry("settingsPath", "设置路径")
+                , Map.entry("unread", "未读")
+                , Map.entry("lastMessageTime", "最后消息时间")
         );
     }
 
@@ -468,9 +544,11 @@ public class ConsoleMessages
         MODE_TITLE,
         MODE_RELAY_OPTION,
         MODE_DIRECT_OPTION,
+        MODE_OFFLINE_OPTION,
         MODE_EXIT_OPTION,
         RELAY_CONSOLE_READY,
         DIRECT_CONSOLE_READY,
+        OFFLINE_CONSOLE_READY,
         CONFIRM_RETURN_MODE_DISCONNECT_RELAY,
         CONFIRM_RETURN_MODE_CLOSE_DIRECT,
         STARTUP_NO_KEY_PAUSED,
@@ -495,7 +573,6 @@ public class ConsoleMessages
         SEND_QR_TO_RECEIVER,
         PASTE_RECEIVER_FST1,
         HANDSHAKE_CANCEL_HINT,
-        FST1_MULTILINE_HINT,
         DIRECT_SESSION_CONNECTED,
         FILE_PATH_TO_SEND,
         SEND_TASK_CREATED,

@@ -26,12 +26,15 @@ import com.common.service.PushNotificationService;
 import com.common.util.PathInputNormalizer;
 import com.client.service.TransferTaskRegistry;
 import com.client.service.PrivateKeyArtifactService;
+import com.client.service.OfflineCryptoService;
+import com.client.service.PublicKeyPayloadService;
 import com.persistence.local.model.contactsRecord.BlacklistRecord;
 import com.persistence.local.model.contactsRecord.ContactRecord;
 import com.session.TransferDirection;
 import com.session.TransferStatus;
 import com.session.TransferTask;
 import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -97,9 +100,53 @@ public class ConsoleCommandRunner
     private final DirectPeerConnectionManager directPeerConnectionManager;
     private final LanguageSettingsService languageSettingsService;
     private final ClientMessageService clientMessageService;
+    private final OfflineCryptoService offlineCryptoService;
+    private final PublicKeyPayloadService publicKeyPayloadService;
     private final ConsoleMessages messages;
     private Runnable notificationSubscription;
     private int lastProgressLineLength;
+
+    @Autowired
+    public ConsoleCommandRunner(
+            ClientConnectionManager clientConnectionManager,
+            ClientStartupCoordinator clientStartupCoordinator,
+            ClientTransferService clientTransferService,
+            ClientProperties clientProperties,
+            CryptoSupport cryptoSupport,
+            TransferTaskRegistry transferTaskRegistry,
+            ApplicationShutdownService applicationShutdownService,
+            PushNotificationService pushNotificationService,
+            LocalContactBookService localContactBookService,
+            PrivateKeyArtifactService privateKeyArtifactService,
+            DirectHandshakeService directHandshakeService,
+            DirectSettingsService directSettingsService,
+            DirectPeerConnectionManager directPeerConnectionManager,
+            LanguageSettingsService languageSettingsService,
+            ClientMessageService clientMessageService,
+            OfflineCryptoService offlineCryptoService,
+            PublicKeyPayloadService publicKeyPayloadService,
+            ConsoleMessages messages
+    )
+    {
+        this.clientConnectionManager = clientConnectionManager;
+        this.clientStartupCoordinator = clientStartupCoordinator;
+        this.clientTransferService = clientTransferService;
+        this.clientProperties = clientProperties;
+        this.cryptoSupport = cryptoSupport;
+        this.transferTaskRegistry = transferTaskRegistry;
+        this.applicationShutdownService = applicationShutdownService;
+        this.pushNotificationService = pushNotificationService;
+        this.localContactBookService = localContactBookService;
+        this.privateKeyArtifactService = privateKeyArtifactService;
+        this.directHandshakeService = directHandshakeService;
+        this.directSettingsService = directSettingsService;
+        this.directPeerConnectionManager = directPeerConnectionManager;
+        this.languageSettingsService = languageSettingsService;
+        this.clientMessageService = clientMessageService;
+        this.offlineCryptoService = offlineCryptoService;
+        this.publicKeyPayloadService = publicKeyPayloadService;
+        this.messages = messages;
+    }
 
     public ConsoleCommandRunner(
             ClientConnectionManager clientConnectionManager,
@@ -120,22 +167,26 @@ public class ConsoleCommandRunner
             ConsoleMessages messages
     )
     {
-        this.clientConnectionManager = clientConnectionManager;
-        this.clientStartupCoordinator = clientStartupCoordinator;
-        this.clientTransferService = clientTransferService;
-        this.clientProperties = clientProperties;
-        this.cryptoSupport = cryptoSupport;
-        this.transferTaskRegistry = transferTaskRegistry;
-        this.applicationShutdownService = applicationShutdownService;
-        this.pushNotificationService = pushNotificationService;
-        this.localContactBookService = localContactBookService;
-        this.privateKeyArtifactService = privateKeyArtifactService;
-        this.directHandshakeService = directHandshakeService;
-        this.directSettingsService = directSettingsService;
-        this.directPeerConnectionManager = directPeerConnectionManager;
-        this.languageSettingsService = languageSettingsService;
-        this.clientMessageService = clientMessageService;
-        this.messages = messages;
+        this(
+                clientConnectionManager,
+                clientStartupCoordinator,
+                clientTransferService,
+                clientProperties,
+                cryptoSupport,
+                transferTaskRegistry,
+                applicationShutdownService,
+                pushNotificationService,
+                localContactBookService,
+                privateKeyArtifactService,
+                directHandshakeService,
+                directSettingsService,
+                directPeerConnectionManager,
+                languageSettingsService,
+                clientMessageService,
+                null,
+                null,
+                messages
+        );
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -173,6 +224,7 @@ public class ConsoleCommandRunner
                 switch (selected.trim().toLowerCase(Locale.ROOT)) {
                     case "1", "relay" -> runRelayConsole(reader);
                     case "2", "direct" -> runDirectConsole(reader);
+                    case "3", "offline", "decrypt", "decryption" -> runOfflineConsole(reader);
                     case "language" -> changeLanguage(reader);
                     case "0", "exit", "quit" -> {
                         exit();
@@ -193,6 +245,7 @@ public class ConsoleCommandRunner
         System.out.println(messages.text(ConsoleMessages.Key.MODE_TITLE));
         System.out.println(messages.text(ConsoleMessages.Key.MODE_RELAY_OPTION));
         System.out.println(messages.text(ConsoleMessages.Key.MODE_DIRECT_OPTION));
+        System.out.println(messages.text(ConsoleMessages.Key.MODE_OFFLINE_OPTION));
         System.out.println(messages.text(ConsoleMessages.Key.MODE_EXIT_OPTION));
         System.out.print("mode> ");
     }
@@ -240,6 +293,24 @@ public class ConsoleCommandRunner
                 continue;
             }
             handleDirectCommand(reader, trimmed);
+        }
+    }
+
+    private void runOfflineConsole(BufferedReader reader) throws IOException
+    {
+        System.out.println(messages.text(ConsoleMessages.Key.OFFLINE_CONSOLE_READY));
+        while (isApplicationActive()) {
+            System.out.print("fst-offline> ");
+            String line = reader.readLine();
+            if (line == null) {
+                handleConsoleInputClosed();
+                return;
+            }
+            String trimmed = line.trim();
+            if ("back".equalsIgnoreCase(trimmed) || "mode".equalsIgnoreCase(trimmed)) {
+                return;
+            }
+            handleOfflineCommand(reader, trimmed);
         }
     }
 
@@ -327,6 +398,7 @@ public class ConsoleCommandRunner
                 case "key-info" -> printKeyInfo();              //打印Python加密服务管理的密钥状态
                 case "generate-key" -> generateKey();           //请求Python加密服务生成密钥
                 case "delete-key" -> deleteKey();               //请求Python加密服务删除密钥
+                case "export-public-key" -> exportPublicKey();  //导出公钥二维码和文本文件
                 case "export-private-key" -> exportPrivateKey();//导出私钥文本和二维码文件
                 case "import-private-key" -> importPrivateKey(args);                //以文本的方式导入私钥，import-private-key <keyText>
                 case "import-private-key-file" -> importPrivateKeyFile(args);       //从文件导入私钥，import-private-key-file <path>
@@ -372,6 +444,7 @@ public class ConsoleCommandRunner
                 case "key-info" -> printKeyInfo();
                 case "generate-key" -> generateKey();
                 case "delete-key" -> deleteKey();
+                case "export-public-key" -> exportPublicKey();
                 case "export-private-key" -> exportPrivateKey();
                 case "public-key" -> printPublicKey();
                 case "public-key-fingerprint", "accountid", "account-id" -> printPublicKeyFingerprint(args);
@@ -386,9 +459,57 @@ public class ConsoleCommandRunner
         }
     }
 
+    private void handleOfflineCommand(BufferedReader reader, String line)
+    {
+        if (line.isBlank()) {
+            return;
+        }
+        List<String> args = parseArguments(line);
+        if (args.isEmpty()) {
+            return;
+        }
+        String command = args.get(0).toLowerCase(Locale.ROOT);
+        try {
+            switch (command) {
+                case "help" -> printOfflineHelp();
+                case "language" -> changeLanguage(reader);
+                case "status" -> printStatus();
+                case "fst-file-encrypt" -> fst2EncryptFile(args);
+                case "fst-file-decrypt" -> fst2DecryptFile(args);
+                case "fst-text-encrypt" -> fstTextEncrypt(reader, args);
+                case "fst-text-decrypt" -> fstTextDecrypt(reader, args);
+                case "contacts" -> printContacts();
+                case "contact-add" -> addContact(args);
+                case "contact-add-public-key" -> addContactPublicKey(args);
+                case "contact-update-public-key" -> updateContactPublicKey(args);
+                case "contact-remove" -> removeContact(args);
+                case "contact-show" -> showContact(args);
+                case "public-key" -> printPublicKey();
+                case "public-key-fingerprint", "accountid", "account-id" -> printPublicKeyFingerprint(args);
+                case "export-public-key" -> exportPublicKey();
+                case "export-private-key" -> exportPrivateKey();
+                case "key-info" -> printKeyInfo();
+                case "generate-key" -> generateKey();
+                case "delete-key" -> deleteKey();
+                case "import-private-key" -> importPrivateKey(args);
+                case "import-private-key-file" -> importPrivateKeyFile(args);
+                case "import-private-key-paste" -> importPrivateKeyPaste(reader);
+                case "exit", "quit" -> exit();
+                default -> System.out.println(messages.format(ConsoleMessages.Key.UNKNOWN_COMMAND, command));
+            }
+        } catch (Exception ex) {
+            System.out.println(messages.format(ConsoleMessages.Key.COMMAND_FAILED, ex.getMessage()));
+        }
+    }
+
     private void printDirectHelp()
     {
         messages.directHelpLines().forEach(System.out::println);
+    }
+
+    private void printOfflineHelp()
+    {
+        messages.offlineHelpLines().forEach(System.out::println);
     }
 
     private void printDirectStatus()
@@ -790,6 +911,132 @@ public class ConsoleCommandRunner
         System.out.println(messages.format(ConsoleMessages.Key.SEND_TASK_CREATED, taskId));
     }
 
+    private void fst2EncryptFile(List<String> args)
+    {
+        if (!ensureKeyPresent()) {
+            return;
+        }
+        if (args.size() < 3) {
+            System.out.println(messages.usage("fst-file-encrypt <filePath> <publicKey|publicKeyFile|contact-N> [outputDir]"));
+            return;
+        }
+        int receiverIndex = resolveOfflineReceiverArgumentIndex(args);
+        String filePath = joinArguments(args, 1, receiverIndex);
+        String receiver = args.get(receiverIndex);
+        Path outputDir = receiverIndex + 1 < args.size() ? PathInputNormalizer.toPath(joinArguments(args, receiverIndex + 1)) : null;
+        OfflineCryptoService.Fst2EncryptResult result = offlineCryptoService.encryptFile(PathInputNormalizer.toPath(filePath), receiver, outputDir);
+        System.out.println("FST2 file created: " + result.outputPath());
+        System.out.println("fileSize: " + result.fileSize());
+        System.out.println("totalBlocks: " + result.totalBlocks());
+    }
+
+    private int resolveOfflineReceiverArgumentIndex(List<String> args)
+    {
+        if(args.size() >= 4 && looksLikeOfflineReceiverToken(args.get(args.size() - 2)))
+        {
+            return args.size() - 2;
+        }
+        return args.size() - 1;
+    }
+
+    private boolean looksLikeOfflineReceiverToken(String value)
+    {
+        if(value == null || value.isBlank())
+        {
+            return false;
+        }
+        String token = value.trim();
+        if(token.startsWith("contact-") || token.matches("\\d+"))
+        {
+            return true;
+        }
+        String lower = token.toLowerCase(Locale.ROOT);
+        if(lower.endsWith(".fstpub") || lower.endsWith(".png"))
+        {
+            return true;
+        }
+        return token.startsWith(PublicKeyPayloadService.PREFIX) || token.length() >= 300;
+    }
+
+    private void fst2DecryptFile(List<String> args)
+    {
+        if (!ensureKeyPresent()) {
+            return;
+        }
+        if (args.size() < 2) {
+            System.out.println(messages.usage("fst-file-decrypt <fst2Path> [outputDir]"));
+            return;
+        }
+        Path outputDir = args.size() >= 3 ? PathInputNormalizer.toPath(joinArguments(args, 2)) : null;
+        OfflineCryptoService.Fst2DecryptResult result = offlineCryptoService.decryptFile(PathInputNormalizer.toPath(args.get(1)), outputDir);
+        System.out.println("FST2 file decrypted: " + result.outputPath());
+        System.out.println("fileName: " + result.fileName());
+        System.out.println("fileSize: " + result.fileSize());
+        System.out.println("totalBlocks: " + result.totalBlocks());
+    }
+
+    private void fstTextEncrypt(BufferedReader reader, List<String> args) throws IOException
+    {
+        if (!ensureKeyPresent()) {
+            return;
+        }
+        if(args.size() < 2)
+        {
+            System.out.println(messages.usage("fst-text-encrypt <publicKey|publicKeyFile|contact-N>"));
+            return;
+        }
+        String text = readUntilQuit(reader, "text> ");
+        if(text == null)
+        {
+            return;
+        }
+        OfflineCryptoService.FstTextEncryptResult result = offlineCryptoService.encryptText(text, args.get(1));
+        System.out.println(result.payload());
+    }
+
+    private void fstTextDecrypt(BufferedReader reader, List<String> args) throws IOException
+    {
+        if (!ensureKeyPresent()) {
+            return;
+        }
+        String payload;
+        if(args.size() >= 2)
+        {
+            payload = joinArguments(args, 1);
+        }
+        else
+        {
+            payload = readUntilQuit(reader, "fst-text> ");
+            if(payload == null)
+            {
+                return;
+            }
+        }
+        OfflineCryptoService.FstTextDecryptResult result = offlineCryptoService.decryptText(payload);
+        System.out.println(result.text());
+    }
+
+    private String readUntilQuit(BufferedReader reader, String prompt) throws IOException
+    {
+        List<String> lines = new ArrayList<>();
+        while(isApplicationActive())
+        {
+            System.out.print(prompt);
+            String line = reader.readLine();
+            if(line == null)
+            {
+                handleConsoleInputClosed();
+                return null;
+            }
+            if(":q".equals(line))
+            {
+                return String.join(System.lineSeparator(), lines);
+            }
+            lines.add(line);
+        }
+        return null;
+    }
+
     private void sendRelayMessage(BufferedReader reader, List<String> args) throws IOException
     {
         if (!ensureKeyPresent()) {
@@ -1078,6 +1325,44 @@ public class ConsoleCommandRunner
         String alias = args.size() >= 3 ? joinArguments(args, 2) : null;
         String publicKey = searchPublicKeyForContact(args.get(1));
         ContactRecord contact = localContactBookService.addContact(args.get(1), publicKey, alias);
+        System.out.println(messages.format(
+                ConsoleMessages.Key.CONTACT_SAVED,
+                contact.getContactIndex(),
+                displayNullable(contact.getAlias()),
+                contact.getAccountId(),
+                abbreviate(contact.getPublicKey(), 32)
+        ));
+    }
+
+    private void addContactPublicKey(List<String> args) throws Exception
+    {
+        if (args.size() < 2) {
+            System.out.println(messages.usage("contact-add-public-key <publicKey|publicKeyPath> [alias]"));
+            return;
+        }
+        String publicKey = publicKeyPayloadService.resolvePublicKey(args.get(1));
+        String accountId = publicKeyPayloadService.accountIdForPublicKey(publicKey);
+        String alias = args.size() >= 3 ? joinArguments(args, 2) : null;
+        ContactRecord contact = localContactBookService.addContact(accountId, publicKey, alias);
+        System.out.println(messages.format(
+                ConsoleMessages.Key.CONTACT_SAVED,
+                contact.getContactIndex(),
+                displayNullable(contact.getAlias()),
+                contact.getAccountId(),
+                abbreviate(contact.getPublicKey(), 32)
+        ));
+    }
+
+    private void updateContactPublicKey(List<String> args) throws Exception
+    {
+        if (args.size() < 3) {
+            System.out.println(messages.usage("contact-update-public-key <contact-N|N> <publicKey|publicKeyPath>"));
+            return;
+        }
+        int contactIndex = parseContactIndexArgument(args.get(1));
+        String publicKey = publicKeyPayloadService.resolvePublicKey(args.get(2));
+        String accountId = publicKeyPayloadService.accountIdForPublicKey(publicKey);
+        ContactRecord contact = localContactBookService.updateContactPublicKey(contactIndex, publicKey, accountId);
         System.out.println(messages.format(
                 ConsoleMessages.Key.CONTACT_SAVED,
                 contact.getContactIndex(),
@@ -1546,7 +1831,7 @@ public class ConsoleCommandRunner
     private void printPublicKeyFingerprint(List<String> args) throws Exception  //处理计算公钥指纹的指令
     {
         if (args.size() >= 2) { //输入公钥的情况
-            System.out.println(cryptoSupport.publicKeyFingerprint(args.get(1)));
+            System.out.println(publicKeyPayloadService.accountIdForPublicKey(joinArguments(args, 1)));
             return;
         }
         if (!ensureLocalPublicKeyPresent()) {   //当前是否密钥文件
@@ -1582,8 +1867,22 @@ public class ConsoleCommandRunner
             return;
         }
         PrivateKeyArtifactService.ExportedPrivateKey exported = privateKeyArtifactService.exportPrivateKey();
-        printQrArtifact(exported.artifact(), exported.privateKeyText());
+        printQrArtifact(exported.artifact(), "qrText: " + exported.qrText());
         System.out.println(messages.text(ConsoleMessages.Key.PRIVATE_KEY_EXPORT_READY));
+    }
+
+    private void exportPublicKey() throws Exception
+    {
+        if (!ensureLocalPublicKeyPresent()) {
+            System.out.println(messages.text(ConsoleMessages.Key.NO_LOCAL_PUBLIC_KEY));
+            return;
+        }
+        PublicKeyPayloadService.ExportedPublicKey exported = publicKeyPayloadService.exportPublicKey();
+        System.out.println("publicKey: " + exported.publicKey());
+        System.out.println("qrText: " + exported.qrText());
+        System.out.println(messages.format(ConsoleMessages.Key.QR_PNG, exported.artifact().getPngPath()));
+        System.out.println("Public key text file: " + exported.artifact().getFst1Path());
+        System.out.println(messages.format(ConsoleMessages.Key.QR_ASCII, exported.artifact().getAsciiPath()));
     }
 
     //--------------------------导入密钥的三种方式------------------------------//
@@ -1627,7 +1926,7 @@ public class ConsoleCommandRunner
             }
             keyText.append(line).append('\n');
         }
-        cryptoSupport.importPrivateKeyText(keyText.toString());
+        privateKeyArtifactService.importPrivateKey(keyText.toString());
         clientStartupCoordinator.markKeyAvailableAndContinueAutoConnect();
         System.out.println(messages.format(ConsoleMessages.Key.PRIVATE_KEY_IMPORTED, cryptoSupport.publicKeyFingerprint()));
         System.out.println(messages.text(ConsoleMessages.Key.AUTO_CONNECT_CONTINUE));

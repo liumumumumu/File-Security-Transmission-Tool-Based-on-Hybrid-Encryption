@@ -190,6 +190,33 @@ public class CryptoSupport   // RSA、签名、密钥管理由 Python crypto ser
         return new AesGcmChunk(nonce, ciphertext, tag);
     }
 
+    public AesGcmChunk encryptChunk(byte[] plain, SecretKey AESKey, byte[] nonce, byte[] aad)throws GeneralSecurityException
+    {
+        validateAes256Key(AESKey);
+        if(nonce.length != GCM_NONCE_BYTES)
+        {
+            throw new GeneralSecurityException("AES-GCM nonce must be "+GCM_NONCE_BYTES+" bytes");
+        }
+
+        Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, AESKey, new GCMParameterSpec(GCM_TAG_BITS, nonce));
+        if(aad != null && aad.length > 0)
+        {
+            cipher.updateAAD(aad);
+        }
+
+        byte[] encrypted= cipher.doFinal(plain);
+        int ciphertextLength=encrypted.length - GCM_TAG_BYTES;
+        if(ciphertextLength<0)
+        {
+            throw new GeneralSecurityException("AES-GCM output shorter than tag length");
+        }
+
+        byte[] ciphertext=Arrays.copyOfRange(encrypted,0,ciphertextLength);
+        byte[] tag=Arrays.copyOfRange(encrypted, ciphertextLength, encrypted.length);
+        return new AesGcmChunk(nonce, ciphertext, tag);
+    }
+
     //解密AES-GCM加密的数据块
     public byte[] decryptChunk(byte[] nonce, byte[] ciphertext, byte[] tag, SecretKey AESKey)throws GeneralSecurityException
     {
@@ -219,6 +246,31 @@ public class CryptoSupport   // RSA、签名、密钥管理由 Python crypto ser
 
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(Cipher.DECRYPT_MODE, AESKey, new GCMParameterSpec(GCM_TAG_BITS, nonce));
+        return cipher.doFinal(encrypted);
+    }
+
+    public byte[] decryptChunk(byte[] nonce, byte[] ciphertext, byte[] tag, SecretKey AESKey, byte[] aad)throws GeneralSecurityException
+    {
+        validateAes256Key(AESKey);
+        if(nonce.length != GCM_NONCE_BYTES)
+        {
+            throw new GeneralSecurityException("AES-GCM nonce must be "+GCM_NONCE_BYTES+" bytes");
+        }
+        if(tag.length != GCM_TAG_BYTES)
+        {
+            throw new GeneralSecurityException("AES-GCM tag must be "+GCM_TAG_BYTES+" bytes");
+        }
+
+        byte[] encrypted = new byte[ciphertext.length+tag.length];
+        System.arraycopy(ciphertext, 0, encrypted, 0, ciphertext.length);
+        System.arraycopy(tag, 0, encrypted, ciphertext.length, tag.length);
+
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.DECRYPT_MODE, AESKey, new GCMParameterSpec(GCM_TAG_BITS, nonce));
+        if(aad != null && aad.length > 0)
+        {
+            cipher.updateAAD(aad);
+        }
         return cipher.doFinal(encrypted);
     }
 
