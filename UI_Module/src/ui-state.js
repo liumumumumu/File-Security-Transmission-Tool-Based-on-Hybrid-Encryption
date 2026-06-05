@@ -47,3 +47,58 @@ export function toFriendlyErrorMessage(message) {
   }
   return text;
 }
+
+export function shortId(value, length = 12) {
+  if (!value) return "--";
+  const text = String(value);
+  if (text.length <= length) return text;
+  return `${text.slice(0, length)}...`;
+}
+
+export function taskIdentifier(task) {
+  return task?.transferId || task?.taskId || "";
+}
+
+export function isTerminalTaskStatus(status) {
+  return ["COMPLETED", "FAILED", "CANCELED", "CANCELLED", "REJECTED"].includes(String(status || "").toUpperCase());
+}
+
+export function isActiveReceiveTask(task) {
+  return String(task?.direction || "").toUpperCase() === "RECEIVE" && !isTerminalTaskStatus(task?.status);
+}
+
+export function isCompletedReceiveTask(task) {
+  return String(task?.direction || "").toUpperCase() === "RECEIVE" && String(task?.status || "").toUpperCase() === "COMPLETED";
+}
+
+function taskCreatedAtMillis(task) {
+  const millis = Date.parse(task?.createdAt || "");
+  return Number.isFinite(millis) ? millis : 0;
+}
+
+export function receiveHistoryTasks(tasks, options = {}) {
+  if (!Array.isArray(tasks)) return [];
+  const limit = Number(options.limit || 3);
+  const sorted = tasks.filter(isCompletedReceiveTask).sort((left, right) => taskCreatedAtMillis(right) - taskCreatedAtMillis(left));
+  return options.expanded ? sorted : sorted.slice(0, limit);
+}
+
+export function taskSpeedText(task) {
+  if (task?.speedText) return task.speedText;
+  const speed = Number(task?.speedMegabytesPerSecond || 0);
+  return `${speed.toFixed(2)} MB/s`;
+}
+
+export function normalizeRetransmitRequests(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((request) => request && request.transferId);
+}
+
+export function hasDesktopDebugApi(desktopApi) {
+  return Boolean(
+    desktopApi?.openDevTools &&
+      desktopApi?.openLogsFolder &&
+      desktopApi?.getDebugInfo &&
+      desktopApi?.openSystemStatus,
+  );
+}

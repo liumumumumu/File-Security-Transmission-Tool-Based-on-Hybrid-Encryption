@@ -33,16 +33,9 @@ export function resolveCryptoRuntimeName({
   arch = process.arch,
 } = {}) {
   const targetPlatform = normalizeTargetPlatform(platform);
-  const targetArch = normalizeTargetArch(arch);
 
-  if (targetPlatform === "win32") {
-    return "crypto-service-windows-x64";
-  }
-  if (targetPlatform === "darwin") {
-    return `crypto-service-macos-${targetArch}`;
-  }
-  if (targetPlatform === "linux") {
-    return `crypto-service-linux-${targetArch}`;
+  if (targetPlatform === "win32" || targetPlatform === "darwin" || targetPlatform === "linux") {
+    return "crypto-service";
   }
   throw new Error(`Unsupported desktop runtime platform: ${targetPlatform}`);
 }

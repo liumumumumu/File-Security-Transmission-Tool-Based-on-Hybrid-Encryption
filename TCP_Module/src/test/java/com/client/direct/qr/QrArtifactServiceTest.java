@@ -45,15 +45,9 @@ public class QrArtifactServiceTest
     {
         QrArtifactService service = service();
 
-        QrArtifact artifact = service.writeArtifacts(
-                "sender",
-                "invite-1234",
-                Instant.now().plusSeconds(60),
-                "FST1:test \nvalue\twrapped"
-        );
+        String value = service.readFst1Text("FST1:test-\n value\twrapped");
 
         assertEquals("FST1:test-valuewrapped", value);
-
     }
 
     private QrArtifactService service()

@@ -83,7 +83,11 @@ public class ReceiveController {
             return ResponseEntity.badRequest().body(error);
         }
 
-        clientTransferService.rejectIncomingTransfer(transferId);
+        try {
+            clientTransferService.rejectIncomingTransfer(transferId);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return badRequest(e.getMessage());
+        }
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("success", true);
@@ -108,7 +112,11 @@ public class ReceiveController {
             return ResponseEntity.badRequest().body(error);
         }
 
-        clientTransferService.requestRetransmission(taskIdOrTransferId);
+        try {
+            clientTransferService.requestRetransmission(taskIdOrTransferId);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return badRequest(e.getMessage());
+        }
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("success", true);
@@ -132,7 +140,11 @@ public class ReceiveController {
             return badRequest("transferId is required");
         }
 
-        clientTransferService.acceptRetransmission(transferId);
+        try {
+            clientTransferService.acceptRetransmission(transferId);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return badRequest(e.getMessage());
+        }
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("success", true);
@@ -148,7 +160,11 @@ public class ReceiveController {
             return badRequest("transferId is required");
         }
 
-        clientTransferService.rejectRetransmission(transferId);
+        try {
+            clientTransferService.rejectRetransmission(transferId);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return badRequest(e.getMessage());
+        }
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("success", true);
@@ -231,6 +247,12 @@ public class ReceiveController {
         item.put("transferId", request.getTransferId());
         item.put("startBlockId", request.getStartBlockId());
         item.put("reason", request.getReason());
+        transferTaskRegistry.findByTransferId(request.getTransferId()).ifPresent(task -> {
+            item.put("taskId", task.getTaskId());
+            item.put("fileName", task.getFileName());
+            item.put("status", task.getStatus());
+            item.put("direction", task.getDirection());
+        });
         return item;
     }
 

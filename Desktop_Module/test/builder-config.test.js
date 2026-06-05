@@ -8,5 +8,6 @@ test("electron-builder config includes Windows and macOS targets", () => {
   assert.equal(packageJson.build.win.target[0], "msi");
   assert.ok(packageJson.build.win.icon);
   assert.deepEqual(packageJson.build.mac.target, ["dmg", "zip"]);
+  assert.ok(packageJson.build.mac.icon);
   assert.equal(packageJson.build.mac.identity, null);
 });
