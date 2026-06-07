@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: file-security-transmission-tool
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+
+authentication-result:
+  succeed: "Authentication Passed"
+  failed: "Authentication Failed"
+
+client:
+  serverHost: 82.156.228.71
+  serverPort: 9000
+  connectionTimeout: 5000
+  authTimeoutSeconds: 1000
+  ackTimeoutSeconds: 1000
+
+direct:
+  default-fixed-listen-port: ${DIRECT_DEFAULT_FIXED_LISTEN_PORT:39001}
+
+app:
+  local-storage:
+    transfer-history-path: ${TRANSFER_HISTORY_PATH:${user.home}/.file-security-transmission/transfer-history.json} #本机传输记录文件的保存路径
+    sqlite-path: ${LOCAL_SQLITE_PATH:${user.home}/.file-security-transmission/local-data.db}
+    device-id-path: ${DEVICE_ID_PATH:${user.home}/.file-security-transmission/device-id}
+    startup-state-path: ${STARTUP_STATE_PATH:${user.home}/.file-security-transmission/startup-state.json}
+    direct-settings-path: ${DIRECT_SETTINGS_PATH:${user.home}/.file-security-transmission/direct-settings.json}
+    language-settings-path: ${LANGUAGE_SETTINGS_PATH:${user.home}/.file-security-transmission/language-settings.json}
+    qr-output-dir: ${QR_OUTPUT_DIR:${user.home}/.file-security-transmission/qr}
+
+node:
+  device-id: ${NODE_DEVICE_ID:}
+  auto-connect: true
+
+
+server:
+  address: 127.0.0.1
+  port: 20201
+  tcp:
+    enabled: false
+    bind-host: 0.0.0.0
+    bind-port: 9000
+
+crypto-service:
+  address: ${CRYPTO_SERVICE_ADDRESS:127.0.0.1}
+  port: ${CRYPTO_SERVICE_PORT:20202}
+
+
+transfer:
+  chunk-size-bytes: 1048576 #1mb
+  receive-dir: downloads
+  send-window-size: 20
