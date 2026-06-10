@@ -1079,6 +1079,17 @@ private struct TaskDetailPanel: View {
                     .textSelection(.enabled)
             }
 
+            if let localPath = detail.localPath?.nilIfBlank {
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        fileActionButtons(localPath: localPath)
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        fileActionButtons(localPath: localPath)
+                    }
+                }
+            }
+
             Spacer(minLength: 0)
         }
         .padding(14)
@@ -1096,6 +1107,27 @@ private struct TaskDetailPanel: View {
             Text(value?.nilIfBlank ?? "-")
                 .lineLimit(3)
                 .textSelection(.enabled)
+        }
+    }
+
+    private func fileActionButtons(localPath: String) -> some View {
+        Group {
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(localPath, forType: .string)
+            } label: {
+                Label(strings.text(.copyPath), systemImage: "doc.on.doc")
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: localPath)])
+            } label: {
+                Label(strings.text(.revealInFinder), systemImage: "finder")
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
         }
     }
 
