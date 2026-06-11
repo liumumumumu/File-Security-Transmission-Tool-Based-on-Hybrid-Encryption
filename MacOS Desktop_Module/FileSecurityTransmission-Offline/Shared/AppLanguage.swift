@@ -178,8 +178,8 @@ struct AppStrings {
         case (.chinese, .keyMissing): "缺少私钥"
         case (.english, .keyMissingDetail): "Generate a new key, import an existing private key, or skip for now. Key-required actions remain unavailable until a private key exists."
         case (.chinese, .keyMissingDetail): "请生成新密钥、导入已有私钥，或暂时跳过。需要密钥的操作会在私钥存在前保持不可用。"
-        case (.english, .generateKey): "Generate Key"
-        case (.chinese, .generateKey): "生成密钥"
+        case (.english, .generateKey): "Generate New Key Pair"
+        case (.chinese, .generateKey): "生成新密钥对"
         case (.english, .importPrivateKey): "Import Private Key"
         case (.chinese, .importPrivateKey): "导入私钥"
         case (.english, .skipForNow): "Skip for now"
@@ -194,6 +194,7 @@ struct AppStrings {
         case (.chinese, .exportPublicKey): "导出公钥"
         case (.english, .exportPrivateKey): "Export Private Key"
         case (.chinese, .exportPrivateKey): "导出私钥"
+
         case (.english, .qrPreview): "QR Preview"
         case (.chinese, .qrPreview): "二维码预览"
         case (.english, .privateKeyRequired): "Paste a private key or choose/drop a private key file."

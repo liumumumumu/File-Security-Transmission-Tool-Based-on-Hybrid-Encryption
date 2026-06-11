@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "DA909DBA2FD7F8D2004D080D"
-               BuildableName = "FileSecurityTransmission-Offline.app"
+               BuildableName = "FileSecurityTransmission.app"
                BlueprintName = "FileSecurityTransmission-Offline"
                ReferencedContainer = "container:FileSecurityTransmission-Offline.xcodeproj">
             </BuildableReference>
@@ -69,7 +69,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "DA909DBA2FD7F8D2004D080D"
-            BuildableName = "FileSecurityTransmission-Offline.app"
+            BuildableName = "FileSecurityTransmission.app"
             BlueprintName = "FileSecurityTransmission-Offline"
             ReferencedContainer = "container:FileSecurityTransmission-Offline.xcodeproj">
          </BuildableReference>
@@ -86,7 +86,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "DA909DBA2FD7F8D2004D080D"
-            BuildableName = "FileSecurityTransmission-Offline.app"
+            BuildableName = "FileSecurityTransmission.app"
             BlueprintName = "FileSecurityTransmission-Offline"
             ReferencedContainer = "container:FileSecurityTransmission-Offline.xcodeproj">
          </BuildableReference>

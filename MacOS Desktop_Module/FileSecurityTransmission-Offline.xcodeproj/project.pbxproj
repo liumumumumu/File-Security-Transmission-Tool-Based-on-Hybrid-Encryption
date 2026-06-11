@@ -24,7 +24,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		DA909DBB2FD7F8D2004D080D /* FileSecurityTransmission-Offline.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "FileSecurityTransmission-Offline.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA909DBB2FD7F8D2004D080D /* FileSecurityTransmission.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FileSecurityTransmission.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA909DC82FD7F8D3004D080D /* FileSecurityTransmission-OfflineTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "FileSecurityTransmission-OfflineTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA909DD22FD7F8D3004D080D /* FileSecurityTransmission-OfflineUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "FileSecurityTransmission-OfflineUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -85,7 +85,7 @@
 		DA909DBC2FD7F8D2004D080D /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				DA909DBB2FD7F8D2004D080D /* FileSecurityTransmission-Offline.app */,
+				DA909DBB2FD7F8D2004D080D /* FileSecurityTransmission.app */,
 				DA909DC82FD7F8D3004D080D /* FileSecurityTransmission-OfflineTests.xctest */,
 				DA909DD22FD7F8D3004D080D /* FileSecurityTransmission-OfflineUITests.xctest */,
 			);
@@ -115,7 +115,7 @@
 			packageProductDependencies = (
 			);
 			productName = "FileSecurityTransmission-Offline";
-			productReference = DA909DBB2FD7F8D2004D080D /* FileSecurityTransmission-Offline.app */;
+			productReference = DA909DBB2FD7F8D2004D080D /* FileSecurityTransmission.app */;
 			productType = "com.apple.product-type.application";
 		};
 		DA909DC72FD7F8D3004D080D /* FileSecurityTransmission-OfflineTests */ = {
@@ -429,6 +429,8 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = FileSecurityTransmission;
+				INFOPLIST_KEY_CFBundleName = FileSecurityTransmission;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -436,7 +438,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "lqh.FileSecurityTransmission-Offline";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = FileSecurityTransmission;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -462,6 +464,8 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = FileSecurityTransmission;
+				INFOPLIST_KEY_CFBundleName = FileSecurityTransmission;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -469,7 +473,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "lqh.FileSecurityTransmission-Offline";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = FileSecurityTransmission;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -497,7 +501,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FileSecurityTransmission-Offline.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FileSecurityTransmission-Offline";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FileSecurityTransmission.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FileSecurityTransmission";
 			};
 			name = Debug;
 		};
@@ -518,7 +522,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FileSecurityTransmission-Offline.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FileSecurityTransmission-Offline";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FileSecurityTransmission.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FileSecurityTransmission";
 			};
 			name = Release;
 		};

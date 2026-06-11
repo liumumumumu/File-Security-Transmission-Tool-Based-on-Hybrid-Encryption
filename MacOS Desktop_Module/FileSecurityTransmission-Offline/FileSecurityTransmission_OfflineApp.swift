@@ -9,6 +9,8 @@ import SwiftUI
 
 @main
 struct FileSecurityTransmission_OfflineApp: App {
+    @NSApplicationDelegateAdaptor(AppTerminationDelegate.self) private var appDelegate
+
     var body: some Scene {
         WindowGroup {
             ContentView()

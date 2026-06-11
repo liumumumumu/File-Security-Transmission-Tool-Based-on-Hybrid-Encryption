@@ -567,12 +567,20 @@ final class FSTAPIClient {
         let _: StartupActionResponse = try await post("/api/system/startup/key/generate", body: EmptyBody())
     }
 
+    func generateKeyPair() async throws {
+        let _: [String: String] = try await post("/api/system/key/generate", body: EmptyBody())
+    }
+
     func skipStartupKeySetup() async throws -> StartupStatus {
         try await post("/api/system/startup/key/skip", body: EmptyBody())
     }
 
     func importStartupPrivateKey(privateKey: String?, privateKeyPath: String?) async throws -> StartupStatus {
         try await post("/api/system/startup/key/import-private", body: ImportPrivateKeyRequest(privateKey: privateKey, privateKeyPath: privateKeyPath))
+    }
+
+    func importPrivateKey(privateKey: String?, privateKeyPath: String?) async throws -> KeyStatus {
+        try await post("/api/system/key/import-private", body: ImportPrivateKeyRequest(privateKey: privateKey, privateKeyPath: privateKeyPath))
     }
 
     func exportPublicKey() async throws -> KeyExportArtifact {

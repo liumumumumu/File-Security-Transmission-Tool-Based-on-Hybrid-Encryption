@@ -37,7 +37,7 @@ struct KeySetupPanel: View {
                 }
             }
 
-            if showImport && viewModel.isPrivateKeyMissing {
+            if showImport {
                 importPanel(strings: strings)
             }
 
@@ -98,21 +98,46 @@ struct KeySetupPanel: View {
     }
 
     private func exportActions(strings: AppStrings) -> some View {
-        HStack(spacing: 10) {
-            Button {
-                Task { await viewModel.exportPublicKey() }
-            } label: {
-                Label(strings.text(.exportPublicKey), systemImage: "person.crop.circle.badge.checkmark")
-            }
-            .disabled(viewModel.operationInProgress)
+        Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+            GridRow {
+                Button {
+                    Task { await viewModel.exportPublicKey() }
+                } label: {
+                    Label(strings.text(.exportPublicKey), systemImage: "person.crop.circle.badge.checkmark")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(viewModel.operationInProgress)
 
-            Button {
-                Task { await viewModel.exportPrivateKey() }
-            } label: {
-                Label(strings.text(.exportPrivateKey), systemImage: "lock.square")
+                Button {
+                    Task { await viewModel.exportPrivateKey() }
+                } label: {
+                    Label(strings.text(.exportPrivateKey), systemImage: "lock.square")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(viewModel.operationInProgress)
             }
-            .disabled(viewModel.operationInProgress)
+
+            GridRow {
+                Button {
+                    withAnimation(.snappy) {
+                        showImport.toggle()
+                    }
+                } label: {
+                    Label(strings.text(.importPrivateKey), systemImage: "square.and.arrow.down")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(viewModel.operationInProgress)
+
+                Button {
+                    Task { await viewModel.generateKeyPair() }
+                } label: {
+                    Label(strings.text(.generateKey), systemImage: "plus.circle")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(viewModel.operationInProgress)
+            }
         }
+        .frame(width: 430)
     }
 
     private func importPanel(strings: AppStrings) -> some View {
@@ -164,7 +189,11 @@ struct KeySetupPanel: View {
             VStack(spacing: 10) {
                 Button {
                     Task {
-                        await viewModel.importStartupPrivateKey(privateKey: privateKeyText, privateKeyPath: privateKeyPath)
+                        if viewModel.isPrivateKeyMissing {
+                            await viewModel.importStartupPrivateKey(privateKey: privateKeyText, privateKeyPath: privateKeyPath)
+                        } else {
+                            await viewModel.importPrivateKey(privateKey: privateKeyText, privateKeyPath: privateKeyPath)
+                        }
                     }
                 } label: {
                     Label(strings.text(.importPrivateKey), systemImage: "checkmark.circle")

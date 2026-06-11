@@ -133,6 +133,23 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func generateKeyPair() async {
+        operationInProgress = true
+        defer { operationInProgress = false }
+
+        do {
+            try await apiClient.generateKeyPair()
+            startupStatus = try? await apiClient.startupStatus()
+            keyStatus = try await apiClient.keyStatus()
+            systemStatus = try? await apiClient.systemStatus()
+            keyExportArtifact = nil
+            keyOperationMessage = strings.text(.keyGenerated)
+            lastUpdated = Date()
+        } catch {
+            keyOperationMessage = error.localizedDescription
+        }
+    }
+
     func skipStartupKeySetup() async {
         operationInProgress = true
         defer { operationInProgress = false }
@@ -162,6 +179,29 @@ final class AppViewModel: ObservableObject {
             startupStatus = try await apiClient.importStartupPrivateKey(privateKey: text, privateKeyPath: path)
             keyStatus = try? await apiClient.keyStatus()
             systemStatus = try? await apiClient.systemStatus()
+            keyOperationMessage = strings.text(.privateKeyImported)
+            lastUpdated = Date()
+        } catch {
+            keyOperationMessage = error.localizedDescription
+        }
+    }
+
+    func importPrivateKey(privateKey: String?, privateKeyPath: String?) async {
+        let text = privateKey?.nilIfBlank
+        let path = privateKeyPath?.nilIfBlank
+        guard text != nil || path != nil else {
+            keyOperationMessage = strings.text(.privateKeyRequired)
+            return
+        }
+
+        operationInProgress = true
+        defer { operationInProgress = false }
+
+        do {
+            keyStatus = try await apiClient.importPrivateKey(privateKey: text, privateKeyPath: path)
+            startupStatus = try? await apiClient.startupStatus()
+            systemStatus = try? await apiClient.systemStatus()
+            keyExportArtifact = nil
             keyOperationMessage = strings.text(.privateKeyImported)
             lastUpdated = Date()
         } catch {
