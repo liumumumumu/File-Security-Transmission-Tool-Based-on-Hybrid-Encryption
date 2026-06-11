@@ -168,3 +168,49 @@ Version0003/
 
 # Project-specific ignored files.
 **/httplib.h
+
+
+# Xcode build files
+build/
+DerivedData/
+
+# Xcode user-specific files
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+
+# Xcode workspace user settings
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+
+# macOS system files
+.DS_Store
+
+# App archives and generated packages
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Logs
+*.log
+
+# Environment / secrets
+.env
+.env.*
