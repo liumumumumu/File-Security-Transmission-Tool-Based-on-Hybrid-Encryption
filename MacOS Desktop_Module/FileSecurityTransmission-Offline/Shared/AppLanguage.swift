@@ -194,14 +194,6 @@ struct AppStrings {
         case (.chinese, .exportPublicKey): "导出公钥"
         case (.english, .exportPrivateKey): "Export Private Key"
         case (.chinese, .exportPrivateKey): "导出私钥"
-        case (.english, .deleteKey): "Delete Key"
-        case (.chinese, .deleteKey): "删除密钥"
-        case (.english, .deleteKeyTitle): "Delete Key Pair"
-        case (.chinese, .deleteKeyTitle): "删除密钥对"
-        case (.english, .deleteKeyMessage): "Are you sure you want to delete the current key pair? You will not be able to decrypt files or messages until a new key is imported or generated."
-        case (.chinese, .deleteKeyMessage): "确定要删除当前密钥对吗？删除后您将无法解密文件或消息，直到导入或生成新的密钥。"
-        case (.english, .keyDeleted): "Key deleted."
-        case (.chinese, .keyDeleted): "密钥已删除。"
 
         case (.english, .qrPreview): "QR Preview"
         case (.chinese, .qrPreview): "二维码预览"
@@ -387,10 +379,6 @@ struct AppStrings {
         case keyStatus
         case exportPublicKey
         case exportPrivateKey
-        case deleteKey
-        case deleteKeyTitle
-        case deleteKeyMessage
-        case keyDeleted
         case qrPreview
         case privateKeyRequired
         case keyGenerated

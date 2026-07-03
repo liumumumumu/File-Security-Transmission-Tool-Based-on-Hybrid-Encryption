@@ -3,7 +3,7 @@ import Foundation
 
 final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        false
+        true
     }
 
     func applicationWillTerminate(_ notification: Notification) {

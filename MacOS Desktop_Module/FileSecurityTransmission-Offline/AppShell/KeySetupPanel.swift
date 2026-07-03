@@ -115,15 +115,6 @@ struct KeySetupPanel: View {
                         .frame(maxWidth: .infinity)
                 }
                 .disabled(viewModel.operationInProgress)
-
-                Button {
-                    confirmDeleteKey(strings: strings)
-                } label: {
-                    Label(strings.text(.deleteKey), systemImage: "trash")
-                        .frame(maxWidth: .infinity)
-                }
-                .disabled(viewModel.operationInProgress)
-                .tint(.red)
             }
 
             GridRow {
@@ -146,19 +137,7 @@ struct KeySetupPanel: View {
                 .disabled(viewModel.operationInProgress)
             }
         }
-        .frame(width: 640)
-    }
-
-    private func confirmDeleteKey(strings: AppStrings) {
-        let alert = NSAlert()
-        alert.messageText = strings.text(.deleteKeyTitle)
-        alert.informativeText = strings.text(.deleteKeyMessage)
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: strings.text(.deleteKey))
-        alert.addButton(withTitle: strings.text(.cancel))
-        if alert.runModal() == .alertFirstButtonReturn {
-            Task { await viewModel.deleteKey() }
-        }
+        .frame(width: 430)
     }
 
     private func importPanel(strings: AppStrings) -> some View {
