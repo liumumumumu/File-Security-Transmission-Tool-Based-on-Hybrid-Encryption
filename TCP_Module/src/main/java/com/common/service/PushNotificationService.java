@@ -3,9 +3,7 @@ package com.common.service;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.IOException;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -73,9 +71,17 @@ public class PushNotificationService
                 //发送消息
                 emitter.send(SseEmitter.event().name(type).data(body));
             }
-            catch (IOException e)
+            catch (Exception e)
             {
                 emitters.remove(emitter);
+                try
+                {
+                    emitter.complete();
+                }
+                catch (Exception ignored)
+                {
+                    // The SSE client is already gone.
+                }
             }
         }
     }

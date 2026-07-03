@@ -1912,7 +1912,8 @@ public class ConsoleCommandRunner
 
     void handleConsoleInputClosed()
     {
-        applicationShutdownService.requestShutdown();
+        // Closing a terminal, pipe, or GUI-launched console must not imply backend shutdown.
+        // Users can still stop the application explicitly with the exit/quit command.
     }
 
     private boolean isApplicationActive()
