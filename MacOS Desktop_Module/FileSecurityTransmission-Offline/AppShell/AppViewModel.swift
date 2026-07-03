@@ -235,6 +235,23 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func deleteKey() async {
+        operationInProgress = true
+        defer { operationInProgress = false }
+
+        do {
+            _ = try await apiClient.deleteKey()
+            keyExportArtifact = nil
+            startupStatus = try? await apiClient.startupStatus()
+            keyStatus = try await apiClient.keyStatus()
+            systemStatus = try? await apiClient.systemStatus()
+            keyOperationMessage = strings.text(.keyDeleted)
+            lastUpdated = Date()
+        } catch {
+            keyOperationMessage = error.localizedDescription
+        }
+    }
+
     func refreshConnectionStatus() async {
         do {
             connectionStatus = try await apiClient.connectionStatus()

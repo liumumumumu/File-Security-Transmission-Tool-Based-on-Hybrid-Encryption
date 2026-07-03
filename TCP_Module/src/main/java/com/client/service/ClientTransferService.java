@@ -938,7 +938,7 @@ public class ClientTransferService
             task.updateStatus(TransferStatus.TRANSFERRING, "Sending blocks");
             persistTask(task);
 
-            sendBlocksFrom(task, filePath, secretKey, context, 0);
+            sendBlocksFrom(task, filePath, secretKey, context, 0);//发送窗口
 
             throwIfCanceled(task);
             task.updateStatus(TransferStatus.COMPLETED, "File sent");//所有块都Ack成功再更新任务信息
@@ -1144,8 +1144,8 @@ public class ClientTransferService
         try(InputStream inputStream=Files.newInputStream(filePath))
         {
             byte[] buffer=new byte[transferProperties.getChunkSizeBytes()];
-            Map<Integer, CompletableFuture<Boolean>> pendingAckFutures=new HashMap<>();//blockId->该block对应的ACK Future
-            Map<Integer, Integer> pendingAckBlockSizes=new HashMap<>();//blockId->该block的原始字节长度
+            Map<Integer, CompletableFuture<Boolean>> pendingAckFutures=new HashMap<>();//blockId对应的该block对应的ACK Future
+            Map<Integer, Integer> pendingAckBlockSizes=new HashMap<>();//blockId对应的该block的原始字节长度
             int blockId=startBlockId;
             int length;
             long acknowledgedBytes=Math.min(task.getTotalBytes(), (long)startBlockId * transferProperties.getChunkSizeBytes());
@@ -1189,9 +1189,10 @@ public class ClientTransferService
                 }
             }
 
+            //如果文件块已经全部发送出去了，但还有一些块的ACK没收到，就要继续等待直到所有已发送的块都确认收到
             while(!pendingAckFutures.isEmpty())
             {
-                throwIfCanceled(task);
+                throwIfCanceled(task);//检查该传输任务是否被取消
                 int ackedBlockId=waitForAnyAck(pendingAckFutures);
                 acknowledgedBytes+=pendingAckBlockSizes.remove(ackedBlockId);
                 acknowledgedBlocks++;
@@ -1205,7 +1206,9 @@ public class ClientTransferService
         sendForTransfer(transferId, new RetransmitAckPacket(transferId, accepted, startBlockId, message));
     }
 
-    private int waitForAnyAck(Map<Integer, CompletableFuture<Boolean>> pendingAckFutures) throws Exception
+    //等待异步ACK确认信息
+    //如果该块被接收方确认收到之后那么就从等待队列里面移除
+    private int waitForAnyAck(Map<Integer, CompletableFuture<Boolean>> pendingAckFutures) throws Exception  //等待异步ACK确认信息
     {
         Integer completedBlockId=findCompletedAckBlockId(pendingAckFutures);//检查是否有已经完成的Ack
         if(completedBlockId==null)//没有以及完成的ACK，就等到任意一个Future完成

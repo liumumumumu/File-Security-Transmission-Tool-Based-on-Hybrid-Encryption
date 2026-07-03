@@ -46,6 +46,7 @@ server:
 crypto-service:
   address: ${CRYPTO_SERVICE_ADDRESS:127.0.0.1}
   port: ${CRYPTO_SERVICE_PORT:20202}
+  key-dir: ${CRYPTO_KEY_DIR:${user.home}/.file-security-transmission/crypto-keys}
 
 
 transfer:

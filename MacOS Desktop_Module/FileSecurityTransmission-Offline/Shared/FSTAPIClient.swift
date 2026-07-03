@@ -591,6 +591,10 @@ final class FSTAPIClient {
         try await post("/api/system/key/export-private", body: EmptyBody())
     }
 
+    func deleteKey() async throws -> [String: String] {
+        try await post("/api/system/key/delete", body: EmptyBody())
+    }
+
     func updateLanguage(_ language: AppLanguage) async throws -> LanguageUpdateResponse {
         try await post("/api/system/language", body: ["language": language.apiValue])
     }
