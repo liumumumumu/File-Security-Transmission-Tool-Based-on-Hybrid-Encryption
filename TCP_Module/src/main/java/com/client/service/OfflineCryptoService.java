@@ -253,16 +253,9 @@ public class OfflineCryptoService
                 if(cause instanceof BadPaddingException)
                 {
                     throw new IllegalStateException(
-                            "Decryption failed: The local private key does not match the public key "
-                                    + "used for encryption (RSA-OAEP padding validation failed).\n\n"
-                                    + "Common causes:\n"
-                                    + "1. You recently reinstalled the software, which generated a new key pair, "
-                                    + "but the sender is still encrypting with your old public key.\n"
-                                    + "2. You imported an incorrect private key.\n\n"
-                                    + "Solutions:\n"
-                                    + "- Ask the sender to obtain your new public key (export from app settings) "
-                                    + "and re-encrypt the content.\n"
-                                    + "- If you have a backup of your old private key, restore it via 'Import Private Key'.",
+                            "Unable to decrypt with the current private key using "
+                                    + "RSA-OAEP SHA-256/MGF1-SHA256. Possible causes include a different "
+                                    + "key pair, damaged ciphertext, or an incompatible sender version.",
                             ex);
                 }
                 cause = cause.getCause();
@@ -363,16 +356,9 @@ public class OfflineCryptoService
                 if(cause instanceof BadPaddingException)
                 {
                     throw new IllegalStateException(
-                            "Decryption failed: The local private key does not match the public key "
-                                    + "used for encryption (RSA-OAEP padding validation failed).\n\n"
-                                    + "Common causes:\n"
-                                    + "1. You recently reinstalled the software, which generated a new key pair, "
-                                    + "but the sender is still encrypting with your old public key.\n"
-                                    + "2. You imported an incorrect private key.\n\n"
-                                    + "Solutions:\n"
-                                    + "- Ask the sender to obtain your new public key (export from app settings) "
-                                    + "and re-encrypt the content.\n"
-                                    + "- If you have a backup of your old private key, restore it via 'Import Private Key'.",
+                            "Unable to decrypt with the current private key using "
+                                    + "RSA-OAEP SHA-256/MGF1-SHA256. Possible causes include a different "
+                                    + "key pair, damaged ciphertext, or an incompatible sender version.",
                             ex);
                 }
                 cause = cause.getCause();

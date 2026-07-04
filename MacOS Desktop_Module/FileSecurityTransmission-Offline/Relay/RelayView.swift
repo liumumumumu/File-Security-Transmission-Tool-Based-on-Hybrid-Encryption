@@ -4,7 +4,13 @@ import UniformTypeIdentifiers
 
 struct RelayView: View {
     @ObservedObject var viewModel: AppViewModel
+    let onSectionChange: () -> Void
     @State private var selectedSection: RelaySection = .overview
+
+    init(viewModel: AppViewModel, onSectionChange: @escaping () -> Void = {}) {
+        self.viewModel = viewModel
+        self.onSectionChange = onSectionChange
+    }
 
     var body: some View {
         let strings = viewModel.strings
@@ -30,10 +36,13 @@ struct RelayView: View {
             case .messages:
                 RelayMessagesView(viewModel: viewModel)
             case .contacts:
-                RelayContactsView(viewModel: viewModel)
+                RelayContactsView(viewModel: viewModel, onSectionChange: onSectionChange)
             }
         }
         .padding(24)
+        .onChange(of: selectedSection) {
+            onSectionChange()
+        }
     }
 }
 
@@ -275,6 +284,7 @@ private enum ContactsSubsection: String, CaseIterable, Identifiable {
 
 private struct RelayContactsView: View {
     @ObservedObject var viewModel: AppViewModel
+    let onSectionChange: () -> Void
     @State private var selectedSubsection: ContactsSubsection = .contacts
 
     var body: some View {
@@ -314,6 +324,9 @@ private struct RelayContactsView: View {
         .task {
             await viewModel.refreshContacts()
             await viewModel.refreshBlacklist()
+        }
+        .onChange(of: selectedSubsection) {
+            onSectionChange()
         }
     }
 }
