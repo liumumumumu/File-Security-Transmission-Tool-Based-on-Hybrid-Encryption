@@ -2,11 +2,13 @@ package com.crypto;
 
 import com.common.config.CryptoServiceProperties;
 import com.common.crypto.AesGcmChunk;
+import com.crypto.exception.KeyMismatchException;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.AEADBadTagException;
+import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -91,6 +93,8 @@ public class CryptoSupport
     // ── 依赖与状态 ────────────────────────────────────────────
     private final CryptoServiceProperties cryptoServiceProperties;
     private final SecureRandom secureRandom = new SecureRandom();
+    private final CryptoEngine cryptoEngine = new CryptoEngine();
+    private final KeyMaterialCodec keyMaterialCodec = new KeyMaterialCodec();
 
     private Path keyDir;
     private Path privateKeyFile;
@@ -125,6 +129,10 @@ public class CryptoSupport
             protectKeyDir(keyDir);
             protectExistingKeyFiles();
             migrateUnencryptedKeys();
+            if(Files.exists(privateKeyFile))
+            {
+                ensurePublicKeyFile();
+            }
         }
         catch(IOException e)
         {
@@ -136,11 +144,13 @@ public class CryptoSupport
 
     // ── 兼容旧 API ─────────────────────────────────────────────
 
+    @Deprecated(forRemoval = true)
     public void setCRYPTO_SERVICE_URL(String url)
     {
         this.cryptoServiceUrl = url;
     }
 
+    @Deprecated(forRemoval = true)
     public String getCryptoServiceUrl()
     {
         return cryptoServiceUrl;
@@ -157,11 +167,16 @@ public class CryptoSupport
 
     public String getEncodedPrivateKey()
     {
-        if(Files.notExists(privateKeyFile))
-        {
-            throw new IllegalStateException("Private key not found: " + privateKeyFile);
-        }
-        return readTextFile(privateKeyFile);
+        return exportPrivateKeyPkcs1();
+    }
+
+    /**
+     * Explicit portable backup format compatible with Python cryptography's
+     * TraditionalOpenSSL (PKCS#1) private key output.
+     */
+    public synchronized String exportPrivateKeyPkcs1()
+    {
+        return keyMaterialCodec.exportPkcs1PrivateKey(loadPrivateKey());
     }
 
     public synchronized Map<String, Object> keyStatus()
@@ -179,26 +194,15 @@ public class CryptoSupport
 
     public String signToBase64(String challenge) throws GeneralSecurityException
     {
-        PrivateKey privateKey = loadPrivateKey();
-        Signature sig = Signature.getInstance("RSASSA-PSS");
-        sig.setParameter(new PSSParameterSpec("SHA-256", "MGF1",
-                MGF1ParameterSpec.SHA256, 32, 1));
-        sig.initSign(privateKey);
-        sig.update(challenge.getBytes(StandardCharsets.UTF_8));
-        return Base64.getEncoder().encodeToString(sig.sign());
+        return cryptoEngine.signUtf8ToBase64(challenge, loadPrivateKey());
     }
 
     public boolean verifySignature(String publicKeyBase64, String challenge, String signatureBase64)
     {
         try
         {
-            PublicKey publicKey = parsePublicKeyFromPem(publicKeyBase64);
-            Signature sig = Signature.getInstance("RSASSA-PSS");
-            sig.setParameter(new PSSParameterSpec("SHA-256", "MGF1",
-                    MGF1ParameterSpec.SHA256, 32, 1));
-            sig.initVerify(publicKey);
-            sig.update(challenge.getBytes(StandardCharsets.UTF_8));
-            return sig.verify(Base64.getDecoder().decode(signatureBase64));
+            return cryptoEngine.verifyUtf8Base64(publicKeyBase64, challenge, signatureBase64,
+                    this::parsePublicKeyFromPem);
         }
         catch(Exception e)
         {
@@ -213,9 +217,7 @@ public class CryptoSupport
 
     public SecretKey generateAESKey() throws GeneralSecurityException
     {
-        KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
-        keyGenerator.init(AES_KEY_BITS, secureRandom);
-        return keyGenerator.generateKey();
+        return cryptoEngine.generateAes256Key();
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -254,16 +256,19 @@ public class CryptoSupport
 
     private byte[] rsaOaepEncrypt(byte[] plain, PublicKey publicKey) throws GeneralSecurityException
     {
-        Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
-        cipher.init(Cipher.ENCRYPT_MODE, publicKey);
-        return cipher.doFinal(plain);
+        return cryptoEngine.rsaOaepEncrypt(plain, publicKey);
     }
 
     private byte[] rsaOaepDecrypt(byte[] ciphertext, PrivateKey privateKey) throws GeneralSecurityException
     {
-        Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
-        cipher.init(Cipher.DECRYPT_MODE, privateKey);
-        return cipher.doFinal(ciphertext);
+        try
+        {
+            return cryptoEngine.rsaOaepDecrypt(ciphertext, privateKey);
+        }
+        catch(BadPaddingException ex)
+        {
+            throw new KeyMismatchException(ex);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -272,100 +277,25 @@ public class CryptoSupport
 
     public AesGcmChunk encryptChunk(byte[] plain, SecretKey aesKey) throws GeneralSecurityException
     {
-        validateAes256Key(aesKey);
-
-        byte[] nonce = new byte[GCM_NONCE_BYTES];
-        secureRandom.nextBytes(nonce);
-
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, aesKey, new GCMParameterSpec(GCM_TAG_BITS, nonce));
-
-        byte[] encrypted = cipher.doFinal(plain);
-        int ciphertextLength = encrypted.length - GCM_TAG_BYTES;
-        if(ciphertextLength < 0)
-        {
-            throw new GeneralSecurityException("AES-GCM output shorter than tag length");
-        }
-
-        byte[] ciphertext = Arrays.copyOfRange(encrypted, 0, ciphertextLength);
-        byte[] tag = Arrays.copyOfRange(encrypted, ciphertextLength, encrypted.length);
-        return new AesGcmChunk(nonce, ciphertext, tag);
+        return cryptoEngine.encryptGcm(plain, aesKey);
     }
 
     public AesGcmChunk encryptChunk(byte[] plain, SecretKey aesKey, byte[] nonce, byte[] aad)
             throws GeneralSecurityException
     {
-        validateAes256Key(aesKey);
-        if(nonce.length != GCM_NONCE_BYTES)
-        {
-            throw new GeneralSecurityException("AES-GCM nonce must be " + GCM_NONCE_BYTES + " bytes");
-        }
-
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, aesKey, new GCMParameterSpec(GCM_TAG_BITS, nonce));
-        if(aad != null && aad.length > 0)
-        {
-            cipher.updateAAD(aad);
-        }
-
-        byte[] encrypted = cipher.doFinal(plain);
-        int ciphertextLength = encrypted.length - GCM_TAG_BYTES;
-        if(ciphertextLength < 0)
-        {
-            throw new GeneralSecurityException("AES-GCM output shorter than tag length");
-        }
-
-        byte[] ciphertext = Arrays.copyOfRange(encrypted, 0, ciphertextLength);
-        byte[] tag = Arrays.copyOfRange(encrypted, ciphertextLength, encrypted.length);
-        return new AesGcmChunk(nonce, ciphertext, tag);
+        return cryptoEngine.encryptGcm(plain, aesKey, nonce, aad);
     }
 
     public byte[] decryptChunk(byte[] nonce, byte[] ciphertext, byte[] tag, SecretKey aesKey)
             throws GeneralSecurityException
     {
-        validateAes256Key(aesKey);
-        if(nonce.length != GCM_NONCE_BYTES)
-        {
-            throw new GeneralSecurityException("AES-GCM nonce must be " + GCM_NONCE_BYTES + " bytes");
-        }
-        if(tag.length != GCM_TAG_BYTES)
-        {
-            throw new GeneralSecurityException("AES-GCM tag must be " + GCM_TAG_BYTES + " bytes");
-        }
-
-        byte[] encrypted = new byte[ciphertext.length + tag.length];
-        System.arraycopy(ciphertext, 0, encrypted, 0, ciphertext.length);
-        System.arraycopy(tag, 0, encrypted, ciphertext.length, tag.length);
-
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.DECRYPT_MODE, aesKey, new GCMParameterSpec(GCM_TAG_BITS, nonce));
-        return cipher.doFinal(encrypted);
+        return cryptoEngine.decryptGcm(nonce, ciphertext, tag, aesKey, null);
     }
 
     public byte[] decryptChunk(byte[] nonce, byte[] ciphertext, byte[] tag, SecretKey aesKey, byte[] aad)
             throws GeneralSecurityException
     {
-        validateAes256Key(aesKey);
-        if(nonce.length != GCM_NONCE_BYTES)
-        {
-            throw new GeneralSecurityException("AES-GCM nonce must be " + GCM_NONCE_BYTES + " bytes");
-        }
-        if(tag.length != GCM_TAG_BYTES)
-        {
-            throw new GeneralSecurityException("AES-GCM tag must be " + GCM_TAG_BYTES + " bytes");
-        }
-
-        byte[] encrypted = new byte[ciphertext.length + tag.length];
-        System.arraycopy(ciphertext, 0, encrypted, 0, ciphertext.length);
-        System.arraycopy(tag, 0, encrypted, ciphertext.length, tag.length);
-
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.DECRYPT_MODE, aesKey, new GCMParameterSpec(GCM_TAG_BITS, nonce));
-        if(aad != null && aad.length > 0)
-        {
-            cipher.updateAAD(aad);
-        }
-        return cipher.doFinal(encrypted);
+        return cryptoEngine.decryptGcm(nonce, ciphertext, tag, aesKey, aad);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -379,18 +309,10 @@ public class CryptoSupport
 
     public String publicKeyFingerprint(String publicKeyBase64) throws GeneralSecurityException
     {
-        MessageDigest md = MessageDigest.getInstance("SHA-256");
         String pem = publicKeyBase64.contains("-----BEGIN")
                 ? publicKeyBase64
                 : KeyArtifactUtil.toPemPublicKey(publicKeyBase64);
-        md.update(pem.getBytes(StandardCharsets.UTF_8));
-        byte[] digest = md.digest();
-        StringBuilder hex = new StringBuilder(digest.length * 2);
-        for(byte b : digest)
-        {
-            hex.append(String.format("%02x", b));
-        }
-        return hex.toString();
+        return cryptoEngine.fingerprintPemText(pem);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -417,7 +339,6 @@ public class CryptoSupport
 
             Map<String, String> result = new LinkedHashMap<>();
             result.put("success", "true");
-            result.put("privateKey", privatePem);
             result.put("publicKey", publicPem);
             return result;
         }
@@ -485,30 +406,28 @@ public class CryptoSupport
 
     private Path ensurePublicKeyFile()
     {
-        if(Files.exists(publicKeyFile))
-        {
-            return publicKeyFile;
-        }
-        // 从私钥推导公钥
         PrivateKey privateKey = loadPrivateKey();
         try
         {
-            // 尝试从私钥文件读取; 如果它是 RSA, 用 KeyFactory 推导
-            String privPem = Files.readString(privateKeyFile);
-            PrivateKey pk = parsePrivateKeyFromPem(privPem);
-            if(pk instanceof java.security.interfaces.RSAPrivateKey rsaKey)
+            if(privateKey instanceof java.security.interfaces.RSAPrivateCrtKey rsaKey)
             {
-                java.security.spec.RSAPublicKeySpec pubSpec = new java.security.spec.RSAPublicKeySpec(
-                        rsaKey.getModulus(),
-                        ((java.security.interfaces.RSAPrivateCrtKey) rsaKey).getPublicExponent()
-                );
+                RSAPublicKeySpec pubSpec = new RSAPublicKeySpec(
+                        rsaKey.getModulus(), rsaKey.getPublicExponent());
                 KeyFactory kf = KeyFactory.getInstance("RSA");
                 PublicKey pubKey = kf.generatePublic(pubSpec);
                 String pubPem = toPemPublicKey(pubKey);
-                writePublicKeyFile(publicKeyFile, pubPem);
-                log.info("Repaired missing public key file from private key: {}", publicKeyFile);
+                String existing = Files.exists(publicKeyFile) ? Files.readString(publicKeyFile) : null;
+                if(!pubPem.equals(existing))
+                {
+                    String oldFingerprint = existing == null ? "<missing>" : publicKeyFingerprint(existing);
+                    writePublicKeyFile(publicKeyFile, pubPem);
+                    log.info("Repaired public key from private key oldFingerprint={} newFingerprint={}",
+                            oldFingerprint, publicKeyFingerprint(pubPem));
+                }
+                return publicKeyFile;
             }
-            return publicKeyFile;
+            throw new GeneralSecurityException("Unsupported private key type: "
+                    + privateKey.getClass().getName());
         }
         catch(Exception e)
         {
@@ -544,11 +463,31 @@ public class CryptoSupport
                         privateKey.getClass().getName());
             }
 
+            // Validate the complete pair before replacing any existing key material.
+            PublicKey publicKey = parsePublicKeyFromPem(publicPem);
+            byte[] probe = new byte[32];
+            secureRandom.nextBytes(probe);
+            byte[] encryptedProbe = cryptoEngine.rsaOaepEncrypt(probe, publicKey);
+            if(!MessageDigest.isEqual(probe, cryptoEngine.rsaOaepDecrypt(encryptedProbe, privateKey)))
+            {
+                throw new GeneralSecurityException("Imported RSA key pair self-test failed");
+            }
+            String signature = cryptoEngine.signUtf8ToBase64("fst-key-import-self-test", privateKey);
+            if(!cryptoEngine.verifyUtf8Base64(publicPem, "fst-key-import-self-test", signature,
+                    this::parsePublicKeyFromPem))
+            {
+                throw new GeneralSecurityException("Imported RSA signature self-test failed");
+            }
+
+            String oldFingerprint = Files.exists(publicKeyFile)
+                    ? publicKeyFingerprint(Files.readString(publicKeyFile))
+                    : "<missing>";
             Files.createDirectories(keyDir);
             writePrivateKeyFile(privateKeyFile, normalizedPem);
             writePublicKeyFile(publicKeyFile, publicPem);
 
-            log.info("Imported private key and derived public key");
+            log.info("Imported private key oldFingerprint={} newFingerprint={}",
+                    oldFingerprint, publicKeyFingerprint(publicPem));
         }
         catch(GeneralSecurityException | IOException e)
         {
@@ -608,15 +547,11 @@ public class CryptoSupport
             }
             if(trimmed.contains(PEM_PRIV_PKCS8_HEADER))
             {
-                byte[] der = extractPemBody(trimmed, PEM_PRIV_PKCS8_HEADER, PEM_PRIV_PKCS8_FOOTER);
-                PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(der);
-                KeyFactory kf = KeyFactory.getInstance("RSA");
-                return kf.generatePrivate(spec);
+                return keyMaterialCodec.parsePrivateKey(trimmed);
             }
             if(trimmed.contains(PEM_PRIV_PKCS1_HEADER))
             {
-                byte[] der = extractPemBody(trimmed, PEM_PRIV_PKCS1_HEADER, PEM_PRIV_PKCS1_FOOTER);
-                return parsePkcs1PrivateKey(der);
+                return keyMaterialCodec.parsePrivateKey(trimmed);
             }
             // 尝试作为纯 Base64 (PKCS#8 DER)
             byte[] der = Base64.getDecoder().decode(trimmed.replaceAll("\\s", ""));
@@ -637,10 +572,7 @@ public class CryptoSupport
             String trimmed = pem.strip();
             if(trimmed.contains(PEM_PUB_HEADER))
             {
-                byte[] der = extractPemBody(trimmed, PEM_PUB_HEADER, PEM_PUB_FOOTER);
-                X509EncodedKeySpec spec = new X509EncodedKeySpec(der);
-                KeyFactory kf = KeyFactory.getInstance("RSA");
-                return kf.generatePublic(spec);
+                return keyMaterialCodec.parsePublicKey(trimmed);
             }
             // 尝试标准 Base64 → 构造 PEM
             String base64 = KeyArtifactUtil.isBareBase64PublicKey(trimmed)

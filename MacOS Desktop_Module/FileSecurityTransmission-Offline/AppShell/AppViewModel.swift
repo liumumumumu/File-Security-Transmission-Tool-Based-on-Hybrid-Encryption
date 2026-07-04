@@ -53,6 +53,12 @@ final class AppViewModel: ObservableObject {
     }
 
     func bootstrap() async {
+        do {
+            try await BackendServiceManager.shared.ensureRunning()
+        } catch {
+            serviceState = .unavailable(error.localizedDescription)
+            return
+        }
         await refreshLanguage()
         await refreshStatus(showStarting: true)
     }

@@ -4,7 +4,13 @@ import UniformTypeIdentifiers
 
 struct OfflineView: View {
     @ObservedObject var viewModel: AppViewModel
+    let onSectionChange: () -> Void
     @State private var selectedSection: OfflineSection = .fileEncrypt
+
+    init(viewModel: AppViewModel, onSectionChange: @escaping () -> Void = {}) {
+        self.viewModel = viewModel
+        self.onSectionChange = onSectionChange
+    }
 
     var body: some View {
         let strings = viewModel.strings
@@ -30,6 +36,9 @@ struct OfflineView: View {
             }
         }
         .padding(24)
+        .onChange(of: selectedSection) {
+            onSectionChange()
+        }
     }
 }
 

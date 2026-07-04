@@ -3,53 +3,83 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var viewModel = AppViewModel()
     @State private var consoleError: String?
+    @State private var selectedTab: AppTab = .relay
+    @State private var scrollResetToken = 0
 
     var body: some View {
         let strings = viewModel.strings
 
-        VStack(spacing: 0) {
-            HeaderBar(viewModel: viewModel) { serviceAvailable in
-                openConsole(serviceAvailable: serviceAvailable)
-            }
+        GeometryReader { viewport in
+            ScrollViewReader { scrollProxy in
+                ScrollView([.horizontal, .vertical]) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Color.clear
+                            .frame(width: 1, height: 1)
+                            .id(ScrollAnchor.topLeading)
 
-            switch viewModel.serviceState {
-            case .starting:
-                ServiceStartingView(strings: strings)
-            case .ready:
-                VStack(spacing: 0) {
-                    KeySetupPanel(viewModel: viewModel)
-                        .padding(.horizontal, 22)
-                        .padding(.top, 16)
-                        .padding(.bottom, 10)
-
-                    if let notification = viewModel.inAppNotification {
-                        InAppNotificationBanner(message: notification, dismiss: viewModel.dismissInAppNotification)
-                            .padding(.horizontal, 22)
-                            .padding(.bottom, 10)
-                    }
-
-                    TabView {
-                        RelayView(viewModel: viewModel)
-                            .tabItem {
-                                Label(strings.text(.relayTab), systemImage: "arrow.left.arrow.right")
-                            }
-                        OfflineView(viewModel: viewModel)
-                            .tabItem {
-                                Label(strings.text(.offlineTab), systemImage: "lock.doc")
-                            }
+                        HeaderBar(viewModel: viewModel) { serviceAvailable in
+                            openConsole(serviceAvailable: serviceAvailable)
                         }
-                }
-            case .unavailable(let message):
-                ServiceUnavailableView(
-                    strings: strings,
-                    message: message,
-                    retry: {
-                        Task { await viewModel.refreshStatus(showStarting: true) }
-                    },
-                    openConsole: {
-                        openConsole(serviceAvailable: false)
+
+                        switch viewModel.serviceState {
+                        case .starting:
+                            ServiceStartingView(strings: strings)
+                        case .ready:
+                            VStack(spacing: 0) {
+                                KeySetupPanel(viewModel: viewModel)
+                                    .padding(.horizontal, 22)
+                                    .padding(.top, 16)
+                                    .padding(.bottom, 10)
+
+                                if let notification = viewModel.inAppNotification {
+                                    InAppNotificationBanner(message: notification, dismiss: viewModel.dismissInAppNotification)
+                                        .padding(.horizontal, 22)
+                                        .padding(.bottom, 10)
+                                }
+
+                                TabView(selection: $selectedTab) {
+                                    RelayView(viewModel: viewModel, onSectionChange: requestScrollReset)
+                                        .tabItem {
+                                            Label(strings.text(.relayTab), systemImage: "arrow.left.arrow.right")
+                                        }
+                                        .tag(AppTab.relay)
+
+                                    OfflineView(viewModel: viewModel, onSectionChange: requestScrollReset)
+                                        .tabItem {
+                                            Label(strings.text(.offlineTab), systemImage: "lock.doc")
+                                        }
+                                        .tag(AppTab.offline)
+                                }
+                                .frame(height: max(viewport.size.height - 180, 500))
+                            }
+                        case .unavailable(let message):
+                            ServiceUnavailableView(
+                                strings: strings,
+                                message: message,
+                                retry: {
+                                    Task { await viewModel.bootstrap() }
+                                },
+                                openConsole: {
+                                    openConsole(serviceAvailable: false)
+                                }
+                            )
+                        }
                     }
-                )
+                    .frame(
+                        minWidth: max(viewport.size.width, 980),
+                        minHeight: max(viewport.size.height, 680),
+                        alignment: .topLeading
+                    )
+                }
+                .scrollIndicators(.automatic)
+                .onChange(of: selectedTab) {
+                    requestScrollReset()
+                }
+                .onChange(of: scrollResetToken) {
+                    withAnimation(.snappy) {
+                        scrollProxy.scrollTo(ScrollAnchor.topLeading, anchor: .topLeading)
+                    }
+                }
             }
         }
         .frame(minWidth: 980, minHeight: 680)
@@ -73,6 +103,19 @@ struct ContentView: View {
             consoleError = error.localizedDescription
         }
     }
+
+    private func requestScrollReset() {
+        scrollResetToken &+= 1
+    }
+}
+
+private enum AppTab: Hashable {
+    case relay
+    case offline
+}
+
+private enum ScrollAnchor {
+    static let topLeading = "content-top-leading"
 }
 
 private struct InAppNotificationBanner: View {
