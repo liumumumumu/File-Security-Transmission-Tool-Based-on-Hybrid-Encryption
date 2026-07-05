@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FileSecurityTool</string>
+
+    <!-- Navigation -->
+    <string name="nav_crypto">加解密</string>
+    <string name="nav_contacts">联系人</string>
+    <string name="nav_keys">密钥</string>
+    <string name="nav_settings">设置</string>
+
+    <!-- Offline Sections -->
+    <string name="file_encrypt">文件加密</string>
+    <string name="file_decrypt">文件解密</string>
+    <string name="text_encrypt">文本加密</string>
+    <string name="text_decrypt">文本解密</string>
+
+    <!-- File Operations -->
+    <string name="tap_to_select_file">点击选择要加密的文件</string>
+    <string name="tap_to_select_fst2">点击选择 .FST2 文件</string>
+    <string name="output_dir_prefix">输出目录: %s</string>
+    <string name="encrypt">加密</string>
+    <string name="decrypt">解密</string>
+    <string name="copy">复制</string>
+    <string name="open_in_folder">📂 在文件夹中打开</string>
+
+    <!-- Result Panel -->
+    <string name="result">结果</string>
+    <string name="file_name">文件名</string>
+    <string name="file_size">文件大小</string>
+    <string name="blocks">块数</string>
+    <string name="output_path">输出路径</string>
+
+    <!-- Text Operations -->
+    <string name="input_text_max">输入文本 (最大 16 KiB)</string>
+    <string name="encrypt_result_label">加密结果 (FST-TEXT1)</string>
+    <string name="paste_fst_text1">粘贴 FST-TEXT1 密文</string>
+    <string name="decrypt_result_label">解密结果</string>
+
+    <!-- Receiver Source -->
+    <string name="receiver_source">接收者来源</string>
+    <string name="saved_contact">联系人</string>
+    <string name="public_key_file">公钥文件</string>
+    <string name="no_contacts_hint">暂无联系人，请先在“联系人”页面添加</string>
+    <string name="select_contact">选择联系人</string>
+    <string name="no_key_pair_hint">请先在“密钥”页面生成或导入密钥对</string>
+
+    <!-- Messages -->
+    <string name="file_encrypted_success">文件加密成功</string>
+    <string name="file_decrypted_success">文件解密成功</string>
+    <string name="text_encrypted_success">文本加密成功</string>
+    <string name="text_decrypted_success">文本解密成功</string>
+    <string name="encrypt_failed">加密失败: %s</string>
+    <string name="decrypt_failed">解密失败: %s</string>
+
+    <!-- Contacts -->
+    <string name="contacts_tab">联系人</string>
+    <string name="no_contacts_yet">暂无联系人</string>
+    <string name="search_contacts">搜索名称或公钥指纹</string>
+    <string name="select_public_key_png">选择二维码 PNG</string>
+    <string name="scan_public_key_qr">扫描公钥二维码</string>
+    <string name="confirm_public_key">确认公钥指纹</string>
+    <string name="contact_already_exists">该公钥已存在</string>
+    <string name="contact_display_name">联系人显示名（1–40 个字符）</string>
+    <string name="save">保存</string>
+    <string name="delete_contact_title">删除联系人</string>
+    <string name="delete_contact_message">确定删除“%1$s”吗？公钥指纹末 8 位：%2$s</string>
+    <string name="contact_details">联系人详情</string>
+    <string name="update_contact_public_key">通过二维码 PNG 更新公钥</string>
+    <string name="scan_updated_public_key">扫描新公钥二维码</string>
+    <string name="confirm_contact_key_update">确认更新联系人公钥</string>
+    <string name="old_fingerprint">旧公钥指纹</string>
+    <string name="new_fingerprint">新公钥指纹</string>
+    <string name="contact_key_update_warning">更新后，所有新加密都将立即使用新公钥。</string>
+    <string name="update">更新</string>
+    <string name="share">分享</string>
+    <string name="clear">清空</string>
+    <string name="share_encrypted_text">分享加密文本</string>
+    <string name="encrypt_for_recipient">为“%1$s”加密</string>
+    <string name="select_receiver_first">请先选择接收者</string>
+    <string name="file_task_cancelled">文件任务已取消</string>
+    <string name="result_outdated">结果已过期，请重新加密</string>
+    <string name="authenticate_to_decrypt">验证身份以解密</string>
+    <string name="authentication_window_message">验证后 5 分钟内可继续解密；应用进入后台后授权失效。</string>
+    <string name="key_permanently_invalidated">本机私钥已永久失效且无法恢复。历史密文可能永久无法解密；验证身份后可删除该密钥并手动生成新密钥。</string>
+    <string name="theme">主题</string>
+    <string name="light_theme">浅色</string>
+    <string name="dark_theme">深色</string>
+    <string name="no_local_key_banner">当前没有本机密钥。点击前往密钥页生成。</string>
+    <string name="dismiss">关闭</string>
+    <string name="notification_permission_title">显示后台文件任务进度</string>
+    <string name="notification_permission_message">通知用于在应用进入后台或屏幕熄灭后显示文件任务进度和取消操作。拒绝后任务仍会继续，但通知栏可能无法完整显示进度。</string>
+    <string name="continue_label">继续</string>
+    <string name="not_now">暂不</string>
+    <string name="self_device">自己（本机）</string>
+    <string name="temporary_qr">临时二维码</string>
+    <string name="contact_source">联系人</string>
+    <string name="view_current_file_task">查看当前文件任务（%1$d%%）</string>
+    <string name="open_file">打开文件</string>
+    <string name="save_as_contact">保存为联系人</string>
+    <string name="decryption_failed_user_message">无法解密：内容可能不是使用本机当前公钥加密，或内容已经损坏。请让发送方使用你当前导出的公钥二维码重新加密。</string>
+    <string name="decryption_failed_short">无法解密所选文件</string>
+    <string name="unknown">未知</string>
+    <string name="delete">删除</string>
+    <string name="remove">移除</string>
+    <string name="reason_prefix">原因: %s</string>
+    <string name="add_contact_title">添加联系人</string>
+    <string name="account_id_label">账户 ID</string>
+    <string name="alias_label">备注名</string>
+    <string name="public_key_optional">公钥 (可选)</string>
+    <string name="add">添加</string>
+    <string name="cancel">取消</string>
+
+    <!-- Key Management -->
+    <string name="key_management">密钥管理</string>
+    <string name="key_pair_ready">密钥对就绪</string>
+    <string name="no_key_pair">未找到密钥对</string>
+    <string name="key_missing_hint">请先生成或导入密钥对以使用加解密功能</string>
+    <string name="fingerprint_label">公钥指纹:</string>
+    <string name="generate_key_pair">生成新密钥对</string>
+    <string name="authenticate_to_generate_key">验证身份以生成密钥</string>
+    <string name="legacy_key_requires_regeneration">此密钥由旧版 Android 硬件 RSA 方案生成，无法兼容 Mac 的 MGF1-SHA256 协议。请删除后重新生成，并重新分发公钥。</string>
+    <string name="export_public_key">导出公钥</string>
+    <string name="export_pubkey_qr">导出公钥二维码</string>
+    <string name="delete_key_pair">删除密钥对</string>
+    <string name="secure_lock_required">生成本机密钥前，请先设置 PIN、图案、密码或生物识别锁屏。</string>
+    <string name="open_security_settings">打开系统安全设置</string>
+    <string name="key_delete_blocked_by_file_task">请先等待当前文件任务完成，或取消任务后再删除密钥。</string>
+    <string name="public_key_qr_preview">本机公钥二维码预览</string>
+    <string name="open_in_file_manager">在文件管理器中打开</string>
+    <string name="share_public_key_qr">分享公钥二维码 PNG</string>
+    <string name="key_generated">密钥对已生成</string>
+    <string name="key_deleted">密钥对已删除</string>
+    <string name="generate_failed">生成失败: %s</string>
+    <string name="delete_failed">删除失败: %s</string>
+    <string name="confirm_delete_key_title">删除密钥对</string>
+    <string name="confirm_delete_key_message">此操作不可撤销。删除后，所有用此公钥加密的内容将无法解密。确定要继续吗？</string>
+    <string name="qr_public_saved">公钥二维码已保存到 %s</string>
+
+    <!-- Settings -->
+    <string name="settings">设置</string>
+    <string name="language">语言</string>
+    <string name="follow_system">跟随系统</string>
+    <string name="chinese">中文</string>
+    <string name="english">English</string>
+    <string name="default_output_dir">默认输出目录</string>
+    <string name="about">关于</string>
+    <string name="app_description">基于混合加密的文件安全传输工具</string>
+
+    <!-- General -->
+    <string name="ok">确定</string>
+    <string name="confirm">确认</string>
+</resources>

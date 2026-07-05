@@ -1,0 +1,109 @@
+[versions]
+# Kotlin
+kotlin = "2.1.20"
+
+# Android
+agp = "8.7.3"
+androidx-core = "1.15.0"
+androidx-activity-compose = "1.10.1"
+androidx-lifecycle = "2.9.0"
+androidx-biometric = "1.1.0"
+androidx-appcompat = "1.7.1"
+
+# Compose (managed by Kotlin 2.x compose compiler plugin)
+compose-bom = "2025.06.00"
+
+# Navigation
+navigation-compose = "2.9.0"
+
+# Room
+room = "2.7.1"
+
+# DataStore
+datastore = "1.1.4"
+
+# Security
+security-crypto = "1.1.0-alpha07"
+
+# ZXing (QR code)
+zxing = "3.5.3"
+gson = "2.11.0"
+camerax = "1.5.3"
+androidx-test-ext = "1.2.1"
+espresso = "3.6.1"
+
+# KSP (for Room annotation processing)
+ksp = "2.1.20-1.0.32"
+
+[libraries]
+# Gradle Plugins (used by buildSrc)
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+ksp-gradle-plugin = { module = "com.google.devtools.ksp:symbol-processing-gradle-plugin", version.ref = "ksp" }
+
+# AndroidX Core
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
+
+# Activity Compose
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity-compose" }
+
+# Lifecycle
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "androidx-lifecycle" }
+androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "androidx-biometric" }
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "androidx-appcompat" }
+
+# Compose BOM
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
+compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
+
+# Navigation
+navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation-compose" }
+
+# Room
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+
+# DataStore
+datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+
+# Security
+security-crypto = { module = "androidx.security:security-crypto", version.ref = "security-crypto" }
+
+# Testing
+junit = { module = "junit:junit", version = "4.13.2" }
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+
+# ZXing
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
+androidx-camera-core = { module = "androidx.camera:camera-core", version.ref = "camerax" }
+androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
+androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-test-ext" }
+androidx-test-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espresso" }
+compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
+
+[plugins]
+# Kotlin
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+
+# Android
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+
+# KSP
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+
+# Room
+room = { id = "androidx.room", version.ref = "room" }
