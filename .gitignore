@@ -214,3 +214,41 @@ fastlane/test_output/
 # Environment / secrets
 .env
 .env.*
+
+
+
+# Gradle / Kotlin
+.gradle/
+.kotlin/
+**/build/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# Local SDK configuration
+local.properties
+
+# Native build outputs
+.externalNativeBuild/
+.cxx/
+
+# Generated packages and captures
+captures/
+*.apk
+*.aab
+
+# Signing credentials
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# Local secrets
+secrets.properties
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
