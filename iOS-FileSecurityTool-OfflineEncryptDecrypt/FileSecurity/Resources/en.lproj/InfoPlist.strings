@@ -1,0 +1,2 @@
+"NSCameraUsageDescription" = "Scan a recipient public key QR code.";
+"NSFaceIDUsageDescription" = "Authenticate to use your local decryption key.";

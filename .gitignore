@@ -168,3 +168,15 @@ Version0003/
 
 # Project-specific ignored files.
 **/httplib.h
+
+# iOS / Swift local caches, signing, and distribution artifacts
+.build/
+.swiftpm/
+*.xcuserdatad/
+*.xcresult/
+*.xcarchive/
+*.ipa
+*.mobileprovision
+*.provisionprofile
+ExportOptions.plist
+!iOS-FileSecurityTool-OfflineEncryptDecrypt/FileSecurity/Resources/Assets.xcassets/**/*.png
