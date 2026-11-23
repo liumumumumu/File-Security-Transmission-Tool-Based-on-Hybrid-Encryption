@@ -5,7 +5,7 @@ final class NavigationTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US", "-language", "en"]
         app.launch()
-        XCTAssertTrue(app.buttons["Choose a file"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["file-picker"].waitForExistence(timeout: 10))
         app.segmentedControls.buttons["Text"].tap()
         XCTAssertTrue(app.textViews["Message"].exists)
         app.segmentedControls.buttons["Decrypt"].tap()
@@ -28,7 +28,7 @@ final class NavigationTests: XCTestCase {
         app.launchArguments += ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN", "-language", "zh-Hans"]
         app.launch()
         XCTAssertTrue(app.staticTexts["让隐私，留在你手中。"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["选择文件"].exists)
+        XCTAssertTrue(app.buttons["file-picker"].exists)
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.lifetime = .keepAlways; add(attachment)
     }
 }

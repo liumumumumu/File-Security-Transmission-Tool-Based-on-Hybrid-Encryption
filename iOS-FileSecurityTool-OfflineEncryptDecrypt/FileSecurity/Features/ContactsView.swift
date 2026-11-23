@@ -85,7 +85,10 @@ struct AddContactView: View {
         }
         .sheet(isPresented: $scanning) {
             NavigationStack {
-                QRScanner { value in payload = value; scanning = false }
+                QRScanner { value in
+                    scanning = false
+                    do { payload = try PublicKey.normalize(value) } catch { self.error = error.localizedDescription }
+                }
                     .navigationTitle("Scan public key").navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { scanning = false } } }
             }

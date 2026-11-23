@@ -73,4 +73,29 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(FSTCrypto.safeName("../../escape.txt"), "escape.txt")
         XCTAssertEqual(FSTCrypto.safeName(".."), "decrypted-file")
     }
+    func testTruncationTrailingDataAndWrongKey() throws {
+        let key = try privateKey(), dir = try temporary(), v = try vectors()
+        let valid = Data(base64Encoded: v["JAVA_FST2_BASE64"]!)!
+        let input = dir.appendingPathComponent("input"), output = dir.appendingPathComponent("output")
+        for broken in [Data(valid.prefix(7)), Data(valid.dropLast()), valid + Data([0]), Data([0,0,0,0]) + valid.dropFirst(4)] {
+            try broken.write(to: input)
+            XCTAssertThrowsError(try FSTCrypto.processFile(input: input, output: output, recipient: nil, privateKey: key))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+        }
+        var error: Unmanaged<CFError>?
+        let wrong = SecKeyCreateRandomKey([kSecAttrKeyType: kSecAttrKeyTypeRSA, kSecAttrKeySizeInBits: 2048] as CFDictionary, &error)!
+        XCTAssertThrowsError(try FSTCrypto.decryptText(v["JAVA_FST_TEXT1"]!, privateKey: wrong))
+    }
+    func testCancelledFileTaskCleansOutput() async throws {
+        let key = try privateKey(), pem = try PublicKey.export(SecKeyCopyPublicKey(key)!), dir = try temporary()
+        let input = dir.appendingPathComponent("input"), output = dir.appendingPathComponent("output")
+        try Data(repeating: 1, count: 2_097_152).write(to: input)
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try FSTCrypto.processFile(input: input, output: output, recipient: pem, privateKey: nil)
+        }
+        do { _ = try await task.value; XCTFail("Expected cancellation") } catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+    }
+
 }

@@ -55,7 +55,7 @@ struct WorkspaceView: View {
                         }.frame(maxWidth: .infinity).padding(.vertical, 28)
                             .background(Palette.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
                             .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Palette.teal.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [6])))
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(.plain).accessibilityLabel("Choose a file").accessibilityIdentifier("file-picker")
                     Text(decrypt ? LocalizedStringKey("Select an FST2 file encrypted for your local key.") : LocalizedStringKey("The original filename is hidden inside the encrypted file.")).font(.footnote).foregroundStyle(.secondary)
                 }
                 PrimaryButton(title: decrypt ? "Decrypt securely" : "Encrypt securely", icon: decrypt ? "lock.open" : "lock.fill") {
