@@ -84,7 +84,7 @@
 "No accounts, servers, analytics or network requests. Contacts stay on this device. Files you choose from iCloud may be downloaded by the system Files provider." = "无账号、服务器、统计或网络请求。联系人保存在本机。选择 iCloud 文件时，系统文件提供程序可能会下载文件。";
 "Results are temporary. Use Save or share to keep them. Temporary files are cleared on the next launch." = "结果文件为临时保存，请通过“保存或分享”保留。下次启动时会清理临时文件。";
 "Clear temporary files" = "清理临时文件";
-"File Security" = "文件安全工具";
+"File Security Tool" = "File Security Tool";
 "Version 1.0.0 · iOS 17+" = "版本 1.0.0 · iOS 17+";
 "Compatible with Android and Java FST2 / FST-TEXT1. This development build still needs cross-device and real-iPhone validation before release." = "兼容 Android 和 Java 的 FST2 / FST-TEXT1 格式。此版本仍需完成跨设备互操作和 iPhone 真机验证后再发布。";
 "Scanned public key" = "已扫描的公钥";

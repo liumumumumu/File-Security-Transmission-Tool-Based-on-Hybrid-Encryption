@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>File Security</string>
+	<string>File Security Tool</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

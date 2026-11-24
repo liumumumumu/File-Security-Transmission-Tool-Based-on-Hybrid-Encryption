@@ -84,7 +84,7 @@
 "No accounts, servers, analytics or network requests. Contacts stay on this device. Files you choose from iCloud may be downloaded by the system Files provider." = "No accounts, servers, analytics or network requests. Contacts stay on this device. Files you choose from iCloud may be downloaded by the system Files provider.";
 "Results are temporary. Use Save or share to keep them. Temporary files are cleared on the next launch." = "Results are temporary. Use Save or share to keep them. Temporary files are cleared on the next launch.";
 "Clear temporary files" = "Clear temporary files";
-"File Security" = "File Security";
+"File Security Tool" = "File Security Tool";
 "Version 1.0.0 · iOS 17+" = "Version 1.0.0 · iOS 17+";
 "Compatible with Android and Java FST2 / FST-TEXT1. This development build still needs cross-device and real-iPhone validation before release." = "Compatible with Android and Java FST2 / FST-TEXT1. This development build still needs cross-device and real-iPhone validation before release.";
 "Scanned public key" = "Scanned public key";

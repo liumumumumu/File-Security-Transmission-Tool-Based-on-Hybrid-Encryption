@@ -1,4 +1,4 @@
-# File Security for iPhone
+# File Security Tool for iPhone
 
 原生 SwiftUI 离线文件与文本加解密工具，基于本仓库 Android 端协议移植。最低 iOS 17，建议使用 Xcode 16 或更新版本（本次使用 Xcode 26.2 验证）。无第三方依赖，无服务端配置。
 

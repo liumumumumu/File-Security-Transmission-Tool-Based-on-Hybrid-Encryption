@@ -65,7 +65,7 @@ struct SettingsView: View {
                 Button("Clear temporary files", role: .destructive) { store.clearTemporaryFiles() }.disabled(store.busy)
             }
             Card {
-                Label("File Security", systemImage: "lock.shield").font(.headline)
+                Label("File Security Tool", systemImage: "lock.shield").font(.headline)
                 Text("Version 1.0.0 · iOS 17+").font(.subheadline).foregroundStyle(.secondary)
                 Text("Compatible with Android and Java FST2 / FST-TEXT1. This development build still needs cross-device and real-iPhone validation before release.").font(.footnote).foregroundStyle(.secondary)
             }
