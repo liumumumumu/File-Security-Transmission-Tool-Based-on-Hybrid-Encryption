@@ -20,3 +20,9 @@ Release compilation uses the physical-device SDK but does not install or run on 
 The only remaining app-build warning is Xcode's skipped App Intents metadata extraction because the app has no App Intents dependency. No third-party dependencies or production signing material are required or included.
 
 Icon SHA-256: `2dfa9fd780a36da6ec01dfd12cce4a6e3ae1f8ee447d231d2c109dc849fbe1e4`.
+
+## Direct recipient scanning (2026-11-24)
+
+The encryption workspace now accepts a transient recipient public key directly from a live QR scan. The scanned payload uses the existing public-key validation and normalization, displays its fingerprint for confirmation, and never writes to Contacts. File and text encryption both resolve this selected key through the same recipient path. Existing contact/local-key selection remains available. Permission denial, unsupported devices, camera unavailability, and scanner startup failures have an error state.
+
+The simulator UI smoke suite checks opening and cancelling the recipient scanner and verifies the scan action is absent in decryption mode. Actual camera recognition and scan-to-encrypt exchange require an iPhone; the simulator cannot validate a live camera feed.

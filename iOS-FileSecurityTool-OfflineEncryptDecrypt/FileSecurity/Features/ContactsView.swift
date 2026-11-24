@@ -118,12 +118,14 @@ struct AddContactView: View {
     }
 }
 struct QRScanner: UIViewControllerRepresentable {
+    var onFailure: (Error) -> Void = { _ in }
     var onRead: (String) -> Void
-    func makeCoordinator() -> Coordinator { Coordinator(onRead: onRead) }
+    func makeCoordinator() -> Coordinator { Coordinator(onRead: onRead, onFailure: onFailure) }
     func makeUIViewController(context: Context) -> DataScannerViewController {
         let controller = DataScannerViewController(recognizedDataTypes: [.barcode(symbologies: [.qr])], qualityLevel: .balanced, recognizesMultipleItems: false, isHighlightingEnabled: true)
         controller.delegate = context.coordinator
-        try? controller.startScanning()
+        do { try controller.startScanning() }
+        catch { DispatchQueue.main.async { context.coordinator.onFailure(error) } }
         return controller
     }
     func updateUIViewController(_ controller: DataScannerViewController, context: Context) {}
@@ -131,7 +133,14 @@ struct QRScanner: UIViewControllerRepresentable {
     final class Coordinator: NSObject, DataScannerViewControllerDelegate {
         let onRead: (String) -> Void
         var delivered = false
-        init(onRead: @escaping (String) -> Void) { self.onRead = onRead }
+        let onFailure: (Error) -> Void
+        init(onRead: @escaping (String) -> Void, onFailure: @escaping (Error) -> Void) {
+            self.onRead = onRead
+            self.onFailure = onFailure
+        }
+        func dataScanner(_ scanner: DataScannerViewController, becameUnavailableWithError error: DataScannerViewController.ScanningUnavailable) {
+            onFailure(error)
+        }
         func dataScanner(_ scanner: DataScannerViewController, didAdd addedItems: [RecognizedItem], allItems: [RecognizedItem]) {
             guard !delivered else { return }
             for item in addedItems {

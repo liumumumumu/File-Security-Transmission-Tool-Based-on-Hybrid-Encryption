@@ -87,3 +87,15 @@
 "File Security" = "文件安全工具";
 "Version 1.0.0 · iOS 17+" = "版本 1.0.0 · iOS 17+";
 "Compatible with Android and Java FST2 / FST-TEXT1. This development build still needs cross-device and real-iPhone validation before release." = "兼容 Android 和 Java 的 FST2 / FST-TEXT1 格式。此版本仍需完成跨设备互操作和 iPhone 真机验证后再发布。";
+"Scanned public key" = "已扫描的公钥";
+"Scan recipient public key" = "扫描接收者公钥";
+"Used for this session only. Not saved to Contacts." = "仅用于本次使用，不保存到联系人。";
+"Create your key, scan a public key, or add a contact to begin." = "请创建本机密钥、扫描公钥或添加联系人。";
+"Verify this fingerprint with the recipient before encrypting." = "加密前，请与接收者核对以下公钥指纹。";
+"Use this recipient" = "使用此接收者";
+"Scan again" = "重新扫描";
+"Unable to scan" = "无法扫描";
+"Try again" = "重试";
+"Live QR scanning is unavailable on this device." = "此设备不支持实时二维码扫描。";
+"Allow camera access in iPhone Settings to scan a public key." = "请在 iPhone 设置中允许相机权限以扫描公钥。";
+"The camera is currently unavailable. Please try again." = "相机当前不可用，请稍后重试。";

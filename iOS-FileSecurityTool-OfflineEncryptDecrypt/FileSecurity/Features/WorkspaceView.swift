@@ -6,13 +6,16 @@ struct WorkspaceView: View {
     @State private var decrypt = false
     @State private var textMode = false
     @State private var recipient = "self"
+    @State private var scannedRecipient: String?
+    @State private var scanningRecipient = false
     @State private var text = ""
     @State private var result = ""
     @State private var file: URL?
     @State private var importing = false
     @Environment(\.scenePhase) private var scenePhase
     var recipientPEM: String? {
-        recipient == "self" ? (store.publicPEM.isEmpty ? nil : store.publicPEM) : store.contacts.first { $0.id.uuidString == recipient }?.pem
+        if recipient == "scanned" { return scannedRecipient }
+        return recipient == "self" ? (store.publicPEM.isEmpty ? nil : store.publicPEM) : store.contacts.first { $0.id.uuidString == recipient }?.pem
     }
     var body: some View {
         Page(title: "Workspace") {
@@ -33,10 +36,17 @@ struct WorkspaceView: View {
                         Text("Recipient").font(.headline)
                         Picker("Recipient", selection: $recipient) {
                             Text("My local key").tag("self")
+                            if scannedRecipient != nil { Text("Scanned public key").tag("scanned") }
                             ForEach(store.contacts) { Text($0.name).tag($0.id.uuidString) }
                         }.pickerStyle(.menu).frame(maxWidth: .infinity, alignment: .leading)
+                        Button { scanningRecipient = true } label: {
+                            Label("Scan recipient public key", systemImage: "qrcode.viewfinder")
+                        }.accessibilityIdentifier("scan-recipient")
                         if let pem = recipientPEM { FingerprintView(pem: pem) }
-                        else { Text("Create your key or add a contact to begin.").font(.footnote).foregroundStyle(.secondary) }
+                        else { Text("Create your key, scan a public key, or add a contact to begin.").font(.footnote).foregroundStyle(.secondary) }
+                        if recipient == "scanned" {
+                            Text("Used for this session only. Not saved to Contacts.").font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                 }
                 if textMode {
@@ -89,6 +99,13 @@ struct WorkspaceView: View {
                 }
             }
             Label("AES-256-GCM · RSA-OAEP SHA-256", systemImage: "checkmark.shield").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+        }
+        .sheet(isPresented: $scanningRecipient) {
+            RecipientScannerView { pem in
+                scannedRecipient = pem
+                recipient = "scanned"
+                result = ""
+            }
         }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.data], allowsMultipleSelection: false) { outcome in
             do { file = try outcome.get().first } catch { store.error = error.localizedDescription }

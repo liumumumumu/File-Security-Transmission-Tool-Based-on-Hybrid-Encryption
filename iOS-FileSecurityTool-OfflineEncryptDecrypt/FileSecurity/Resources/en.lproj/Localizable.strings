@@ -87,3 +87,15 @@
 "File Security" = "File Security";
 "Version 1.0.0 · iOS 17+" = "Version 1.0.0 · iOS 17+";
 "Compatible with Android and Java FST2 / FST-TEXT1. This development build still needs cross-device and real-iPhone validation before release." = "Compatible with Android and Java FST2 / FST-TEXT1. This development build still needs cross-device and real-iPhone validation before release.";
+"Scanned public key" = "Scanned public key";
+"Scan recipient public key" = "Scan recipient public key";
+"Used for this session only. Not saved to Contacts." = "Used for this session only. Not saved to Contacts.";
+"Create your key, scan a public key, or add a contact to begin." = "Create your key, scan a public key, or add a contact to begin.";
+"Verify this fingerprint with the recipient before encrypting." = "Verify this fingerprint with the recipient before encrypting.";
+"Use this recipient" = "Use this recipient";
+"Scan again" = "Scan again";
+"Unable to scan" = "Unable to scan";
+"Try again" = "Try again";
+"Live QR scanning is unavailable on this device." = "Live QR scanning is unavailable on this device.";
+"Allow camera access in iPhone Settings to scan a public key." = "Allow camera access in iPhone Settings to scan a public key.";
+"The camera is currently unavailable. Please try again." = "The camera is currently unavailable. Please try again.";
