@@ -991,85 +991,6 @@ public class ConsoleCommandRunner
         if (!ensureKeyPresent()) {
             return;
         }
-        if (args.size() < 2) {
-            System.out.println(messages.usage("fst-file-decrypt <fst2Path> [outputDir]"));
-            return;
-        }
-        Path outputDir = args.size() >= 3 ? PathInputNormalizer.toPath(joinArguments(args, 2)) : null;
-        OfflineCryptoService.Fst2DecryptResult result = offlineCryptoService.decryptFile(PathInputNormalizer.toPath(args.get(1)), outputDir);
-        System.out.println("FST2 file decrypted: " + result.outputPath());
-        System.out.println("fileName: " + result.fileName());
-        System.out.println("fileSize: " + result.fileSize());
-        System.out.println("totalBlocks: " + result.totalBlocks());
-    }
-
-    private void fstTextEncrypt(BufferedReader reader, List<String> args) throws IOException
-    {
-        if (!ensureKeyPresent()) {
-            return;
-        }
-        if(args.size() < 2)
-        {
-            System.out.println(messages.usage("fst-text-encrypt <publicKey|publicKeyFile|contact-N>"));
-            return;
-        }
-        String text = readUntilQuit(reader, "text> ");
-        if(text == null)
-        {
-            return;
-        }
-        OfflineCryptoService.FstTextEncryptResult result = offlineCryptoService.encryptText(text, args.get(1));
-        System.out.println(result.payload());
-    }
-
-    private void fstTextDecrypt(BufferedReader reader, List<String> args) throws IOException
-    {
-        if (!ensureKeyPresent()) {
-            return;
-        }
-        String payload;
-        if(args.size() >= 2)
-        {
-            payload = joinArguments(args, 1);
-        }
-        else
-        {
-            payload = readUntilQuit(reader, "fst-text> ");
-            if(payload == null)
-            {
-                return;
-            }
-        }
-        OfflineCryptoService.FstTextDecryptResult result = offlineCryptoService.decryptText(payload);
-        System.out.println(result.text());
-    }
-
-    private String readUntilQuit(BufferedReader reader, String prompt) throws IOException
-    {
-        List<String> lines = new ArrayList<>();
-        while(isApplicationActive())
-        {
-            System.out.print(prompt);
-            String line = reader.readLine();
-            if(line == null)
-            {
-                handleConsoleInputClosed();
-                return null;
-            }
-            if(":q".equals(line))
-            {
-                return String.join(System.lineSeparator(), lines);
-            }
-            lines.add(line);
-        }
-        return null;
-    }
-
-    private void sendRelayMessage(BufferedReader reader, List<String> args) throws IOException
-    {
-        if (!ensureKeyPresent()) {
-            return;
-        }
         if(args.size() < 2)
         {
             System.out.println(messages.usage("message-send <accountId|contact-N>"));
@@ -1991,7 +1912,8 @@ public class ConsoleCommandRunner
 
     void handleConsoleInputClosed()
     {
-        applicationShutdownService.requestShutdown();
+        // Closing a terminal, pipe, or GUI-launched console must not imply backend shutdown.
+        // Users can still stop the application explicitly with the exit/quit command.
     }
 
     private boolean isApplicationActive()

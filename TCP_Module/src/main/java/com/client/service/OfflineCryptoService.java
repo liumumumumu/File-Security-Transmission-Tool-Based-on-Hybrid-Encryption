@@ -7,6 +7,7 @@ import com.common.util.PathInputNormalizer;
 import com.crypto.CryptoSupport;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.BadPaddingException;
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -33,6 +34,14 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Author: LQH
+ * Date: 2026-06-26
+ * Update: 2026-07-03 — 加宽异常捕获防止未处理异常导致 500
+ * Purpose: 离线加解密核心服务，实现 FST2 (文件) 和 FST-TEXT1 (文本) 两种自定协议。
+ *          FST2: AES-256-GCM 分块加密 + RSA 密钥封装 + HMAC-SHA256 nonce 派生
+ *          FST-TEXT1: AES-256-GCM 文本加密 + CBOR 序列化 + Base64URL 编码
+ */
 @Service
 public class OfflineCryptoService
 {
@@ -125,7 +134,7 @@ public class OfflineCryptoService
             }
             return new Fst2EncryptResult(true, finalPath, finalPath.getFileName().toString(), fileSize, totalBlocks);
         }
-        catch(IOException | GeneralSecurityException ex)
+        catch(Exception ex)
         {
             throw new IllegalStateException("FST2 file encryption failed: "+ex.getMessage(), ex);
         }
@@ -236,8 +245,21 @@ public class OfflineCryptoService
                 return new Fst2DecryptResult(true, finalPath, safeFileName, fileSize, totalBlocks);
             }
         }
-        catch(IOException | GeneralSecurityException ex)
+        catch(Exception ex)
         {
+            Throwable cause = ex;
+            while(cause != null)
+            {
+                if(cause instanceof BadPaddingException)
+                {
+                    throw new IllegalStateException(
+                            "Unable to decrypt with the current private key using "
+                                    + "RSA-OAEP SHA-256/MGF1-SHA256. Possible causes include a different "
+                                    + "key pair, damaged ciphertext, or an incompatible sender version.",
+                            ex);
+                }
+                cause = cause.getCause();
+            }
             throw new IllegalStateException("FST2 file decryption failed: "+ex.getMessage(), ex);
         }
         finally
@@ -279,7 +301,7 @@ public class OfflineCryptoService
             String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(CborLite.encodeCanonical(payload));
             return new FstTextEncryptResult(true, FST_TEXT_PREFIX + encoded, plain.length);
         }
-        catch(GeneralSecurityException ex)
+        catch(Exception ex)
         {
             throw new IllegalStateException("FST-TEXT1 encryption failed: "+ex.getMessage(), ex);
         }
@@ -326,8 +348,21 @@ public class OfflineCryptoService
             String text = decodeUtf8Strict(plain);
             return new FstTextDecryptResult(true, text, plaintextLength);
         }
-        catch(GeneralSecurityException ex)
+        catch(Exception ex)
         {
+            Throwable cause = ex;
+            while(cause != null)
+            {
+                if(cause instanceof BadPaddingException)
+                {
+                    throw new IllegalStateException(
+                            "Unable to decrypt with the current private key using "
+                                    + "RSA-OAEP SHA-256/MGF1-SHA256. Possible causes include a different "
+                                    + "key pair, damaged ciphertext, or an incompatible sender version.",
+                            ex);
+                }
+                cause = cause.getCause();
+            }
             throw new IllegalStateException("FST-TEXT1 decryption failed: "+ex.getMessage(), ex);
         }
     }

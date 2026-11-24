@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FileSecurityTool</string>
+
+    <!-- Navigation -->
+    <string name="nav_crypto">Crypto</string>
+    <string name="nav_contacts">Contacts</string>
+    <string name="nav_keys">Keys</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Offline Sections -->
+    <string name="file_encrypt">File Encrypt</string>
+    <string name="file_decrypt">File Decrypt</string>
+    <string name="text_encrypt">Text Encrypt</string>
+    <string name="text_decrypt">Text Decrypt</string>
+
+    <!-- File Operations -->
+    <string name="tap_to_select_file">Tap to select a file to encrypt</string>
+    <string name="tap_to_select_fst2">Tap to select an .FST2 file</string>
+    <string name="output_dir_prefix">Output: %s</string>
+    <string name="encrypt">Encrypt</string>
+    <string name="decrypt">Decrypt</string>
+    <string name="copy">Copy</string>
+    <string name="open_in_folder">📂 Open in Folder</string>
+
+    <!-- Result Panel -->
+    <string name="result">Result</string>
+    <string name="file_name">File Name</string>
+    <string name="file_size">File Size</string>
+    <string name="blocks">Blocks</string>
+    <string name="output_path">Output Path</string>
+
+    <!-- Text Operations -->
+    <string name="input_text_max">Input Text (max 16 KiB)</string>
+    <string name="encrypt_result_label">Encrypted Result (FST-TEXT1)</string>
+    <string name="paste_fst_text1">Paste FST-TEXT1 ciphertext</string>
+    <string name="decrypt_result_label">Decrypted Result</string>
+
+    <!-- Receiver Source -->
+    <string name="receiver_source">Receiver Source</string>
+    <string name="saved_contact">Contact</string>
+    <string name="public_key_file">Public Key File</string>
+    <string name="no_contacts_hint">No contacts. Add one in the “Contacts” tab.</string>
+    <string name="select_contact">Select Contact</string>
+    <string name="no_key_pair_hint">Please generate or import a key pair in the “Keys” tab.</string>
+
+    <!-- Messages -->
+    <string name="file_encrypted_success">File encrypted successfully</string>
+    <string name="file_decrypted_success">File decrypted successfully</string>
+    <string name="text_encrypted_success">Text encrypted successfully</string>
+    <string name="text_decrypted_success">Text decrypted successfully</string>
+    <string name="encrypt_failed">Encryption failed: %s</string>
+    <string name="decrypt_failed">Decryption failed: %s</string>
+
+    <!-- Contacts -->
+    <string name="contacts_tab">Contacts</string>
+    <string name="no_contacts_yet">No contacts yet</string>
+    <string name="search_contacts">Search name or public key fingerprint</string>
+    <string name="select_public_key_png">Choose QR PNG</string>
+    <string name="scan_public_key_qr">Scan public key QR</string>
+    <string name="confirm_public_key">Confirm public key fingerprint</string>
+    <string name="contact_already_exists">This public key already exists</string>
+    <string name="contact_display_name">Contact display name (1–40 characters)</string>
+    <string name="save">Save</string>
+    <string name="delete_contact_title">Delete contact</string>
+    <string name="delete_contact_message">Delete “%1$s”? Public key fingerprint ending: %2$s</string>
+    <string name="contact_details">Contact details</string>
+    <string name="update_contact_public_key">Update key from QR PNG</string>
+    <string name="scan_updated_public_key">Scan new public key QR</string>
+    <string name="confirm_contact_key_update">Confirm contact public key update</string>
+    <string name="old_fingerprint">Old public key fingerprint</string>
+    <string name="new_fingerprint">New public key fingerprint</string>
+    <string name="contact_key_update_warning">After updating, all new encryption will immediately use the new public key.</string>
+    <string name="update">Update</string>
+    <string name="share">Share</string>
+    <string name="clear">Clear</string>
+    <string name="share_encrypted_text">Share encrypted text</string>
+    <string name="encrypt_for_recipient">Encrypt for “%1$s”</string>
+    <string name="select_receiver_first">Select a recipient first</string>
+    <string name="file_task_cancelled">File task cancelled</string>
+    <string name="result_outdated">Result is outdated; encrypt again</string>
+    <string name="authenticate_to_decrypt">Authenticate to decrypt</string>
+    <string name="authentication_window_message">Authentication allows decryption for 5 minutes and is cleared when the app enters the background.</string>
+    <string name="key_permanently_invalidated">The local private key is permanently invalid and cannot be recovered. Historical ciphertext may be permanently undecryptable; authenticate to delete this key before manually generating another.</string>
+    <string name="theme">Theme</string>
+    <string name="light_theme">Light</string>
+    <string name="dark_theme">Dark</string>
+    <string name="no_local_key_banner">No local key. Open Keys to generate one.</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="notification_permission_title">Show background file-task progress</string>
+    <string name="notification_permission_message">Notifications show progress and cancellation while the app is in the background or the screen is off. The task still runs if denied, but notification progress may be limited.</string>
+    <string name="continue_label">Continue</string>
+    <string name="not_now">Not now</string>
+    <string name="self_device">Self (this device)</string>
+    <string name="temporary_qr">Temporary QR</string>
+    <string name="contact_source">Contact</string>
+    <string name="view_current_file_task">View current file task (%1$d%%)</string>
+    <string name="open_file">Open file</string>
+    <string name="save_as_contact">Save as contact</string>
+    <string name="decryption_failed_user_message">Unable to decrypt: the content may not have been encrypted for the current local public key, or it may be damaged. Ask the sender to encrypt it again using your currently exported public-key QR code.</string>
+    <string name="decryption_failed_short">Unable to decrypt the selected file</string>
+    <string name="unknown">Unknown</string>
+    <string name="delete">Delete</string>
+    <string name="remove">Remove</string>
+    <string name="reason_prefix">Reason: %s</string>
+    <string name="add_contact_title">Add Contact</string>
+    <string name="account_id_label">Account ID</string>
+    <string name="alias_label">Alias</string>
+    <string name="public_key_optional">Public Key (optional)</string>
+    <string name="add">Add</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Key Management -->
+    <string name="key_management">Key Management</string>
+    <string name="key_pair_ready">Key Pair Ready</string>
+    <string name="no_key_pair">No Key Pair Found</string>
+    <string name="key_missing_hint">Please generate or import a key pair to use encryption/decryption.</string>
+    <string name="fingerprint_label">Fingerprint:</string>
+    <string name="generate_key_pair">Generate New Key Pair</string>
+    <string name="authenticate_to_generate_key">Authenticate to generate a key</string>
+    <string name="legacy_key_requires_regeneration">This key was generated by the legacy Android hardware-RSA scheme and cannot use the Mac MGF1-SHA256 protocol. Delete and regenerate it, then redistribute the public key.</string>
+    <string name="export_public_key">Export Public Key</string>
+    <string name="export_pubkey_qr">Export Public Key QR</string>
+    <string name="delete_key_pair">Delete Key Pair</string>
+    <string name="secure_lock_required">Set up a PIN, pattern, password, or biometric screen lock before generating a local key.</string>
+    <string name="open_security_settings">Open security settings</string>
+    <string name="key_delete_blocked_by_file_task">Wait for the current file task to finish, or cancel it before deleting the key.</string>
+    <string name="public_key_qr_preview">Local public key QR code preview</string>
+    <string name="open_in_file_manager">Open in file manager</string>
+    <string name="share_public_key_qr">Share public key QR PNG</string>
+    <string name="key_generated">Key pair generated</string>
+    <string name="key_deleted">Key pair deleted</string>
+    <string name="generate_failed">Generation failed: %s</string>
+    <string name="delete_failed">Deletion failed: %s</string>
+    <string name="confirm_delete_key_title">Delete Key Pair</string>
+    <string name="confirm_delete_key_message">This cannot be undone. All content encrypted with this key will become permanently undecryptable. Continue?</string>
+    <string name="qr_public_saved">Public key QR saved to %s</string>
+
+    <!-- Settings -->
+    <string name="settings">Settings</string>
+    <string name="language">Language</string>
+    <string name="follow_system">Follow System</string>
+    <string name="chinese">中文</string>
+    <string name="english">English</string>
+    <string name="default_output_dir">Default Output Directory</string>
+    <string name="about">About</string>
+    <string name="app_description">Hybrid-encryption file security tool</string>
+
+    <!-- General -->
+    <string name="ok">OK</string>
+    <string name="confirm">Confirm</string>
+</resources>

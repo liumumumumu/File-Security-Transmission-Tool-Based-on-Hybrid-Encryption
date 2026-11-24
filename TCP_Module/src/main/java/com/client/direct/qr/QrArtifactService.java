@@ -19,8 +19,6 @@ import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.GlobalHistogramBinarizer;
 import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.common.BitMatrix;
-import com.google.zxing.common.HybridBinarizer;
-import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -441,24 +439,6 @@ public class QrArtifactService
             {
                 image.setRGB(x, y, white);
             }
-        }
-    }
-
-    private String pngDiagnostic(Path path)
-    {
-        try
-        {
-            BufferedImage image = ImageIO.read(path.toFile());
-            long size = Files.exists(path) ? Files.size(path) : -1;
-            if(image == null)
-            {
-                return path + " (unsupported image, bytes=" + size + ")";
-            }
-            return path + " (width=" + image.getWidth() + ", height=" + image.getHeight() + ", bytes=" + size + ")";
-        }
-        catch(IOException ex)
-        {
-            return path + " (diagnostic unavailable: " + ex.getMessage() + ")";
         }
     }
 

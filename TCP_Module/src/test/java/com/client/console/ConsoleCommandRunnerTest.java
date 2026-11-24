@@ -18,7 +18,7 @@ public class ConsoleCommandRunnerTest
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
-    public void handleConsoleInputClosedClosesApplicationContext()
+    public void handleConsoleInputClosedKeepsApplicationContextActive()
     {
         GenericApplicationContext applicationContext = new GenericApplicationContext();
         applicationContext.refresh();
@@ -43,7 +43,7 @@ public class ConsoleCommandRunnerTest
 
         runner.handleConsoleInputClosed();
 
-        assertFalse(applicationContext.isActive());
+        assertTrue(applicationContext.isActive());
     }
 
     @Test
