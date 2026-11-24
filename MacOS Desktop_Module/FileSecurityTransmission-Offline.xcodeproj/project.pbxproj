@@ -1,0 +1,609 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXContainerItemProxy section */
+		DA909DC92FD7F8D3004D080D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DA909DB32FD7F8D2004D080D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DA909DBA2FD7F8D2004D080D;
+			remoteInfo = "FileSecurityTransmission-Offline";
+		};
+		DA909DD32FD7F8D3004D080D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DA909DB32FD7F8D2004D080D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DA909DBA2FD7F8D2004D080D;
+			remoteInfo = "FileSecurityTransmission-Offline";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		DA909DBB2FD7F8D2004D080D /* FileSecurityTransmission.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FileSecurityTransmission.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA909DC82FD7F8D3004D080D /* FileSecurityTransmission-OfflineTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "FileSecurityTransmission-OfflineTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA909DD22FD7F8D3004D080D /* FileSecurityTransmission-OfflineUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "FileSecurityTransmission-OfflineUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		DA909DBD2FD7F8D2004D080D /* FileSecurityTransmission-Offline */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "FileSecurityTransmission-Offline";
+			sourceTree = "<group>";
+		};
+		DA909DCB2FD7F8D3004D080D /* FileSecurityTransmission-OfflineTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "FileSecurityTransmission-OfflineTests";
+			sourceTree = "<group>";
+		};
+		DA909DD52FD7F8D3004D080D /* FileSecurityTransmission-OfflineUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "FileSecurityTransmission-OfflineUITests";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		DA909DB82FD7F8D2004D080D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DA909DC52FD7F8D3004D080D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DA909DCF2FD7F8D3004D080D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		DA909DB22FD7F8D2004D080D = {
+			isa = PBXGroup;
+			children = (
+				DA909DBD2FD7F8D2004D080D /* FileSecurityTransmission-Offline */,
+				DA909DCB2FD7F8D3004D080D /* FileSecurityTransmission-OfflineTests */,
+				DA909DD52FD7F8D3004D080D /* FileSecurityTransmission-OfflineUITests */,
+				DA909DBC2FD7F8D2004D080D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		DA909DBC2FD7F8D2004D080D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				DA909DBB2FD7F8D2004D080D /* FileSecurityTransmission.app */,
+				DA909DC82FD7F8D3004D080D /* FileSecurityTransmission-OfflineTests.xctest */,
+				DA909DD22FD7F8D3004D080D /* FileSecurityTransmission-OfflineUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		DA909DBA2FD7F8D2004D080D /* FileSecurityTransmission-Offline */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DA909DDC2FD7F8D3004D080D /* Build configuration list for PBXNativeTarget "FileSecurityTransmission-Offline" */;
+			buildPhases = (
+				DA909DB72FD7F8D2004D080D /* Sources */,
+				DA909DB82FD7F8D2004D080D /* Frameworks */,
+				F57C0DE12FD8000000000001 /* Build fst-console */,
+				DA909DB92FD7F8D2004D080D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				DA909DBD2FD7F8D2004D080D /* FileSecurityTransmission-Offline */,
+			);
+			name = "FileSecurityTransmission-Offline";
+			packageProductDependencies = (
+			);
+			productName = "FileSecurityTransmission-Offline";
+			productReference = DA909DBB2FD7F8D2004D080D /* FileSecurityTransmission.app */;
+			productType = "com.apple.product-type.application";
+		};
+		DA909DC72FD7F8D3004D080D /* FileSecurityTransmission-OfflineTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DA909DDF2FD7F8D3004D080D /* Build configuration list for PBXNativeTarget "FileSecurityTransmission-OfflineTests" */;
+			buildPhases = (
+				DA909DC42FD7F8D3004D080D /* Sources */,
+				DA909DC52FD7F8D3004D080D /* Frameworks */,
+				DA909DC62FD7F8D3004D080D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DA909DCA2FD7F8D3004D080D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DA909DCB2FD7F8D3004D080D /* FileSecurityTransmission-OfflineTests */,
+			);
+			name = "FileSecurityTransmission-OfflineTests";
+			packageProductDependencies = (
+			);
+			productName = "FileSecurityTransmission-OfflineTests";
+			productReference = DA909DC82FD7F8D3004D080D /* FileSecurityTransmission-OfflineTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		DA909DD12FD7F8D3004D080D /* FileSecurityTransmission-OfflineUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DA909DE22FD7F8D3004D080D /* Build configuration list for PBXNativeTarget "FileSecurityTransmission-OfflineUITests" */;
+			buildPhases = (
+				DA909DCE2FD7F8D3004D080D /* Sources */,
+				DA909DCF2FD7F8D3004D080D /* Frameworks */,
+				DA909DD02FD7F8D3004D080D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DA909DD42FD7F8D3004D080D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DA909DD52FD7F8D3004D080D /* FileSecurityTransmission-OfflineUITests */,
+			);
+			name = "FileSecurityTransmission-OfflineUITests";
+			packageProductDependencies = (
+			);
+			productName = "FileSecurityTransmission-OfflineUITests";
+			productReference = DA909DD22FD7F8D3004D080D /* FileSecurityTransmission-OfflineUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DA909DB32FD7F8D2004D080D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2620;
+				LastUpgradeCheck = 2620;
+				TargetAttributes = {
+					DA909DBA2FD7F8D2004D080D = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					DA909DC72FD7F8D3004D080D = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = DA909DBA2FD7F8D2004D080D;
+					};
+					DA909DD12FD7F8D3004D080D = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = DA909DBA2FD7F8D2004D080D;
+					};
+				};
+			};
+			buildConfigurationList = DA909DB62FD7F8D2004D080D /* Build configuration list for PBXProject "FileSecurityTransmission-Offline" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = DA909DB22FD7F8D2004D080D;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = DA909DBC2FD7F8D2004D080D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DA909DBA2FD7F8D2004D080D /* FileSecurityTransmission-Offline */,
+				DA909DC72FD7F8D3004D080D /* FileSecurityTransmission-OfflineTests */,
+				DA909DD12FD7F8D3004D080D /* FileSecurityTransmission-OfflineUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		DA909DB92FD7F8D2004D080D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DA909DC62FD7F8D3004D080D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DA909DD02FD7F8D3004D080D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		F57C0DE12FD8000000000001 /* Build fst-console */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/fst-console/main.swift",
+			);
+			name = "Build fst-console";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/fst-console",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nmkdir -p \"$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH\"\nxcrun swiftc -parse-as-library -module-cache-path \"$DERIVED_FILE_DIR/fst-console-module-cache\" \"$SRCROOT/fst-console/main.swift\" -o \"$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/fst-console\"\nchmod 755 \"$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/fst-console\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		DA909DB72FD7F8D2004D080D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DA909DC42FD7F8D3004D080D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DA909DCE2FD7F8D3004D080D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		DA909DCA2FD7F8D3004D080D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DA909DBA2FD7F8D2004D080D /* FileSecurityTransmission-Offline */;
+			targetProxy = DA909DC92FD7F8D3004D080D /* PBXContainerItemProxy */;
+		};
+		DA909DD42FD7F8D3004D080D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DA909DBA2FD7F8D2004D080D /* FileSecurityTransmission-Offline */;
+			targetProxy = DA909DD32FD7F8D3004D080D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		DA909DDA2FD7F8D3004D080D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 97J78LF6Z2;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		DA909DDB2FD7F8D3004D080D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 97J78LF6Z2;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		DA909DDD2FD7F8D3004D080D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 97J78LF6Z2;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = FileSecurityTransmission;
+				INFOPLIST_KEY_CFBundleName = FileSecurityTransmission;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "lqh.FileSecurityTransmission-Offline";
+				PRODUCT_NAME = FileSecurityTransmission;
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		DA909DDE2FD7F8D3004D080D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 97J78LF6Z2;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = FileSecurityTransmission;
+				INFOPLIST_KEY_CFBundleName = FileSecurityTransmission;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "lqh.FileSecurityTransmission-Offline";
+				PRODUCT_NAME = FileSecurityTransmission;
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		DA909DE02FD7F8D3004D080D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 97J78LF6Z2;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "lqh.FileSecurityTransmission-OfflineTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FileSecurityTransmission.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FileSecurityTransmission";
+			};
+			name = Debug;
+		};
+		DA909DE12FD7F8D3004D080D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 97J78LF6Z2;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "lqh.FileSecurityTransmission-OfflineTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FileSecurityTransmission.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FileSecurityTransmission";
+			};
+			name = Release;
+		};
+		DA909DE32FD7F8D3004D080D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 97J78LF6Z2;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "lqh.FileSecurityTransmission-OfflineUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = "FileSecurityTransmission-Offline";
+			};
+			name = Debug;
+		};
+		DA909DE42FD7F8D3004D080D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 97J78LF6Z2;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "lqh.FileSecurityTransmission-OfflineUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = "FileSecurityTransmission-Offline";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DA909DB62FD7F8D2004D080D /* Build configuration list for PBXProject "FileSecurityTransmission-Offline" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DA909DDA2FD7F8D3004D080D /* Debug */,
+				DA909DDB2FD7F8D3004D080D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DA909DDC2FD7F8D3004D080D /* Build configuration list for PBXNativeTarget "FileSecurityTransmission-Offline" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DA909DDD2FD7F8D3004D080D /* Debug */,
+				DA909DDE2FD7F8D3004D080D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DA909DDF2FD7F8D3004D080D /* Build configuration list for PBXNativeTarget "FileSecurityTransmission-OfflineTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DA909DE02FD7F8D3004D080D /* Debug */,
+				DA909DE12FD7F8D3004D080D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DA909DE22FD7F8D3004D080D /* Build configuration list for PBXNativeTarget "FileSecurityTransmission-OfflineUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DA909DE32FD7F8D3004D080D /* Debug */,
+				DA909DE42FD7F8D3004D080D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = DA909DB32FD7F8D2004D080D /* Project object */;
+}

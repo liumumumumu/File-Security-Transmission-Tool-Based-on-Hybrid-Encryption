@@ -157,6 +157,7 @@ Version0003/
 *.pdf
 *.png
 !Desktop_Module/src/assets/app-icon.png
+!MacOS Desktop_Module/**/Assets.xcassets/**/*.png
 *.jpg
 *.jpeg
 *.docx
