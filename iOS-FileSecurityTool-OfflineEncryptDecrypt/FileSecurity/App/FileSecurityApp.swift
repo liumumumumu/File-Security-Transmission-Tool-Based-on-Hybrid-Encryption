@@ -21,6 +21,9 @@ struct RootView: View {
     @EnvironmentObject var store: AppStore
     @State private var tab = 0
     var body: some View {
+        if store.publicPEM.isEmpty || !KeyVault.exists {
+            KeysView()
+        } else {
         TabView(selection: $tab) {
             WorkspaceView().tabItem { Label("Workspace", systemImage: "lock.doc") }.tag(0)
             ContactsView().tabItem { Label("Contacts", systemImage: "person.2") }.tag(1)
@@ -28,6 +31,7 @@ struct RootView: View {
             SettingsView().tabItem { Label("Settings", systemImage: "slider.horizontal.3") }.tag(3)
         }
         .onChange(of: store.incoming) { _, value in if value != nil { tab = 0 } }
+        }
     }
 }
 enum Palette {

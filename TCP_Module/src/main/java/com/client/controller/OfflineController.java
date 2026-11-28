@@ -50,6 +50,23 @@ public class OfflineController
         }
     }
 
+    public record MultiRequest(String filePath, String outputDir, String text, java.util.List<String> recipients) {}
+
+    @PostMapping("/files/encrypt-multi")
+    public ResponseEntity<Map<String,Object>> encryptMultipleFiles(@RequestBody MultiRequest request) throws Exception {
+        requirePrivateKey();
+        if (request.filePath() == null || request.filePath().isBlank()) throw new IllegalArgumentException("filePath is required");
+        var result = offlineCryptoService.encryptMultiFile(PathInputNormalizer.toPath(request.filePath()), request.recipients(), optionalPath(request.outputDir()));
+        return ResponseEntity.ok(filePayload(result.success(), result.outputPath(), result.fileName(), result.fileSize(), result.totalBlocks()));
+    }
+
+    @PostMapping("/text/encrypt-multi")
+    public ResponseEntity<Map<String,Object>> encryptMultipleText(@RequestBody MultiRequest request) throws Exception {
+        requirePrivateKey();
+        var result = offlineCryptoService.encryptMultiText(request.text(), request.recipients());
+        return ResponseEntity.ok(Map.of("success", true, "payload", result.payload(), "plaintextLength", result.plaintextLength()));
+    }
+
     @PostMapping("/files/encrypt")
     public ResponseEntity<Map<String, Object>> encryptFile(@RequestBody Map<String, String> request)
     {
@@ -57,6 +74,7 @@ public class OfflineController
         {
             throw new IllegalArgumentException("filePath is required");
         }
+        requirePrivateKey();
         String receiver = resolveReceiverToken(request);
         Path outputDir = optionalPath(request.get("outputDir"));
         OfflineCryptoService.Fst2EncryptResult result = offlineCryptoService.encryptFile(
@@ -90,6 +108,7 @@ public class OfflineController
         {
             throw new IllegalArgumentException("text is required");
         }
+        requirePrivateKey();
         String receiver = resolveReceiverToken(request);
         OfflineCryptoService.FstTextEncryptResult result = offlineCryptoService.encryptText(request.get("text"), receiver);
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -124,6 +143,11 @@ public class OfflineController
         payload.put("fileSize", fileSize);
         payload.put("totalBlocks", totalBlocks);
         return payload;
+    }
+
+    @ExceptionHandler(java.io.IOException.class)
+    public ResponseEntity<Map<String,Object>> handleMultiInput(java.io.IOException error) {
+        return ResponseEntity.badRequest().body(Map.of("success", false, "error", String.valueOf(error.getMessage())));
     }
 
     private String resolveReceiverToken(Map<String, String> request)

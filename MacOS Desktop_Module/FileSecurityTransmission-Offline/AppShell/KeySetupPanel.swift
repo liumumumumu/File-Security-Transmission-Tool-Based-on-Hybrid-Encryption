@@ -92,12 +92,7 @@ struct KeySetupPanel: View {
             }
             .disabled(viewModel.operationInProgress)
 
-            Button {
-                Task { await viewModel.skipStartupKeySetup() }
-            } label: {
-                Label(strings.text(.skipForNow), systemImage: "forward")
-            }
-            .disabled(viewModel.operationInProgress)
+
         }
     }
 

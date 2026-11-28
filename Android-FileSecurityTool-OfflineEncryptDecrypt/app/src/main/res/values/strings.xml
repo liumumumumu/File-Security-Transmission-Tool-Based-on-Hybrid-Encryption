@@ -149,4 +149,10 @@
     <!-- General -->
     <string name="ok">确定</string>
     <string name="confirm">确认</string>
+    <string name="multiple_recipients">多发</string>
+    <string name="encrypt_multiple">为勾选的接收方加密</string>
+    <string name="remove_temp_recipient">移除 · %1$s</string>
+    <string name="no_matching_recipient">密钥表中没有与当前公钥匹配的条目。</string>
+    <string name="temporary_public_key">临时公钥</string>
+    <string name="add_public_key">添加公钥</string>
 </resources>

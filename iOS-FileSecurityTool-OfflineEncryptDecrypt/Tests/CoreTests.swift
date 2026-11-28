@@ -49,6 +49,38 @@ final class CoreTests: XCTestCase {
             XCTAssertEqual(try String(contentsOf: output, encoding: .utf8), expected)
         }
     }
+    func testMultiRecipientInteroperability() throws {
+        let key = try privateKey(), fixtures = try vectors(), dir = try temporary()
+        let plain = "你好🌍"
+        XCTAssertEqual(try FSTCrypto.decryptText(fixtures["JAVA_FST_TEXT2"]!, privateKey: key), plain)
+        let input = dir.appendingPathComponent("java.fst3")
+        let output = dir.appendingPathComponent("plain")
+        try Data(base64Encoded: fixtures["JAVA_FST3_BASE64"]!)!.write(to: input)
+        XCTAssertEqual(try FSTCrypto.processFile(input: input, output: output, recipient: nil, privateKey: key), "共享.txt")
+        XCTAssertEqual(try String(contentsOf: output, encoding: .utf8), plain)
+        let pem = try PublicKey.export(SecKeyCopyPublicKey(key)!)
+        let limit = String(repeating: "🌍", count: 4096)
+        let encrypted = try MultiEnvelope.encryptText(limit, recipients: [pem, pem])
+        XCTAssertEqual(try FSTCrypto.decryptText(encrypted, privateKey: key), limit)
+        XCTAssertThrowsError(try MultiEnvelope.encryptText(limit + "a", recipients: [pem]))
+        XCTAssertThrowsError(try MultiEnvelope.encryptText(plain, recipients: []))
+        XCTAssertNotEqual(encrypted, try MultiEnvelope.encryptText(limit, recipients: [pem]))
+        for length in [0, 1_048_576, 1_048_577] {
+            let source = dir.appendingPathComponent("sample")
+            let bytes = Data(repeating: 73, count: length)
+            try bytes.write(to: source)
+            _ = try FSTCrypto.processFile(input: source, output: input, recipient: nil, privateKey: nil, recipients: [pem])
+            _ = try FSTCrypto.processFile(input: input, output: output, recipient: nil, privateKey: key)
+            XCTAssertEqual(try Data(contentsOf: output), bytes)
+            try FileManager.default.removeItem(at: output)
+            var damaged = try Data(contentsOf: input)
+            damaged[damaged.count - 1] ^= 1
+            try damaged.write(to: input)
+            XCTAssertThrowsError(try FSTCrypto.processFile(input: input, output: output, recipient: nil, privateKey: key))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+        }
+    }
+
     func testPublicKeyAndTextRoundTrip() throws {
         let key = try privateKey(), pem = try PublicKey.export(SecKeyCopyPublicKey(key)!)
         XCTAssertEqual(try PublicKey.normalize(pem), pem)

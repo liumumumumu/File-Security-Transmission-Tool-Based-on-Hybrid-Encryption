@@ -77,11 +77,13 @@ struct Contact: Codable, Identifiable {
             busy = false
         }
     }
-    func transformText(_ text: String, recipient: String?, completion: @escaping (String) -> Void) {
+    func transformText(_ text: String, recipient: String?, recipients: [String]? = nil, completion: @escaping (String) -> Void) {
         guard !busy else { return }; busy = true
         Task {
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
+                    if recipients != nil || recipient != nil { try require(KeyVault.exists, "Create a local key first") }
+                    if let recipients { return try MultiEnvelope.encryptText(text, recipients: recipients) }
                     if let recipient { return try FSTCrypto.encryptText(text, recipient: recipient) }
                     return try FSTCrypto.decryptText(text, privateKey: KeyVault.privateKey())
                 }.value
@@ -90,7 +92,7 @@ struct Contact: Codable, Identifiable {
             busy = false
         }
     }
-    func processFile(_ url: URL, recipient: String?) {
+    func processFile(_ url: URL, recipient: String?, recipients: [String]? = nil, onSuccess: @escaping () -> Void = {}) {
         guard !busy else { return }
         clearTemporaryFiles(); busy = true; progress = 0
         let temp = temporaryDirectory
@@ -100,13 +102,14 @@ struct Contact: Codable, Identifiable {
                 defer { if access { url.stopAccessingSecurityScopedResource() } }
                 try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.complete])
                 let staging = temp.appendingPathComponent(UUID().uuidString)
-                let key = recipient == nil ? try KeyVault.privateKey() : nil
+                if recipients != nil || recipient != nil { try require(KeyVault.exists, "Create a local key first") }
+                let key = recipient == nil && recipients == nil ? try KeyVault.privateKey() : nil
                 let coordinator = NSFileCoordinator()
                 var coordinationError: NSError?
                 var outcome: Result<String, Error>?
                 coordinator.coordinate(readingItemAt: url, options: [], error: &coordinationError) { coordinated in
                     outcome = Result {
-                        try FSTCrypto.processFile(input: coordinated, output: staging, recipient: recipient, privateKey: key) { value in
+                        try FSTCrypto.processFile(input: coordinated, output: staging, recipient: recipient, privateKey: key, recipients: recipients) { value in
                             Task { @MainActor in self.progress = value }
                         }
                     }
@@ -122,6 +125,7 @@ struct Contact: Codable, Identifiable {
             do {
                 let result = try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
                 output = result
+                onSuccess()
             } catch {
                 try? FileManager.default.removeItem(at: temp)
                 if !(error is CancellationError) { self.error = error.localizedDescription }

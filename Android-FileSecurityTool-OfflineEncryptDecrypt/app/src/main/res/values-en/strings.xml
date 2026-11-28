@@ -149,4 +149,10 @@
     <!-- General -->
     <string name="ok">OK</string>
     <string name="confirm">Confirm</string>
+    <string name="multiple_recipients">Multiple recipients</string>
+    <string name="encrypt_multiple">Encrypt for selected recipients</string>
+    <string name="remove_temp_recipient">Remove · %1$s</string>
+    <string name="no_matching_recipient">No entry matches your current public key.</string>
+    <string name="temporary_public_key">Temporary public key</string>
+    <string name="add_public_key">Add public key</string>
 </resources>

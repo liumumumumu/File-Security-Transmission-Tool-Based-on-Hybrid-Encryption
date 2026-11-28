@@ -50,6 +50,7 @@ struct ContentView: View {
                                         }
                                         .tag(AppTab.offline)
                                 }
+                                .disabled(viewModel.isPrivateKeyMissing)
                                 .frame(height: max(viewport.size.height - 180, 500))
                             }
                         case .unavailable(let message):

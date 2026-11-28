@@ -714,6 +714,21 @@ final class FSTAPIClient {
         ))
     }
 
+    private struct MultiRequest: Encodable {
+        var filePath: String?
+        var outputDir: String?
+        var text: String?
+        let recipients: [String]
+    }
+
+    func encryptMultiFile(_ path: String, outputDir: String?, recipients: [String]) async throws -> OfflineFileResult {
+        try await post("/api/offline/files/encrypt-multi", body: MultiRequest(filePath: path, outputDir: outputDir, recipients: recipients))
+    }
+
+    func encryptMultiText(_ text: String, recipients: [String]) async throws -> OfflineTextEncryptResult {
+        try await post("/api/offline/text/encrypt-multi", body: MultiRequest(text: text, recipients: recipients))
+    }
+
     func decryptOfflineFile(fst2Path: String, outputDir: String?) async throws -> OfflineFileResult {
         try await post("/api/offline/files/decrypt", body: OfflineFileDecryptRequest(fst2Path: fst2Path, outputDir: outputDir))
     }

@@ -46,6 +46,8 @@ private struct OfflineFileEncryptView: View {
     @ObservedObject var viewModel: AppViewModel
     @State private var filePath = ""
     @State private var outputDir = ""
+    @State private var multi = false
+    @State private var recipients: [String] = []
     @State private var receiverMode: ReceiverSourceMode = .contact
     @State private var selectedContactIndex = 0
     @State private var receiverPublicKey = ""
@@ -63,6 +65,10 @@ private struct OfflineFileEncryptView: View {
             .frame(maxWidth: .infinity)
 
             VStack(alignment: .leading, spacing: 16) {
+                Toggle((viewModel.strings.language == .chinese ? "多发" : "Multiple recipients"), isOn: $multi)
+                if multi {
+                    MultiRecipientPanel(viewModel: viewModel, selected: $recipients)
+                } else {
                 ReceiverSourcePanel(
                     viewModel: viewModel,
                     mode: $receiverMode,
@@ -70,9 +76,14 @@ private struct OfflineFileEncryptView: View {
                     publicKey: $receiverPublicKey,
                     publicKeyPath: $receiverPublicKeyPath
                 )
+                }
 
                 Button {
                     Task {
+                        if multi {
+                            if await viewModel.encryptMultiple(recipients: recipients, filePath: filePath, outputDir: outputDir) { recipients.removeAll() }
+                            return
+                        }
                         await viewModel.encryptOfflineFile(
                             filePath: filePath,
                             outputDir: outputDir,
@@ -83,10 +94,11 @@ private struct OfflineFileEncryptView: View {
                     Label(strings.text(.encrypt), systemImage: "lock")
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(viewModel.operationInProgress || viewModel.isPrivateKeyMissing)
+                .disabled(viewModel.operationInProgress || viewModel.isPrivateKeyMissing || (multi && recipients.isEmpty))
 
                 OperationMessage(viewModel: viewModel)
             }
+            .disabled(viewModel.operationInProgress)
             .frame(width: 360)
         }
         .task { await viewModel.refreshContacts() }
@@ -144,6 +156,8 @@ private struct OfflineFileDecryptView: View {
 private struct OfflineTextEncryptView: View {
     @ObservedObject var viewModel: AppViewModel
     @State private var input = ""
+    @State private var multi = false
+    @State private var recipients: [String] = []
     @State private var receiverMode: ReceiverSourceMode = .contact
     @State private var selectedContactIndex = 0
     @State private var receiverPublicKey = ""
@@ -163,6 +177,10 @@ private struct OfflineTextEncryptView: View {
             )
 
             VStack(alignment: .leading, spacing: 16) {
+                Toggle((viewModel.strings.language == .chinese ? "多发" : "Multiple recipients"), isOn: $multi)
+                if multi {
+                    MultiRecipientPanel(viewModel: viewModel, selected: $recipients)
+                } else {
                 ReceiverSourcePanel(
                     viewModel: viewModel,
                     mode: $receiverMode,
@@ -170,17 +188,23 @@ private struct OfflineTextEncryptView: View {
                     publicKey: $receiverPublicKey,
                     publicKeyPath: $receiverPublicKeyPath
                 )
+                }
 
                 Button {
-                    Task { await viewModel.encryptOfflineText(text: input, receiver: receiverInput()) }
+                    Task {
+                        if multi {
+                            if await viewModel.encryptMultiple(recipients: recipients, text: input) { recipients.removeAll() }
+                        } else { await viewModel.encryptOfflineText(text: input, receiver: receiverInput()) }
+                    }
                 } label: {
                     Label(strings.text(.encrypt), systemImage: "lock")
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(viewModel.operationInProgress || viewModel.isPrivateKeyMissing)
+                .disabled(viewModel.operationInProgress || viewModel.isPrivateKeyMissing || (multi && recipients.isEmpty))
 
                 OperationMessage(viewModel: viewModel)
             }
+            .disabled(viewModel.operationInProgress)
             .frame(width: 360)
         }
         .task { await viewModel.refreshContacts() }
@@ -573,5 +597,49 @@ private enum OfflineSection: String, CaseIterable, Identifiable {
         case .textDecrypt:
             strings.text(.textDecrypt)
         }
+    }
+}
+
+private struct MultiRecipientPanel: View {
+    @ObservedObject var viewModel: AppViewModel
+    @Binding var selected: [String]
+    @State private var temporary = ""
+    @State private var issue = ""
+
+    private func compact(_ key: String) -> String {
+        key.replacingOccurrences(of: "-----BEGIN PUBLIC KEY-----", with: "")
+            .replacingOccurrences(of: "-----END PUBLIC KEY-----", with: "")
+            .replacingOccurrences(of: "FST-PUB1:", with: "").filter { !$0.isWhitespace }
+    }
+
+    private func add(_ key: String) {
+        guard !compact(key).isEmpty else { return }
+        if selected.contains(where: { compact($0) == compact(key) }) { return }
+        guard selected.count < 256 else { issue = (viewModel.strings.language == .chinese ? "最多 256 位" : "Maximum 256 recipients"); return }
+        selected.append(key)
+        issue = ""
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading) {
+                ForEach(viewModel.contacts) { contact in
+                    if let key = contact.publicKey {
+                        Toggle(contact.displayName, isOn: Binding(
+                            get: { selected.contains { compact($0) == compact(key) } },
+                            set: { enabled in
+                                if enabled { add(key) } else { selected.removeAll { compact($0) == compact(key) } }
+                            }
+                        )).toggleStyle(.checkbox)
+                    }
+                }
+                TextField((viewModel.strings.language == .chinese ? "临时公钥" : "Temporary public key"), text: $temporary, axis: .vertical)
+                Button((viewModel.strings.language == .chinese ? "添加" : "Add")) { add(temporary); temporary = "" }.disabled(temporary.isEmpty)
+                ForEach(selected.filter { key in !viewModel.contacts.contains { compact($0.publicKey ?? "") == compact(key) } }, id: \.self) { key in
+                    Button((viewModel.strings.language == .chinese ? "移除 · " : "Remove · ") + compact(key).suffix(16)) { selected.removeAll { $0 == key } }
+                }
+                if !issue.isEmpty { Text(issue) }
+            }
+        }.frame(maxHeight: 250)
     }
 }

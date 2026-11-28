@@ -333,9 +333,24 @@ public class ConsoleCommandRunner
                 return;
             }
 
-            clientStartupCoordinator.skipStartupKeySetup();
-            System.out.println(messages.text(ConsoleMessages.Key.STARTUP_SKIPPED));
-            printMissingKeyReminder();
+            while (clientStartupCoordinator.shouldPromptForStartupKeySetup()) {
+                System.out.print("generate-key | import-private-key-file <path> | import-private-key-paste | exit > ");
+                String command = reader.readLine();
+                if (command == null) return;
+                List<String> args = parseArguments(command.trim());
+                if (args.isEmpty()) continue;
+                try {
+                    switch (args.get(0).toLowerCase(Locale.ROOT)) {
+                        case "generate-key" -> generateKey();
+                        case "import-private-key-file" -> importPrivateKeyFile(args);
+                        case "import-private-key-paste" -> importPrivateKeyPaste(reader);
+                        case "quit", "exit" -> { exit(); return; }
+                        default -> printMissingKeyReminder();
+                    }
+                } catch (Exception failure) {
+                    System.out.println(messages.format(ConsoleMessages.Key.COMMAND_FAILED, failure.getMessage()));
+                }
+            }
         } catch (Exception ex) {
             System.out.println(messages.format(ConsoleMessages.Key.STARTUP_UNABLE_HANDLE, ex.getMessage()));
             System.out.println(messages.text(ConsoleMessages.Key.RUN_KEY_INFO_AFTER_CRYPTO));
@@ -472,6 +487,16 @@ public class ConsoleCommandRunner
                 case "help" -> printOfflineHelp();
                 case "language" -> changeLanguage(reader);
                 case "status" -> printStatus();
+                case "fst-file-encrypt-multi" -> {
+                    if (args.size() < 3) throw new IllegalArgumentException("fst-file-encrypt-multi <file> <recipient> [recipient ...]");
+                    var result = offlineCryptoService.encryptMultiFile(PathInputNormalizer.toPath(args.get(1)), args.subList(2, args.size()), null);
+                    System.out.println(result.outputPath());
+                }
+                case "fst-text-encrypt-multi" -> {
+                    if (args.size() < 2) throw new IllegalArgumentException("fst-text-encrypt-multi <recipient> [recipient ...]");
+                    String text = readUntilQuit(reader, "text> ");
+                    if (text != null) System.out.println(offlineCryptoService.encryptMultiText(text, args.subList(1, args.size())).payload());
+                }
                 case "fst-file-encrypt" -> fst2EncryptFile(args);
                 case "fst-file-decrypt" -> fst2DecryptFile(args);
                 case "fst-text-encrypt" -> fstTextEncrypt(reader, args);
@@ -508,6 +533,8 @@ public class ConsoleCommandRunner
     private void printOfflineHelp()
     {
         messages.offlineHelpLines().forEach(System.out::println);
+        System.out.println("fst-file-encrypt-multi <file> <recipient> [recipient ...]");
+        System.out.println("fst-text-encrypt-multi <recipient> [recipient ...]");
     }
 
     private void printDirectStatus()

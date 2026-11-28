@@ -34,6 +34,8 @@ data class Recipient(
 data class OfflineUiState(
     val section: OfflineSection = OfflineSection.FILE_ENCRYPT,
     val recipients: List<Recipient> = emptyList(),
+    val multi: Boolean = false,
+    val selection: List<Recipient> = emptyList(),
     val selectedRecipientId: String? = null,
     val textEncryptInput: String = "",
     val textEncryptOutput: String? = null,
@@ -80,6 +82,7 @@ class OfflineViewModel(
         OfflineUiState(
             section = current.section,
             recipients = recipients,
+            multi = current.multi, selection = current.selection,
             selectedRecipientId = current.selectedRecipientId
                 ?.takeIf { id -> recipients.any { it.id == id } },
             textEncryptInput = current.textEncryptInput,
@@ -97,12 +100,44 @@ class OfflineViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OfflineUiState())
 
-    init { refreshKey() }
+    init {
+        refreshKey()
+        viewModelScope.launch {
+            fileTasks.state.collect { task ->
+                if (task is FileTaskState.Completed && task.operation == com.filesecuritytool.android.service.Operation.ENCRYPT)
+                    local.value = local.value.copy(selection = emptyList())
+            }
+        }
+    }
+
+    fun multiMode(enabled: Boolean) { local.value = local.value.copy(multi = enabled) }
+
+    fun addRecipient(recipient: Recipient) {
+        val selection = local.value.selection
+        if (selection.any { it.fingerprint == recipient.fingerprint }) return
+        if (selection.size == 256) { local.value = local.value.copy(error = "Maximum 256 recipients"); return }
+        local.value = local.value.copy(selection = selection + recipient)
+    }
+    fun addTemporaryKey(input: String): Boolean {
+        return runCatching {
+            val pem = if (input.trim().startsWith("FST-PUB1:") || input.trim().startsWith("{"))
+                com.filesecuritytool.android.core.crypto.PublicKeyArtifactCodec.decode(input)
+            else com.filesecuritytool.android.core.crypto.PublicKeyCodec.normalizePem(input)
+            val fingerprint = com.filesecuritytool.android.core.crypto.PublicKeyCodec.fingerprint(pem)
+            addRecipient(Recipient("temporary:$fingerprint", "Temporary key", fingerprint, pem, Recipient.Source.TEMPORARY_QR))
+            local.value.selection.any { it.fingerprint == fingerprint }
+        }.getOrElse { local.value = local.value.copy(error = it.message); false }
+    }
+
+    fun removeRecipient(fingerprint: String) {
+        local.value = local.value.copy(selection = local.value.selection.filterNot { it.fingerprint == fingerprint })
+    }
+
 
     fun refreshKey() = viewModelScope.launch(Dispatchers.IO) {
         val status = runCatching(keys::status).getOrNull()
         local.value = local.value.copy(
-            self = status?.takeIf { it.exists && !it.permanentlyInvalidated }?.let {
+            self = status?.takeIf { it.exists && !it.permanentlyInvalidated && !it.requiresRegeneration }?.let {
                 Recipient(
                     SELF_ID, "Self", it.fingerprint.orEmpty(), it.publicKeyPem.orEmpty(),
                     Recipient.Source.SELF
@@ -131,6 +166,7 @@ class OfflineViewModel(
                 result.fingerprint, result.publicKeyPem, Recipient.Source.TEMPORARY_QR
             )
         }.onSuccess {
+            if (local.value.multi) { addRecipient(it); return@onSuccess }
             local.value = local.value.copy(
                 temporary = it,
                 selectedRecipientId = it.id,
@@ -161,12 +197,14 @@ class OfflineViewModel(
     }
 
     fun encryptText() = viewModelScope.launch(Dispatchers.Default) {
-        val recipient = state.value.selectedRecipient ?: return@launch
+        val current = state.value
+        if (!current.hasLocalKey) return@launch
         local.value = local.value.copy(busy = true, error = null)
-        runCatching { crypto.encryptText(local.value.textEncryptInput, recipient.publicKeyPem).payload }
+        runCatching { if (current.multi) crypto.encryptMultiText(current.textEncryptInput, current.selection.map { it.publicKeyPem })
+            else crypto.encryptText(current.textEncryptInput, requireNotNull(current.selectedRecipient).publicKeyPem).payload }
             .onSuccess {
                 local.value = local.value.copy(
-                    busy = false, textEncryptOutput = it, textEncryptOutputStale = false
+                    busy = false, selection = if (current.multi) emptyList() else local.value.selection, textEncryptOutput = it, textEncryptOutputStale = false
                 )
             }
             .onFailure { local.value = local.value.copy(busy = false, error = it.message) }
@@ -208,7 +246,7 @@ class OfflineViewModel(
             .onSuccess { local.value = local.value.copy(busy = false, textDecryptOutput = it) }
             .onFailure {
                 local.value = local.value.copy(
-                    busy = false, error = null, decryptionFailed = true
+                    busy = false, error = it.message, decryptionFailed = true
                 )
                 refreshKey()
             }
@@ -221,9 +259,11 @@ class OfflineViewModel(
     }
 
     fun startFileEncrypt(uri: Uri): Boolean {
-        val recipient = state.value.selectedRecipient ?: return false
+        val current = state.value
+        if (!current.hasLocalKey) return false
         return runCatching {
-            fileTasks.startEncrypt(uri, recipient.publicKeyPem)
+            if (current.multi) fileTasks.startEncrypt(uri, "", current.selection.map { it.publicKeyPem })
+            else fileTasks.startEncrypt(uri, requireNotNull(current.selectedRecipient).publicKeyPem)
             true
         }.getOrElse {
             local.value = local.value.copy(error = it.message)
@@ -248,7 +288,9 @@ class OfflineViewModel(
         val section: OfflineSection = OfflineSection.FILE_ENCRYPT,
         val self: Recipient? = null,
         val temporary: Recipient? = null,
-        val selectedRecipientId: String? = null,
+        val multi: Boolean = false,
+    val selection: List<Recipient> = emptyList(),
+    val selectedRecipientId: String? = null,
         val textEncryptInput: String = "",
         val textEncryptOutput: String? = null,
         val textEncryptOutputStale: Boolean = false,

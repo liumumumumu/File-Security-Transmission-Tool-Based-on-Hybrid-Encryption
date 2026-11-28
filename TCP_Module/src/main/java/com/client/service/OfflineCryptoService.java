@@ -1,5 +1,6 @@
 package com.client.service;
 
+import com.fst.protocol.FstMulti;
 import com.client.direct.qr.CborLite;
 import com.common.config.TransferProperties;
 import com.common.crypto.AesGcmChunk;
@@ -68,6 +69,82 @@ public class OfflineCryptoService
         this.cryptoSupport = cryptoSupport;
         this.transferProperties = transferProperties;
         this.publicKeyPayloadService = publicKeyPayloadService;
+    }
+
+    private java.security.PublicKey parseRecipient(String token) {
+        return new com.crypto.KeyMaterialCodec().parsePublicKey(publicKeyPayloadService.resolvePublicKey(token));
+    }
+
+    private java.util.List<java.security.PublicKey> multiKeys(java.util.List<String> recipients) {
+        if (!"true".equals(cryptoSupport.keyStatus().get("hasPrivateKey"))) {
+            throw new IllegalArgumentException("Create or restore your local key pair first");
+        }
+        if (recipients == null) throw new IllegalArgumentException("Select recipients");
+        var keys = new java.util.ArrayList<java.security.PublicKey>();
+        for (String token : recipients) {
+            try { keys.add(parseRecipient(token)); }
+            catch (RuntimeException e) { throw new IllegalArgumentException("Invalid recipient " + (keys.size()+1), e); }
+        }
+        return keys;
+    }
+
+    private byte[] unwrapMulti(byte[] wrapped) throws GeneralSecurityException {
+        return cryptoSupport.decryptWithPrivateKey(Base64.getEncoder().encodeToString(wrapped));
+    }
+
+    public FstTextEncryptResult encryptMultiText(String text, java.util.List<String> recipients) throws Exception {
+        byte[] plain = validateText(text);
+        String payload = FstMulti.encryptText(text, multiKeys(recipients));
+        return new FstTextEncryptResult(true, payload, plain.length);
+    }
+
+    public Fst2EncryptResult encryptMultiFile(Path source, java.util.List<String> recipients, Path directory) throws Exception {
+        var keys = multiKeys(recipients);
+        if (!Files.isRegularFile(source)) throw new IllegalArgumentException("Expected a regular input file");
+        Path dir = resolveOutputDir(directory);
+        Files.createDirectories(dir);
+        long size = Files.size(source);
+        Path output = dir.resolve(UUID.randomUUID() + ".FST3");
+        Path staging = Files.createTempFile(dir, ".fst3-", ".tmp");
+        try {
+            try (var in = Files.newInputStream(source); var out = Files.newOutputStream(staging)) {
+                FstMulti.encryptFile(in, out, size, source.getFileName().toString(), keys, (done,total) -> {});
+            }
+            moveCompletedTempFile(staging, output);
+            return new Fst2EncryptResult(true, output, output.getFileName().toString(), size, computeTotalBlocks(size, 1 << 20));
+        } finally { Files.deleteIfExists(staging); }
+    }
+
+    private Fst2DecryptResult decryptMultiFile(DataInputStream in, Path dir) throws Exception {
+        Path staging = Files.createTempFile(dir, ".fst3-", ".tmp");
+        String[] filename = new String[1];
+        try {
+            long size = FstMulti.decryptFile(in, parseRecipient(cryptoSupport.getEncodedPublicKey()), this::unwrapMulti, name -> {
+                filename[0] = sanitizeFileName(name);
+                return Files.newOutputStream(staging);
+            }, (done,total) -> {});
+            Path output = publishMultiFile(staging, dir, filename[0]);
+            return new Fst2DecryptResult(true, output, output.getFileName().toString(), size, computeTotalBlocks(size, 1 << 20));
+        } finally { Files.deleteIfExists(staging); }
+    }
+
+    private synchronized Path publishMultiFile(Path staging, Path dir, String filename) throws IOException {
+        while (true) {
+            Path output = uniqueOutputPath(dir, filename);
+            try {
+                // A hard link publishes the complete file only if its destination is still free.
+                try {
+                    Files.createLink(output, staging);
+                } catch (java.nio.file.FileAlreadyExistsException collision) {
+                    throw collision;
+                } catch (UnsupportedOperationException | java.nio.file.FileSystemException unsupported) {
+                    Files.move(staging, output);
+                }
+                return output;
+            } catch (java.nio.file.FileAlreadyExistsException concurrentWrite) {
+                // Another writer obtained this name. Keep the staged file and try the next name.
+            }
+        }
     }
 
     public Fst2EncryptResult encryptFile(Path sourcePath, String receiverPublicKeyToken, Path outputDir)
@@ -153,8 +230,12 @@ public class OfflineCryptoService
             Path targetDir = resolveOutputDir(outputDir);
             Files.createDirectories(targetDir);
 
-            try(DataInputStream in = new DataInputStream(Files.newInputStream(source)))
+            try(DataInputStream in = new DataInputStream(new java.io.BufferedInputStream(Files.newInputStream(source))))
             {
+                in.mark(4);
+                boolean multi = Arrays.equals(in.readNBytes(4), new byte[]{70,83,84,51});
+                in.reset();
+                if (multi) return decryptMultiFile(in, targetDir);
                 readAndValidateFst2Prefix(in);
                 byte[] encryptedSessionKey = readLengthBytes(in, "encryptedSessionKey");
                 byte[] nonceSeed = readLengthBytes(in, "nonceSeed");
@@ -311,6 +392,10 @@ public class OfflineCryptoService
     {
         try
         {
+            if (payloadText != null && payloadText.trim().startsWith(FstMulti.TEXT)) {
+                String plain = FstMulti.decryptText(payloadText, parseRecipient(cryptoSupport.getEncodedPublicKey()), this::unwrapMulti);
+                return new FstTextDecryptResult(true, plain, plain.getBytes(StandardCharsets.UTF_8).length);
+            }
             String encoded = normalizeFstTextPayload(payloadText);
             byte[] payloadBytes = decodeBase64Url(encoded);
             Map<String, Object> payload = CborLite.decodeMap(payloadBytes);

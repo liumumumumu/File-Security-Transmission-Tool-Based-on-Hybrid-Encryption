@@ -110,7 +110,7 @@ final class AppViewModel: ObservableObject {
         if let keyStatus {
             return !keyStatus.hasUsablePrivateKey
         }
-        return startupStatus?.keyMissing == true
+        return startupStatus?.keyMissing ?? true
     }
 
     func refreshKeyState() async {
@@ -635,6 +635,25 @@ final class AppViewModel: ObservableObject {
             lastUpdated = Date()
         } catch {
             operationMessage = error.localizedDescription
+        }
+    }
+
+    func encryptMultiple(recipients: [String], filePath: String? = nil, outputDir: String? = nil, text: String? = nil) async -> Bool {
+        guard !operationInProgress, !isPrivateKeyMissing, !recipients.isEmpty else { return false }
+        operationInProgress = true
+        defer { operationInProgress = false }
+        do {
+            if let filePath {
+                offlineFileResult = try await apiClient.encryptMultiFile(filePath, outputDir: outputDir?.nilIfBlank, recipients: recipients)
+            } else if let text {
+                offlineTextOutput = try await apiClient.encryptMultiText(text, recipients: recipients).payload ?? ""
+            }
+            operationMessage = nil
+            lastUpdated = Date()
+            return true
+        } catch {
+            operationMessage = error.localizedDescription
+            return false
         }
     }
 

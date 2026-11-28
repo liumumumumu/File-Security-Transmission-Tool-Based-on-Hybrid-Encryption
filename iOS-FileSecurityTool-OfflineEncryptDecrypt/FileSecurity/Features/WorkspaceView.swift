@@ -7,6 +7,9 @@ struct WorkspaceView: View {
     @State private var textMode = false
     @State private var recipient = "self"
     @State private var scannedRecipient: String?
+    @State private var multi = false
+    @State private var selection: [String] = []
+    @State private var temporary = ""
     @State private var scanningRecipient = false
     @State private var text = ""
     @State private var result = ""
@@ -17,6 +20,17 @@ struct WorkspaceView: View {
         if recipient == "scanned" { return scannedRecipient }
         return recipient == "self" ? (store.publicPEM.isEmpty ? nil : store.publicPEM) : store.contacts.first { $0.id.uuidString == recipient }?.pem
     }
+    private func add(_ value: String) {
+        do {
+            let pem = try PublicKey.normalize(value)
+            if !selection.contains(pem) {
+                try require(selection.count < 256, "Maximum 256 recipients")
+                selection.append(pem)
+            }
+            temporary = ""
+        } catch { store.error = error.localizedDescription }
+    }
+
     var body: some View {
         Page(title: "Workspace") {
             HStack(alignment: .top, spacing: 16) {
@@ -34,18 +48,39 @@ struct WorkspaceView: View {
                 if !decrypt {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Recipient").font(.headline)
+                        Toggle("Multiple recipients", isOn: $multi)
+                        if multi {
+                            ForEach(store.contacts) { contact in
+                                Toggle(contact.name, isOn: Binding(
+                                    get: { selection.contains(contact.pem) },
+                                    set: { enabled in
+                                        if enabled { add(contact.pem) } else { selection.removeAll { $0 == contact.pem } }
+                                    }
+                                ))
+                            }
+                            TextField("Temporary public key", text: $temporary, axis: .vertical)
+                            Button("Add public key") { add(temporary) }.disabled(temporary.isEmpty)
+                            ForEach(selection.filter { key in !store.contacts.contains { $0.pem == key } }, id: \.self) { key in
+                                Button("Remove · " + ((try? PublicKey.fingerprint(key))?.suffix(12) ?? "")) {
+                                    selection.removeAll { $0 == key }
+                                }
+                            }
+                        } else {
                         Picker("Recipient", selection: $recipient) {
                             Text("My local key").tag("self")
                             if scannedRecipient != nil { Text("Scanned public key").tag("scanned") }
                             ForEach(store.contacts) { Text($0.name).tag($0.id.uuidString) }
                         }.pickerStyle(.menu).frame(maxWidth: .infinity, alignment: .leading)
+                        }
                         Button { scanningRecipient = true } label: {
                             Label("Scan recipient public key", systemImage: "qrcode.viewfinder")
                         }.accessibilityIdentifier("scan-recipient")
+                        if !multi {
                         if let pem = recipientPEM { FingerprintView(pem: pem) }
                         else { Text("Create your key, scan a public key, or add a contact to begin.").font(.footnote).foregroundStyle(.secondary) }
                         if recipient == "scanned" {
                             Text("Used for this session only. Not saved to Contacts.").font(.caption).foregroundStyle(.secondary)
+                        }
                         }
                     }
                 }
@@ -54,7 +89,7 @@ struct WorkspaceView: View {
                     TextEditor(text: $text).frame(minHeight: 150).scrollContentBackground(.hidden).padding(10)
                         .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
                         .accessibilityLabel(decrypt ? "Encrypted text" : "Message")
-                    Text(decrypt ? LocalizedStringKey("Paste an FST-TEXT1 payload.") : LocalizedStringKey("Up to 16 KiB of UTF-8 text.")).font(.caption).foregroundStyle(.secondary)
+                    Text(decrypt ? LocalizedStringKey("Paste an FST-TEXT1 or FST-TEXT2 payload.") : LocalizedStringKey("Up to 16 KiB of UTF-8 text.")).font(.caption).foregroundStyle(.secondary)
                 } else {
                     Button { importing = true } label: {
                         VStack(spacing: 12) {
@@ -66,13 +101,20 @@ struct WorkspaceView: View {
                             .background(Palette.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
                             .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Palette.teal.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [6])))
                     }.buttonStyle(.plain).accessibilityLabel("Choose a file").accessibilityIdentifier("file-picker")
-                    Text(decrypt ? LocalizedStringKey("Select an FST2 file encrypted for your local key.") : LocalizedStringKey("The original filename is hidden inside the encrypted file.")).font(.footnote).foregroundStyle(.secondary)
+                    Text(decrypt ? LocalizedStringKey("Select an FST2 or FST3 file encrypted for your local key.") : LocalizedStringKey("The original filename is hidden inside the encrypted file.")).font(.footnote).foregroundStyle(.secondary)
                 }
                 PrimaryButton(title: decrypt ? "Decrypt securely" : "Encrypt securely", icon: decrypt ? "lock.open" : "lock.fill") {
                     result = ""
-                    if textMode { store.transformText(text, recipient: decrypt ? nil : recipientPEM) { result = $0 } }
-                    else if let file { store.processFile(file, recipient: decrypt ? nil : recipientPEM) }
-                }.disabled(store.busy || (!decrypt && recipientPEM == nil) || (decrypt && !KeyVault.exists) || (textMode ? text.isEmpty : file == nil))
+                    let many = !decrypt && multi ? selection : nil
+                    let single = decrypt || multi ? nil : recipientPEM
+                    if textMode {
+                        store.transformText(text, recipient: single, recipients: many) {
+                            result = $0
+                            if many != nil { selection.removeAll() }
+                        }
+                    }
+                    else if let file { store.processFile(file, recipient: single, recipients: many) { if many != nil { selection.removeAll() } } }
+                }.disabled(store.busy || (!decrypt && (!KeyVault.exists || (multi ? selection.isEmpty : recipientPEM == nil))) || (decrypt && !KeyVault.exists) || (textMode ? text.isEmpty : file == nil))
             }.disabled(store.busy)
             if store.busy {
                 Card {
@@ -102,6 +144,7 @@ struct WorkspaceView: View {
         }
         .sheet(isPresented: $scanningRecipient) {
             RecipientScannerView { pem in
+                if multi { add(pem); return }
                 scannedRecipient = pem
                 recipient = "scanned"
                 result = ""

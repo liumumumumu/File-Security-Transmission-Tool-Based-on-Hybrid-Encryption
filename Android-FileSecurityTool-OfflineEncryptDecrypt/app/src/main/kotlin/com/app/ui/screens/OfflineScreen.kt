@@ -127,12 +127,12 @@ private fun FileEncryptPanel(
             onClick = {
                 if (viewModel.startFileEncrypt(requireNotNull(file))) startService()
             },
-            enabled = file != null && state.selectedRecipient != null &&
+            enabled = file != null && state.hasLocalKey && (if (state.multi) state.selection.isNotEmpty() else state.selectedRecipient != null) &&
                 state.fileTask !is FileTaskState.Running,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                state.selectedRecipient?.let {
+                if (state.multi) stringResource(R.string.encrypt_multiple) else state.selectedRecipient?.let {
                     stringResource(R.string.encrypt_for_recipient, recipientDisplayName(it))
                 } ?: stringResource(R.string.select_receiver_first)
             )
@@ -172,7 +172,7 @@ private fun FileDecryptPanel(
                     if (viewModel.startFileDecrypt(requireNotNull(file))) startService()
                 }
             },
-            enabled = file != null && fileName.endsWith(".fst2", true) &&
+            enabled = file != null &&
                 state.hasLocalKey && state.fileTask !is FileTaskState.Running,
             modifier = Modifier.fillMaxWidth()
         ) { Text(stringResource(R.string.decrypt)) }
@@ -196,11 +196,11 @@ private fun TextEncryptPanel(state: OfflineUiState, viewModel: OfflineViewModel)
         Button(
             onClick = viewModel::encryptText,
             enabled = state.textEncryptInput.toByteArray().size in 1..16_384 &&
-                state.selectedRecipient != null && !state.busy,
+                state.hasLocalKey && (if (state.multi) state.selection.isNotEmpty() else state.selectedRecipient != null) && !state.busy,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                state.selectedRecipient?.let {
+                if (state.multi) stringResource(R.string.encrypt_multiple) else state.selectedRecipient?.let {
                     stringResource(R.string.encrypt_for_recipient, recipientDisplayName(it))
                 } ?: stringResource(R.string.select_receiver_first)
             )
@@ -249,7 +249,7 @@ private fun TextDecryptPanel(
         if (!state.hasLocalKey) Text(stringResource(R.string.no_key_pair_hint))
         Button(
             onClick = { authenticate(viewModel::decryptText) },
-            enabled = state.textDecryptInput.startsWith("FST-TEXT1:") &&
+            enabled = (state.textDecryptInput.trim().startsWith("FST-TEXT1:") || state.textDecryptInput.trim().startsWith("FST-TEXT2:")) &&
                 state.hasLocalKey && !state.busy,
             modifier = Modifier.fillMaxWidth()
         ) { Text(stringResource(R.string.decrypt)) }
@@ -276,6 +276,33 @@ private fun RecipientChooser(state: OfflineUiState, viewModel: OfflineViewModel)
         it?.let(viewModel::importTemporaryRecipient)
     }
     Text(stringResource(R.string.receiver_source), style = MaterialTheme.typography.titleMedium)
+    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        androidx.compose.material3.Checkbox(state.multi, viewModel::multiMode, enabled = !state.busy && state.fileTask !is FileTaskState.Running)
+        Text(stringResource(R.string.multiple_recipients))
+    }
+    if (state.multi) {
+        val editable = !state.busy && state.fileTask !is FileTaskState.Running
+        var publicKeyText by remember { mutableStateOf("") }
+        OutlinedTextField(publicKeyText, { publicKeyText = it }, enabled = editable,
+            label = { Text(stringResource(R.string.temporary_public_key)) }, modifier = Modifier.fillMaxWidth())
+        TextButton(onClick = { if (viewModel.addTemporaryKey(publicKeyText)) publicKeyText = "" },
+            enabled = editable && publicKeyText.isNotBlank()) { Text(stringResource(R.string.add_public_key)) }
+        state.recipients.filter { it.source == Recipient.Source.CONTACT }.forEach { item ->
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                androidx.compose.material3.Checkbox(state.selection.any { it.fingerprint == item.fingerprint }, {
+                    if (it) viewModel.addRecipient(item) else viewModel.removeRecipient(item.fingerprint)
+                }, enabled = editable)
+                Text(item.name)
+            }
+        }
+        state.selection.filter { selected -> state.recipients.none { it.source == Recipient.Source.CONTACT && it.fingerprint == selected.fingerprint } }.forEach { item ->
+            TextButton(onClick = { viewModel.removeRecipient(item.fingerprint) }, enabled = editable) {
+                Text(stringResource(R.string.remove_temp_recipient, item.fingerprint.takeLast(12)))
+            }
+        }
+        TextButton(onClick = { pngPicker.launch("image/png") }, enabled = editable) { Text(stringResource(R.string.select_public_key_png)) }
+        return
+    }
     ExposedDropdownMenuBox(expanded, { expanded = it }) {
         OutlinedTextField(
             value = state.selectedRecipient?.let {
@@ -365,8 +392,8 @@ private fun OperationPanel(
         Text(stringResource(title), style = MaterialTheme.typography.titleLarge)
         content()
         if (state.busy) CircularProgressIndicator()
-        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        if (state.decryptionFailed) {
+        state.error?.let { Text(if (it == "No entry matches the current public key") stringResource(R.string.no_matching_recipient) else it, color = MaterialTheme.colorScheme.error) }
+        if (state.decryptionFailed && state.error == null) {
             Text(
                 stringResource(R.string.decryption_failed_user_message),
                 color = MaterialTheme.colorScheme.error
@@ -443,9 +470,7 @@ private fun FileTaskCard(task: FileTaskState, onCancel: () -> Unit, onClear: () 
         }
         is FileTaskState.Failed -> Column {
             Text(
-                if (task.operation == Operation.DECRYPT) {
-                    stringResource(R.string.decryption_failed_user_message)
-                } else task.message,
+                if (task.message == "No entry matches the current public key") stringResource(R.string.no_matching_recipient) else task.message,
                 color = MaterialTheme.colorScheme.error
             )
             TextButton(onClick = onClear) { Text(stringResource(R.string.dismiss)) }

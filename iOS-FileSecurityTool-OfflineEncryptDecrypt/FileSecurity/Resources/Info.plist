@@ -16,6 +16,7 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.filesecuritytool.fst2</string>
+				<string>com.filesecuritytool.fst3</string>
 			</array>
 		</dict>
 	</array>
@@ -70,6 +71,26 @@
 				</array>
 				<key>public.mime-type</key>
 				<string>application/x-fst2</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>FST3 encrypted file</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.filesecuritytool.fst3</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>FST3</string>
+					<string>fst3</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/x-fst3</string>
 			</dict>
 		</dict>
 	</array>

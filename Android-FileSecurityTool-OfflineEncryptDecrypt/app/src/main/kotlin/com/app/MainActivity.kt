@@ -121,7 +121,7 @@ class MainActivity : FragmentActivity() {
                             incoming.action == Intent.ACTION_SEND &&
                                 incoming.type == "text/plain" -> {
                                 incoming.getStringExtra(Intent.EXTRA_TEXT)
-                                    ?.takeIf { it.trim().startsWith("FST-TEXT1:") }
+                                    ?.takeIf { it.trim().startsWith("FST-TEXT1:") || it.trim().startsWith("FST-TEXT2:") }
                                     ?.let {
                                         offlineVM.prefillTextDecrypt(it)
                                         selectedTab = 0
@@ -130,10 +130,6 @@ class MainActivity : FragmentActivity() {
                         }
                     }
                     incomingIntent.value = null
-                }
-                val app = application as FileSecurityToolApplication
-                var noKeyDismissed by remember {
-                    mutableStateOf(app.noKeyBannerDismissed)
                 }
                 var explainNotifications by remember { mutableStateOf(false) }
                 val notificationPermission = rememberLauncherForActivityResult(
@@ -149,30 +145,9 @@ class MainActivity : FragmentActivity() {
                         explainNotifications = true
                     }
                 }
-                LaunchedEffect(keyUi.status.exists) {
-                    if (keyUi.status.exists) noKeyDismissed = false
-                }
+                LaunchedEffect(keyUi.status) { offlineVM.refreshKey() }
                 val screenContent: @Composable () -> Unit = {
                     Column(Modifier.fillMaxSize()) {
-                        if (!keyUi.status.exists && !noKeyDismissed) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.errorContainer,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(Modifier.padding(horizontal = 12.dp)) {
-                                    TextButton(
-                                        onClick = { selectedTab = 2 },
-                                        modifier = Modifier.weight(1f)
-                                    ) { Text(stringResource(R.string.no_local_key_banner)) }
-                                    TextButton(onClick = {
-                                        noKeyDismissed = true
-                                        app.noKeyBannerDismissed = true
-                                    }) {
-                                        Text(stringResource(R.string.dismiss))
-                                    }
-                                }
-                            }
-                        }
                         (fileTaskState as? FileTaskState.Running)?.let { task ->
                             Surface(
                                 color = MaterialTheme.colorScheme.secondaryContainer,
@@ -192,7 +167,7 @@ class MainActivity : FragmentActivity() {
                             modifier = Modifier.fillMaxSize(),
                             color = MaterialTheme.colorScheme.background
                         ) {
-                            when (selectedTab) {
+                            when (if (keyUi.status.exists && !keyUi.status.permanentlyInvalidated && !keyUi.status.requiresRegeneration) selectedTab else 2) {
                                 0 -> OfflineScreen(
                                     viewModel = offlineVM,
                                     authenticateForDecryption = { action ->

@@ -15,7 +15,7 @@ struct KeysView: View {
             Card {
                 Label("Your local identity", systemImage: "key.horizontal.fill").font(.headline)
                 Text("People encrypt with your public key. Only your private key can unlock their files and messages.").font(.subheadline).foregroundStyle(.secondary)
-                if store.publicPEM.isEmpty {
+                if store.publicPEM.isEmpty || !KeyVault.exists {
                     if KeyVault.exists {
                         PrimaryButton(title: "Restore public key display", icon: "arrow.clockwise") { store.recoverPublicKey() }
                     } else {
@@ -67,7 +67,7 @@ struct SettingsView: View {
             Card {
                 Label("File Security Tool", systemImage: "lock.shield").font(.headline)
                 Text("Version 1.0.0 · iOS 17+").font(.subheadline).foregroundStyle(.secondary)
-                Text("Compatible with Android and Java FST2 / FST-TEXT1. This development build still needs cross-device and real-iPhone validation before release.").font(.footnote).foregroundStyle(.secondary)
+                Text("Reads single-recipient FST2 and FST-TEXT1, and multi-recipient FST3 and FST-TEXT2.").font(.footnote).foregroundStyle(.secondary)
             }
         }
     }

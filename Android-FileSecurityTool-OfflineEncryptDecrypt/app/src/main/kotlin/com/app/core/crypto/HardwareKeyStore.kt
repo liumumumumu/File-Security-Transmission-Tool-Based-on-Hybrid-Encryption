@@ -86,6 +86,9 @@ class HardwareKeyStore(
                 requiresRegeneration = true
             )
         }
+        if (publicKeyPem != null || encryptedPrivateKey != null || nonce != null || store.containsAlias(wrappingAlias)) {
+            return KeyStatus(exists = true, permanentlyInvalidated = true)
+        }
         return KeyStatus(exists = false)
     }
 

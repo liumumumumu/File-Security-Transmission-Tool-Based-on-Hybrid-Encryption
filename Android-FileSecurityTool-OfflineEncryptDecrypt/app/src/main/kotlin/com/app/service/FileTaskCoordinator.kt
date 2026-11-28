@@ -50,19 +50,21 @@ class FileTaskCoordinator(
     private val cancelled = AtomicBoolean(false)
 
     @Synchronized
-    fun startEncrypt(inputUri: Uri, receiverPublicKeyPem: String) {
+    fun startEncrypt(inputUri: Uri, receiverPublicKeyPem: String, recipients: List<String>? = null) {
         ensureNotRunning()
         val metadata = metadata(inputUri)
-        ensureSpace(estimatedEncryptedSize(metadata.size))
+        ensureSpace(estimatedEncryptedSize(metadata.size) + (recipients?.size ?: 0) * 548L)
         cancelled.set(false)
         _state.value = FileTaskState.Running(Operation.ENCRYPT, metadata.name, 0, metadata.size)
         scope.launch {
             var pending: DownloadsOutputStore.PendingOutput? = null
             try {
-                pending = outputs.create(DownloadsOutputStore.fst2ArtifactName(), FST2_MIME)
+                pending = outputs.create(if (recipients == null) DownloadsOutputStore.fst2ArtifactName() else "${java.util.UUID.randomUUID()}.FST3", FST2_MIME)
                 resolver.openInputStream(inputUri).use { input ->
                     requireNotNull(input) { "Unable to open input file" }
-                    crypto.encryptFile(
+                    if (recipients != null) {
+                        crypto.encryptMultiFile(input, metadata.name, metadata.size, recipients, pending.stream, ::updateEncryptProgress, cancelled::get)
+                    } else crypto.encryptFile(
                         input,
                         metadata.name,
                         metadata.size,
@@ -91,7 +93,6 @@ class FileTaskCoordinator(
         ensureNotRunning()
         crypto.requireAuthentication()
         val metadata = metadata(inputUri)
-        require(metadata.name.endsWith(".fst2", ignoreCase = true)) { "A .fst2 file is required" }
         ensureSpace(metadata.size)
         cancelled.set(false)
         _state.value = FileTaskState.Running(Operation.DECRYPT, metadata.name, 0, metadata.size)
@@ -123,7 +124,7 @@ class FileTaskCoordinator(
                 _state.value = FileTaskState.Cancelled
             } catch (failure: Throwable) {
                 pending?.let(outputs::discard)
-                _state.value = FileTaskState.Failed(Operation.DECRYPT, "Unable to decrypt")
+                _state.value = FileTaskState.Failed(Operation.DECRYPT, safeMessage(failure))
             }
         }
     }

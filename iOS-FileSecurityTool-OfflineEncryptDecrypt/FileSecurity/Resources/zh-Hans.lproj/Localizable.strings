@@ -99,3 +99,11 @@
 "Live QR scanning is unavailable on this device." = "此设备不支持实时二维码扫描。";
 "Allow camera access in iPhone Settings to scan a public key." = "请在 iPhone 设置中允许相机权限以扫描公钥。";
 "The camera is currently unavailable. Please try again." = "相机当前不可用，请稍后重试。";
+
+"Multiple recipients" = "多发";
+"Temporary public key" = "临时公钥";
+"Add public key" = "添加公钥";
+"Paste an FST-TEXT1 or FST-TEXT2 payload." = "粘贴 FST-TEXT1 或 FST-TEXT2 密文。";
+"Select an FST2 or FST3 file encrypted for your local key." = "选择使用本机公钥加密的 FST2 或 FST3 文件。";
+
+"Reads single-recipient FST2 and FST-TEXT1, and multi-recipient FST3 and FST-TEXT2." = "支持单发 FST2 和 FST-TEXT1，以及多发 FST3 和 FST-TEXT2。";

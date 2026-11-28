@@ -37,6 +37,7 @@ public enum FSTCrypto {
     }
     public static func decryptText(_ text: String, privateKey: SecKey) throws -> String {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.hasPrefix(MultiEnvelope.textPrefix) { return try MultiEnvelope.decryptText(text, privateKey: privateKey) }
         try require(text.hasPrefix(textPrefix), "Expected FST-TEXT1 text")
         var encoded = text.dropFirst(textPrefix.count).filter { !$0.isWhitespace }.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
         try require(encoded.count <= 65536)
@@ -53,9 +54,13 @@ public enum FSTCrypto {
     }
 
     // Streams one MiB at a time. Call on a worker task; output must be a private staging URL.
-    public static func processFile(input: URL, output: URL, recipient: String?, privateKey: SecKey?, progress: (Double) -> Void = { _ in }) throws -> String {
+    public static func processFile(input: URL, output: URL, recipient: String?, privateKey: SecKey?, recipients: [String]? = nil, progress: (Double) -> Void = { _ in }) throws -> String {
         let source = try FileHandle(forReadingFrom: input)
         defer { try? source.close() }
+        if recipients != nil || (recipient == nil && (try? source.read(upToCount: 4)) == MultiEnvelope.fileMagic) {
+            return try MultiEnvelope.processFile(input: input, output: output, recipients: recipients, privateKey: privateKey, progress: progress)
+        }
+        try source.seek(toOffset: 0)
         try require(FileManager.default.createFile(atPath: output.path, contents: nil), "Cannot create output")
         let target = try FileHandle(forWritingTo: output)
         var completed = false

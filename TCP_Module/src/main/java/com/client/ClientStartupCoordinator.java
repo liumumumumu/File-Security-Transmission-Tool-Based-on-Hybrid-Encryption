@@ -144,7 +144,9 @@ public class ClientStartupCoordinator
     //处理用户跳过启动密钥设置
     public synchronized Map<String, Object> skipStartupKeySetup()
     {
-        markKeySetupPrompted(true);//表示是否自动生成密钥提示已经问过用户了，不再重复提示
+        if (isKeyMissing(cryptoSupport.keyStatus())) {
+            throw new IllegalArgumentException("Generate or restore a local key pair to continue");
+        }
         return refreshStartupStatus();
     }
 
@@ -181,7 +183,7 @@ public class ClientStartupCoordinator
         lastKeyMissing = isKeyMissing(lastKeyStatus);//判断是否缺失密钥
 
         //如果有密钥但是本地状态还记录’已提示过‘，就自动补上
-        if (!lastKeyMissing && !state.keySetupPrompted) {
+        if (!lastKeyMissing) {
             markKeySetupPrompted(true);
             state.keySetupPrompted = true;
         }
@@ -249,7 +251,7 @@ public class ClientStartupCoordinator
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("keyMissing", lastKeyMissing);
         payload.put("keySetupPrompted", state.keySetupPrompted);
-        payload.put("shouldPromptKeySetup", lastKeyMissing && !state.keySetupPrompted);
+        payload.put("shouldPromptKeySetup", lastKeyMissing);
         payload.put("autoConnectConfigured", currentAutoConnectEnabled);
         payload.put("autoConnectEnabled", currentAutoConnectEnabled);
         payload.put("defaultAutoConnectConfigured", nodeProperties.isAutoConnect());

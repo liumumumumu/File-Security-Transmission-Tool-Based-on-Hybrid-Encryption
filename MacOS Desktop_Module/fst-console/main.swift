@@ -116,8 +116,6 @@ struct ConsoleSession {
             try await printKeyValues(api.post("api/system/key/generate"))
         case "delete-key":
             try await printKeyValues(api.post("api/system/key/delete"))
-        case "skip-key-setup":
-            try await printKeyValues(api.post("api/system/startup/key/skip"))
         case "import-private-key":
             try require(args, 1, "import-private-key <private-key-text-or-path>")
             let value = args.joined(separator: " ")
@@ -239,6 +237,15 @@ struct ConsoleSession {
                 "targetAccountId": args[0],
                 "text": text
             ]))
+        case "offline-file-encrypt-multi", "fst-file-encrypt-multi":
+            try require(args, 2, "offline-file-encrypt-multi <file> <recipient> [recipient ...]")
+            try await printKeyValues(api.post("api/offline/files/encrypt-multi", body: [
+                "filePath": args[0], "recipients": Array(args.dropFirst())
+            ]))
+        case "offline-text-encrypt-multi", "fst-text-encrypt-multi":
+            try require(args, 1, "offline-text-encrypt-multi <recipient> [recipient ...]")
+            let text = readMultilineUntilDot(prompt: "text")
+            try await printKeyValues(api.post("api/offline/text/encrypt-multi", body: ["text": text, "recipients": args]))
         case "offline-file-encrypt", "fst-file-encrypt":
             try await offlineFileEncrypt(args)
         case "offline-file-decrypt", "fst-file-decrypt":
@@ -496,7 +503,7 @@ struct ConsoleSession {
         Commands:
           raw <get|post|put|delete> <api/path> [json-body]
           base-url <http-url>
-          status | startup-status | key-info | generate-key | delete-key | skip-key-setup
+          status | startup-status | key-info | generate-key | delete-key
           import-private-key <private-key-text-or-path>
           import-private-key-file <path> | import-private-key-paste
           export-public-key | export-private-key
@@ -519,6 +526,8 @@ struct ConsoleSession {
           open-received/open-receive/open-file <task-id-or-transfer-id-or-file-name>
           incoming | accept <transfer-id> | reject <transfer-id>
           messages | message/conversation <peer-account-id> | message-send <target-account-id> <text>
+          offline-file-encrypt-multi <file> <recipient> [recipient ...]
+          offline-text-encrypt-multi <recipient> [recipient ...]
           offline-file-encrypt/fst-file-encrypt <file-path> <receiver-key-or-path-or-contact-index> [output-dir]
           offline-file-decrypt/fst-file-decrypt <fst2-path> [output-dir]
           offline-text-encrypt/fst-text-encrypt <receiver-key-or-path-or-contact-index> <text>
