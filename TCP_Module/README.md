@@ -11,6 +11,17 @@
 
 服务端提供 TCP 中继能力，负责认证、在线设备路由、文件传输请求转发、取消和断点重传相关协议转发。
 
+## 离线多发命令
+
+首次使用先创建本机密钥对，也可导入原私钥恢复。进入离线控制台后，接收方参数可以使用联系人编号或公钥文件路径。文本命令执行后会提示输入正文。
+
+```text
+fst-file-encrypt-multi report.pdf contact-1 contact-2
+fst-text-encrypt-multi contact-1 contact-2
+```
+
+本地 HTTP 接口为 `POST /api/offline/files/encrypt-multi` 和 `POST /api/offline/text/encrypt-multi`。 [离线多发协议规格](../OFFLINE-MULTI-RECIPIENT.md)
+
 ## 技术栈
 
 - Java 21

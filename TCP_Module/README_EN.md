@@ -9,6 +9,17 @@ The client provides two interfaces:
 
 The server provides TCP relay capabilities for authentication, online device routing, file transfer request forwarding, transfer cancellation, and retransmission protocol forwarding.
 
+## Offline multi-recipient commands
+
+Create a local key pair or restore your previous private key before sending. In the offline console, use contact identifiers such as `contact-1` or public-key file paths. The text command prompts for the message.
+
+```text
+fst-file-encrypt-multi report.pdf contact-1 contact-2
+fst-text-encrypt-multi contact-1 contact-2
+```
+
+The local HTTP endpoints are `POST /api/offline/files/encrypt-multi` and `POST /api/offline/text/encrypt-multi`. [Multi-recipient protocol specification](../OFFLINE-MULTI-RECIPIENT.md)
+
 ## Tech Stack
 
 - Java 21

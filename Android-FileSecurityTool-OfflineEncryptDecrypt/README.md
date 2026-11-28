@@ -4,7 +4,7 @@
 
 [简体中文](README.md) | [English](README_EN.md)
 
-FileSecurityTransmission 是一个纯本地 Android 文件与文本加解密工具。应用不连接业务服务器，通过联系人公钥加密内容，并生成与 macOS/Java 客户端兼容的 `FST2` 文件或 `FST-TEXT1` 文本。
+FileSecurityTransmission 是一个纯本地 Android 文件与文本加解密工具。支持与 iOS、原生 macOS 和 Java 离线服务互通的单发及多发加密。
 
 > 当前项目仍处于开发和跨设备验证阶段，不应作为已审计的正式密码产品发布。
 
@@ -12,18 +12,22 @@ FileSecurityTransmission 是一个纯本地 Android 文件与文本加解密工�
 
 - 文件加密与解密，输出到 `Downloads/FileSecurity/`
 - 文本加密与解密
-- FST2 / FST-TEXT1 跨平台容器
+- FST2、FST3、FST-TEXT1 和 FST-TEXT2 跨平台容器
 - 本地联系人及公钥管理
 - 扫描、导入和导出公钥二维码
 - 本机公钥作为加密接收者
 - 文件任务进度、取消、后台前台服务与失败清理
 - 中英文界面、浅色/深色/跟随系统主题
-- 接收系统分享的 FST-TEXT1 文本及 FST2 文件
+- 接收系统分享的 FST-TEXT1 / FST-TEXT2 文本及 FST2 / FST3 文件
 - 生物识别或设备凭据保护私钥使用
 
 应用完全离线运行。摄像头权限仅在扫描二维码时申请，通知权限仅在需要显示后台文件任务时申请。
 
 ## 兼容格式
+
+### 离线多发
+
+勾选「多发」，从通讯录选择接收方，也可加入临时公钥。一次可为 1 至 256 把不同的公钥生成同一份密文。文件使用 `FST3`，文本使用 `FST-TEXT2`，文本明文上限为 16 KiB（UTF-8）。生成后可将同一份密文分享给所有接收方，各自用本机私钥打开。普通单发继续使用 `FST2` 和 `FST-TEXT1`。 首次使用须在本机创建密钥对。 [离线多发协议规格](../OFFLINE-MULTI-RECIPIENT.md)
 
 ### FST2 文件
 

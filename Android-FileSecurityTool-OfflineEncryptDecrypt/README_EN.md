@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | [English](README_EN.md)
 
-FileSecurityTransmission is a fully offline Android application for encrypting and decrypting files and text. It encrypts content for a recipient's public key without connecting to an application server, producing `FST2` files and `FST-TEXT1` messages compatible with the macOS/Java client.
+FileSecurityTransmission is a fully offline Android application for encrypting and decrypting files and text. It supports single-recipient and multi-recipient encryption compatible with iOS, native macOS, and Java.
 
 > The project is under active development and cross-device validation. It must not be treated as an audited, production-ready cryptographic product.
 
@@ -10,18 +10,22 @@ FileSecurityTransmission is a fully offline Android application for encrypting a
 
 - File encryption and decryption with output under `Downloads/FileSecurity/`
 - Text encryption and decryption
-- Cross-platform FST2 and FST-TEXT1 containers
+- Cross-platform FST2, FST3, FST-TEXT1, and FST-TEXT2 containers
 - Local contact and public-key management
 - Public-key QR scanning, import, and export
 - Encryption to the device's own public key
 - File-task progress, cancellation, foreground execution, and failed-output cleanup
 - Chinese and English interfaces with light, dark, and system themes
-- Android sharing support for incoming FST-TEXT1 text and FST2 files
+- Android sharing support for incoming encrypted text (FST-TEXT1/FST-TEXT2) and files (FST2/FST3)
 - Private-key access protected by strong biometrics or device credentials
 
 The application operates entirely offline. Camera permission is requested only when scanning a QR code, and notification permission is requested only when a background file task needs a foreground notification.
 
 ## Compatible Formats
+
+### Multiple recipients
+
+Enable **Multiple recipients**, select contacts, and add any temporary public keys. One encrypted file (`FST3`) or text payload (`FST-TEXT2`) can be shared with 1–256 distinct recipient keys. Each recipient opens the same payload with their local private key. Text accepts up to 16 KiB of UTF-8 plaintext. Single-recipient mode continues to use `FST2` and `FST-TEXT1`. Create the local key pair on this device before sending. [Multi-recipient protocol specification](../OFFLINE-MULTI-RECIPIENT.md)
 
 ### FST2 Files
 

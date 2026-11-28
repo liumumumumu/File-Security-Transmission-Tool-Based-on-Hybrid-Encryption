@@ -2,6 +2,10 @@
 
 A working secure file transmission prototype based on hybrid encryption. It implements file transfer, text messaging, contact management, a local crypto service, a Web UI, and a desktop launcher. The project is organized into separate modules: Java handles the client/server transport path and local HTTP API, Python provides the local crypto service, Vue provides the frontend UI, and Electron provides the desktop entrypoint.
 
+## Offline multi-recipient encryption
+
+Enable **Multiple recipients**, select contacts, and add any temporary public keys. One encrypted file (`FST3`) or text payload (`FST-TEXT2`) can be shared with 1–256 distinct recipient keys. Each recipient opens the same payload with their local private key. Text accepts up to 16 KiB of UTF-8 plaintext. Single-recipient mode continues to use `FST2` and `FST-TEXT1`. Available on Android, iOS, native macOS, and the Java offline service. Automatic TCP delivery is planned for a later update. [Multi-recipient protocol specification](OFFLINE-MULTI-RECIPIENT.md)
+
 ## Implemented Features
 
 - Hybrid encrypted file transfer: AES-GCM encrypts file content, RSA-OAEP wraps session keys, and signatures plus public-key fingerprints support identity-related flows.

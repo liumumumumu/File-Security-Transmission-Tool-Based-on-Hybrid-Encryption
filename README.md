@@ -10,6 +10,10 @@ A secure file transmission prototype based on hybrid encryption.
 | 中文 | [打开中文 README](README-ZH.md) |
 | English | [Open English README](README-EN.md) |
 
+## Offline multi-recipient encryption · 离线多发
+
+Android、iPhone 和原生 macOS 支持为多位接收方生成同一份密文。The Java offline service uses the same `FST3` and `FST-TEXT2` formats. [协议规格 / Protocol specification](OFFLINE-MULTI-RECIPIENT.md)
+
 ## Quick Links
 
 - [Encryption Module](Encryption_module/README.md)
